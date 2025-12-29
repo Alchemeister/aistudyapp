@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { signInWithGoogle } from '../services/firebase';
+import { signInWithGoogle, signInWithEmail, signUpWithEmail } from '../services/firebase';
 
 interface Props {
   onLoginSuccess: (user: any) => void;
@@ -8,38 +8,9 @@ interface Props {
 export const Login: React.FC<Props> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const user = await signInWithGoogle();
-      onLoginSuccess(user);
-    } catch (e: any) {
-      console.error("Login Error Details:", e.code, e.message);
-      
-      // Check for our custom missing config error
-      if (e.message === "MISSING_CONFIG") {
-         setError("Firebase config missing – check .env file");
-         return; // Don't fallback to demo auto-login for config errors, let user fix it or choose demo manually
-      }
-
-      // Check for common misconfiguration error codes or messages
-      const isConfigError = 
-        e.code === 'auth/invalid-api-key' || 
-        e.code === 'auth/configuration-not-found' ||
-        e.message?.includes('api-key') ||
-        e.message?.includes('valid-api-key');
-
-      if (isConfigError) {
-        setError("Invalid API Key configuration. Please check .env file.");
-      } else {
-        setError("Could not sign in with Google. Please try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
 
   const handleDemoLogin = () => {
     onLoginSuccess({
@@ -49,9 +20,64 @@ export const Login: React.FC<Props> = ({ onLoginSuccess }) => {
     });
   };
 
+  const handleError = (e: any) => {
+    console.error("Login Error Details:", e.code, e.message);
+    setLoading(false);
+
+    // If configuration is missing, suggest Demo Mode
+    if (e.message === "MISSING_CONFIG" || e.code === 'auth/configuration-not-found' || e.code === 'auth/invalid-api-key') {
+       setError("Firebase not configured. Switching to Demo Mode in 2s...");
+       setTimeout(handleDemoLogin, 2000);
+       return; 
+    }
+
+    if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
+      setError("Invalid email or password.");
+    } else if (e.code === 'auth/email-already-in-use') {
+      setError("Email already in use. Please sign in.");
+    } else if (e.code === 'auth/weak-password') {
+      setError("Password should be at least 6 characters.");
+    } else {
+      setError(e.message || "Authentication failed. Try Demo Account.");
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const user = await signInWithGoogle();
+      onLoginSuccess(user);
+    } catch (e: any) {
+      handleError(e);
+    }
+  };
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError("Please fill in all fields.");
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      let user;
+      if (isSignUp) {
+        user = await signUpWithEmail(email, password);
+      } else {
+        user = await signInWithEmail(email, password);
+      }
+      onLoginSuccess(user);
+    } catch (e: any) {
+      handleError(e);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden animate-fade-in-up">
+    <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in-up">
         <div className="p-8 text-center">
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-3xl mx-auto mb-6 shadow-lg transform rotate-3">
             <i className="fas fa-graduation-cap"></i>
@@ -63,7 +89,7 @@ export const Login: React.FC<Props> = ({ onLoginSuccess }) => {
             <button 
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full py-3 px-4 bg-white border border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-3 shadow-sm hover:shadow-md active:scale-[0.98]"
+              className="w-full py-3 px-4 bg-white border-2 border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-3 shadow-sm hover:shadow-md active:scale-[0.98]"
             >
                {loading ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fab fa-google text-red-500"></i>}
                Continue with Google
@@ -71,28 +97,59 @@ export const Login: React.FC<Props> = ({ onLoginSuccess }) => {
             
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
-              <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-slate-400">or</span></div>
+              <div className="relative flex justify-center text-sm"><span className="px-3 bg-white text-slate-400 font-medium">or email</span></div>
             </div>
 
-            <form className="space-y-3 opacity-50 pointer-events-none">
-              <input type="email" placeholder="Email address" className="w-full p-3 border border-slate-200 rounded-lg bg-slate-50" disabled />
-              <input type="password" placeholder="Password" className="w-full p-3 border border-slate-200 rounded-lg bg-slate-50" disabled />
-              <button className="w-full py-3 bg-primary text-white font-bold rounded-xl" disabled>Sign In</button>
+            <form onSubmit={handleEmailAuth} className="space-y-4 text-left">
+              <div>
+                <input 
+                  type="email" 
+                  placeholder="Email address" 
+                  className="w-full p-3 border-2 border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-medium"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <input 
+                  type="password" 
+                  placeholder="Password" 
+                  className="w-full p-3 border-2 border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all font-medium"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+              <button 
+                type="submit" 
+                className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:bg-blue-600 shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-70 flex justify-center items-center gap-2" 
+                disabled={loading}
+              >
+                {loading && <i className="fas fa-circle-notch fa-spin"></i>}
+                {isSignUp ? 'Create Account' : 'Sign In'}
+              </button>
             </form>
+
+            <div className="text-sm text-slate-500 mt-4">
+              {isSignUp ? 'Already have an account?' : "Don't have an account?"} {' '}
+              <button onClick={() => setIsSignUp(!isSignUp)} className="text-primary font-bold hover:underline">
+                {isSignUp ? 'Sign In' : 'Sign Up'}
+              </button>
+            </div>
             
-            <button onClick={handleDemoLogin} className="text-xs text-slate-400 hover:text-slate-600 underline">
-                Use Demo Account (Skip Auth)
-            </button>
+            <div className="pt-4 border-t border-slate-100 mt-4">
+              <button onClick={handleDemoLogin} className="text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors flex items-center justify-center gap-2 mx-auto px-4 py-2 hover:bg-slate-50 rounded-lg">
+                  <i className="fas fa-user-secret"></i> Use Demo Account (Skip Auth)
+              </button>
+            </div>
 
             {error && (
-              <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center justify-center gap-2">
+              <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center justify-center gap-2 animate-fade-in border border-red-100">
                 <i className="fas fa-exclamation-circle"></i> {error}
               </div>
             )}
           </div>
-        </div>
-        <div className="bg-slate-50 p-4 text-center text-xs text-slate-400 border-t border-slate-100">
-           By continuing, you agree to our Terms and Privacy Policy.
         </div>
       </div>
     </div>

@@ -1,5 +1,13 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as firebaseSignOut, Auth } from 'firebase/auth';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut as firebaseSignOut, 
+  Auth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword
+} from 'firebase/auth';
 
 const env = (import.meta as any).env || {};
 
@@ -14,8 +22,8 @@ const firebaseConfig = {
 };
 
 let app: FirebaseApp | undefined;
-let auth: Auth;
-let googleProvider: GoogleAuthProvider;
+let auth: Auth | undefined;
+let googleProvider: GoogleAuthProvider | undefined;
 let isConfigured = false;
 
 // Basic validation to ensure at least API Key is present
@@ -35,7 +43,7 @@ if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
 export { auth };
 
 export const signInWithGoogle = async () => {
-  if (!isConfigured || !auth) {
+  if (!isConfigured || !auth || !googleProvider) {
     throw new Error("MISSING_CONFIG");
   }
   
@@ -46,6 +54,18 @@ export const signInWithGoogle = async () => {
     console.error("Google Sign In Error", error);
     throw error;
   }
+};
+
+export const signInWithEmail = async (email: string, password: string) => {
+  if (!isConfigured || !auth) throw new Error("MISSING_CONFIG");
+  const result = await signInWithEmailAndPassword(auth, email, password);
+  return result.user;
+};
+
+export const signUpWithEmail = async (email: string, password: string) => {
+  if (!isConfigured || !auth) throw new Error("MISSING_CONFIG");
+  const result = await createUserWithEmailAndPassword(auth, email, password);
+  return result.user;
 };
 
 export const signOut = async () => {
