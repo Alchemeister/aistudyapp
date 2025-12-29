@@ -2,8 +2,46 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ContentType, Difficulty } from "../types";
 
 // The API key is injected via Vite's `define` config mapping VITE_GEMINI_API_KEY to process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 const MODEL_NAME = "gemini-3-flash-preview"; 
+
+// --- Lazy Load Client ---
+// We do NOT initialize 'ai' here to prevent crashes on module load.
+// It is initialized only when needed inside getAiClient().
+const getAiClient = (): GoogleGenAI | null => {
+  const key = process.env.API_KEY;
+  // If key is missing or empty string (safeguarded by vite config), return null for mock mode
+  if (!key || key.trim() === '') {
+    console.warn("Gemini API Key is missing. App will use Mock Data.");
+    return null;
+  }
+  return new GoogleGenAI({ apiKey: key });
+};
+
+// --- Mock Data Helpers ---
+const getMockData = (type: ContentType, count: number) => {
+  const mockId = () => Math.random().toString(36).substr(2, 9);
+  
+  if (type === ContentType.FLASHCARDS) {
+    return Array(Math.min(count, 3)).fill(0).map((_, i) => ({
+      front: `[Mock] Sample Flashcard ${i + 1}`,
+      back: "This is a generated placeholder because the API Key is missing.",
+      mastered: false
+    }));
+  }
+  
+  if (type === ContentType.QUIZ) {
+    return Array(Math.min(count, 3)).fill(0).map((_, i) => ({
+      id: mockId(),
+      text: `[Mock] Sample Question ${i + 1}: What is the capital of France?`,
+      type: 'MC',
+      options: ['London', 'Berlin', 'Paris', 'Madrid'],
+      correctAnswer: 'Paris',
+      explanation: "Paris is the capital of France. (Mock Data)"
+    }));
+  }
+
+  return `[Mock Generated Content]\n\nThis is a placeholder summary because the Gemini API Key is missing in your environment variables.\n\nTo fix this:\n1. Create a .env file\n2. Add VITE_GEMINI_API_KEY=your_key_here\n3. Restart the server.`;
+};
 
 export const generateContent = async (
   text: string,
@@ -13,8 +51,15 @@ export const generateContent = async (
   count: number = 10
 ): Promise<any> => {
   
-  // Ensure the key is present (checking the polyfilled value)
-  if (!process.env.API_KEY) throw new Error("API Key missing. Please check VITE_GEMINI_API_KEY in .env");
+  // Initialize AI lazily
+  const ai = getAiClient();
+
+  // FALLBACK: If no API key, return mock data immediately
+  if (!ai) {
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    return getMockData(type, count);
+  }
 
   const difficultyPrompt = difficulty === 5 
     ? "Expert level, deep analysis required." 
@@ -87,14 +132,20 @@ export const generateContent = async (
 
   } catch (error) {
     console.error("Gemini Gen Error:", error);
-    throw error;
+    // If API call fails (e.g. quota exceeded), fall back to mock
+    return getMockData(type, count);
   }
 };
 
 export const fixFlashcardContent = async (
   contextText: string,
 ): Promise<{ front: string; back: string }> => {
-  if (!process.env.API_KEY) throw new Error("API Key missing");
+  const ai = getAiClient();
+
+  // Fallback for fix function
+  if (!ai) {
+    return { front: "Mock Fix Front", back: "Mock Fix Back (No API Key)" };
+  }
 
   try {
     const response = await ai.models.generateContent({
@@ -119,7 +170,9 @@ export const fixFlashcardContent = async (
 };
 
 export const parseTableOfContents = async (fullText: string): Promise<any[]> => {
-  if (!process.env.API_KEY) throw new Error("API Key missing");
+  const ai = getAiClient();
+  
+  if (!ai) return [];
 
   try {
     // 1. Smart Extraction: Locate "Table of Contents"

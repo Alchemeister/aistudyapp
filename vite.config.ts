@@ -11,7 +11,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       // Polyfill process.env.API_KEY for the GenAI SDK, using the specific VITE env var
-      'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY),
+      // We default to '' to ensure the code is valid JS even if the var is missing during build
+      'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || ''),
     },
   };
 });
