@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ContentType, Difficulty } from "../types";
 
+// The API key is injected via Vite's `define` config mapping VITE_GEMINI_API_KEY to process.env.API_KEY
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 const MODEL_NAME = "gemini-3-flash-preview"; 
 
@@ -12,7 +13,8 @@ export const generateContent = async (
   count: number = 10
 ): Promise<any> => {
   
-  if (!process.env.API_KEY) throw new Error("API Key missing");
+  // Ensure the key is present (checking the polyfilled value)
+  if (!process.env.API_KEY) throw new Error("API Key missing. Please check VITE_GEMINI_API_KEY in .env");
 
   const difficultyPrompt = difficulty === 5 
     ? "Expert level, deep analysis required." 
@@ -121,18 +123,14 @@ export const parseTableOfContents = async (fullText: string): Promise<any[]> => 
 
   try {
     // 1. Smart Extraction: Locate "Table of Contents"
-    // Matches "Table of Contents" or just "Contents" if it appears as a likely header
     const tocStartRegex = /(?:^|\n)\s*(?:table\s+of\s+contents|contents)\s*(?:$|\n)/i;
     const match = fullText.match(tocStartRegex);
 
     let tocSection = fullText;
     if (match && match.index !== undefined) {
-      // Start processing from where "Table of Contents" is found
       tocSection = fullText.substring(match.index);
     }
 
-    // 2. Limit Context: Truncate to ~15k chars (approx 5-10 pages of TOC)
-    // This helps avoid sending the actual body content of Chapter 1 if it appears early.
     if (tocSection.length > 15000) {
       tocSection = tocSection.substring(0, 15000);
     }
