@@ -21,24 +21,30 @@ export const Login: React.FC<Props> = ({ onLoginSuccess }) => {
   };
 
   const handleError = (e: any) => {
-    console.error("Login Error Details:", e.code, e.message);
+    console.error("Login Error Details:", e);
     setLoading(false);
 
-    // If configuration is missing, suggest Demo Mode
-    if (e.message === "MISSING_CONFIG" || e.code === 'auth/configuration-not-found' || e.code === 'auth/invalid-api-key') {
-       setError("Firebase not configured. Switching to Demo Mode in 2s...");
-       setTimeout(handleDemoLogin, 2000);
+    // Stop automatic redirect - Show explicit error for diagnosis
+    if (e.message === "MISSING_CONFIG") {
+       setError("Configuration Error: Firebase keys are missing. Check console for details.");
        return; 
     }
 
-    if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
+    const isConfigError = 
+      e.code === 'auth/invalid-api-key' || 
+      e.code === 'auth/configuration-not-found' ||
+      e.message?.includes('api-key');
+
+    if (isConfigError) {
+      setError(`Firebase Config Error: ${e.code || e.message}. Check Vercel Env Vars (must start with VITE_).`);
+    } else if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
       setError("Invalid email or password.");
     } else if (e.code === 'auth/email-already-in-use') {
       setError("Email already in use. Please sign in.");
     } else if (e.code === 'auth/weak-password') {
       setError("Password should be at least 6 characters.");
     } else {
-      setError(e.message || "Authentication failed. Try Demo Account.");
+      setError(e.message || "Authentication failed.");
     }
   };
 
@@ -145,8 +151,9 @@ export const Login: React.FC<Props> = ({ onLoginSuccess }) => {
             </div>
 
             {error && (
-              <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center justify-center gap-2 animate-fade-in border border-red-100">
-                <i className="fas fa-exclamation-circle"></i> {error}
+              <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center justify-center gap-2 animate-fade-in border border-red-100 break-words text-center">
+                <i className="fas fa-exclamation-circle flex-shrink-0"></i> 
+                <span>{error}</span>
               </div>
             )}
           </div>

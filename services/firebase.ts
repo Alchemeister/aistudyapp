@@ -21,6 +21,16 @@ const firebaseConfig = {
   measurementId: env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// --- Debugging for User ---
+console.log("--- Firebase Config Check ---");
+console.log("VITE_FIREBASE_API_KEY:", firebaseConfig.apiKey ? "Present" : "MISSING (Is it undefined?)");
+console.log("VITE_FIREBASE_AUTH_DOMAIN:", firebaseConfig.authDomain ? "Present" : "MISSING");
+console.log("VITE_FIREBASE_PROJECT_ID:", firebaseConfig.projectId ? "Present" : "MISSING");
+if (!firebaseConfig.apiKey) {
+  console.warn("CRITICAL: API Key is missing. Ensure your Vercel Environment Variables start with 'VITE_'. Example: VITE_FIREBASE_API_KEY");
+}
+// ---------------------------
+
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let googleProvider: GoogleAuthProvider | undefined;
@@ -37,13 +47,14 @@ if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
     console.error("Firebase Initialization Error:", e);
   }
 } else {
-  console.warn("Firebase configuration missing. Check .env file.");
+  console.warn("Firebase configuration incomplete. Check .env file or Vercel settings.");
 }
 
 export { auth };
 
 export const signInWithGoogle = async () => {
   if (!isConfigured || !auth || !googleProvider) {
+    console.error("SignInWithGoogle failed: Configuration missing.");
     throw new Error("MISSING_CONFIG");
   }
   
