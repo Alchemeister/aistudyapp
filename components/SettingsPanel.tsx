@@ -15,11 +15,14 @@ export const SettingsPanel: React.FC<Props> = ({ user, onLogout }) => {
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   const handleUpdateProfile = async () => {
-    if (!auth.currentUser) return;
+    // FIX: Guard against auth being undefined by capturing currentUser safely
+    const currentUser = auth?.currentUser;
+    if (!currentUser) return;
+
     setLoading(true);
     setMessage(null);
     try {
-      await updateProfile(auth.currentUser, { displayName });
+      await updateProfile(currentUser, { displayName });
       setMessage({ type: 'success', text: 'Profile updated successfully!' });
     } catch (e: any) {
       setMessage({ type: 'error', text: 'Failed to update profile: ' + e.message });
