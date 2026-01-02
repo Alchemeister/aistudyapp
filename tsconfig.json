@@ -19,6 +19,7 @@
     "moduleDetection": "force",
     "allowJs": true,
     "jsx": "react",
+    "esModuleInterop": true,
     "jsxFactory": "React.createElement",
     "jsxFragmentFactory": "React.Fragment",
     "paths": {

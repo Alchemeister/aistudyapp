@@ -12,12 +12,14 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react()
     ],
-    assetsInclude: ['**/*.min.js'],
-    optimizeDeps: {
-      // Exclude pdfjs-dist so it isn't bundled by Vite, forcing the browser
-      // to resolve it via the importmap in index.html (v3.11.174)
-      exclude: ['pdfjs-dist']
+    resolve: {
+      alias: {
+        // Force Vite to use the single local version of React to avoid "Context" errors
+        react: path.resolve('./node_modules/react'),
+        'react-dom': path.resolve('./node_modules/react-dom'),
+      },
     },
+    assetsInclude: ['**/*.min.js'],
     build: {
       target: 'esnext',
     },
