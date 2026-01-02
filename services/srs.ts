@@ -67,7 +67,7 @@ export const calculateReview = (card: Flashcard, rating: Rating): Flashcard => {
   };
 };
 
-export const getInitialCardState = (isMissedFromQuiz = false): Partial<Flashcard> => ({
+export const getInitialCardState = (isMissedFromQuiz = false) => ({
   interval: 0,
   reps: 0,
   lapses: 0,

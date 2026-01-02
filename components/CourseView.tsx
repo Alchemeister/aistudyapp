@@ -1,4 +1,5 @@
-import React, { useState, useContext } from 'react';
+
+import React, { useState, useContext, useMemo } from 'react';
 import { Course, Flashcard, Lecture } from '../types';
 import { PdfViewer } from './PdfViewer';
 import { GeneratorPanel } from './GeneratorPanel';
@@ -6,24 +7,28 @@ import { LibraryPanel } from '../App';
 import { Modal } from './Modal';
 import { ChapterWizard } from './ChapterWizard';
 import { ImportNotesModal } from './ImportNotesModal';
-import { savePdfBlob } from '../services/storage';
+import { LectureRecorder } from './LectureRecorder';
+import { LecturePlayer } from './LecturePlayer';
+import { savePdfBlob, saveMediaBlob } from '../services/storage';
 import { ToastContext } from '../App';
+import { useNavigate } from 'react-router-dom';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
 export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: Course[], onUpdate: (c: Course) => void, onUpdateFlashcard: (cid: string, mid: string, c: Flashcard) => void }) => {
-  const [activeTab, setActiveTab] = useState<'content' | 'study'>('content');
+  const [activeTab, setActiveTab] = useState<'content' | 'study' | 'performance'>('content');
   const [showWizard, setShowWizard] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showRecorder, setShowRecorder] = useState(false);
+  const [activeLecture, setActiveLecture] = useState<Lecture | null>(null);
+  
   const { showToast } = useContext(ToastContext);
+  const navigate = useNavigate();
 
-  // In a real app, you might use useParams here, but we are passed the filtered list from App for specific course
-  // However, App passes *all* courses and expects this component to filter. 
-  // Let's assume the parent handles the finding or we grab from URL.
-  // For safety with current architecture:
   const urlParts = window.location.hash.split('/');
   const courseId = urlParts[urlParts.length - 1];
   const course = courses.find(c => c.id === courseId);
 
-  if (!course) return <div>Course not found</div>;
+  if (!course) return <div className="p-8 text-center">Course not found</div>;
 
   const handleSaveWizard = async (updated: Course, file?: File | Blob) => {
     let newCourse = { ...updated };
@@ -41,67 +46,200 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
     onUpdate({ ...course, lectures: [newLecture, ...course.lectures] });
   };
 
+  const handleRecordingSave = async (lecture: Partial<Lecture>, blob?: Blob) => {
+      let newLecture = { ...lecture } as Lecture;
+      if (blob) {
+          const blobId = await saveMediaBlob(course.id, blob);
+          newLecture.audioBlobId = blobId;
+          newLecture.audioUrl = URL.createObjectURL(blob);
+      }
+      onUpdate({ ...course, lectures: [newLecture, ...course.lectures] });
+      setShowRecorder(false);
+      showToast("Lecture recorded successfully!", "success");
+  };
+
+  const handleViewLecture = (l: Lecture) => {
+      setActiveLecture(l);
+      // Ensure we are in the generator tab so the user sees the side-by-side or mobile switch
+      setActiveTab('content'); 
+  };
+
+  // --- Performance Graph Data ---
+  const performanceData = useMemo(() => {
+    if (!course.quizHistory || course.quizHistory.length === 0) return [];
+    
+    // Sort chronologically
+    const sorted = [...course.quizHistory].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    return sorted.map((res, idx) => {
+        let label = `Quiz ${idx + 1}`;
+        // Attempt to find Chapter Name from IDs
+        if (res.chapterIds && res.chapterIds.length > 0) {
+            const ch = course.chapters.find(c => c.id === res.chapterIds![0]);
+            if (ch) label = `Ch ${course.chapters.indexOf(ch) + 1}`;
+            else label = "Mixed";
+        } else {
+            label = "General";
+        }
+
+        return {
+            date: new Date(res.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            score: Math.round((res.score / res.total) * 100),
+            label: label,
+            fullDate: new Date(res.date).toLocaleString(),
+            material: res.materialTitle || "Quiz"
+        };
+    });
+  }, [course.quizHistory, course.chapters]);
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shrink-0 shadow-sm z-10">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-             <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded">{course.code}</span>
-             <h2 className="text-xl font-bold text-slate-900">{course.title}</h2>
-          </div>
-          <div className="flex gap-4 text-xs text-slate-500 font-medium">
-             <span><i className="fas fa-book mr-1"></i> {course.chapters.length} Chapters</span>
-             <span><i className="fas fa-file-alt mr-1"></i> {course.lectures.length} Notes</span>
-             <span><i className="fas fa-clipboard-list mr-1"></i> {course.materials.length} Materials</span>
+      <header className="bg-white border-b border-slate-200 px-4 py-3 md:px-8 md:py-4 flex flex-col md:flex-row md:justify-between md:items-center shrink-0 shadow-sm z-10 gap-4">
+        <div className="flex items-start gap-3">
+          <button 
+             onClick={() => navigate('/')} 
+             className="md:hidden mt-1 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500"
+             aria-label="Back to Dashboard"
+          >
+             <i className="fas fa-arrow-left"></i>
+          </button>
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+               <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded">{course.code}</span>
+               <h2 className="text-lg md:text-xl font-bold text-slate-900 line-clamp-1">{course.title}</h2>
+            </div>
+            <div className="flex gap-4 text-xs text-slate-500 font-medium overflow-x-auto no-scrollbar whitespace-nowrap">
+               <span><i className="fas fa-book mr-1"></i> {course.chapters.length} Ch</span>
+               <span><i className="fas fa-file-alt mr-1"></i> {course.lectures.length} Notes</span>
+               <span><i className="fas fa-clipboard-list mr-1"></i> {course.materials.length} Items</span>
+            </div>
           </div>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-2 items-center w-full md:w-auto">
           
           <button 
-            onClick={() => setShowImport(true)}
-            className="px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors shadow-sm"
+             onClick={() => setShowRecorder(true)}
+             className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors shadow-sm whitespace-nowrap flex items-center justify-center gap-2"
           >
-             <i className="fas fa-file-import mr-2 text-slate-500"></i>Import Notes
+             <i className="fas fa-microphone"></i> Record
+          </button>
+
+          <button 
+            onClick={() => setShowImport(true)}
+            className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors shadow-sm whitespace-nowrap"
+          >
+             <i className="fas fa-file-import mr-2 text-slate-500"></i>Import
           </button>
           
-          <div className="w-px h-8 bg-slate-200 mx-1"></div>
+          <div className="w-px h-6 bg-slate-200 mx-1 hidden md:block"></div>
 
-          <button onClick={() => setShowWizard(true)} className="px-4 py-2 text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200">
-            <i className="fas fa-edit mr-2"></i>Add Chapter / Edit Textbook
+          <button onClick={() => setShowWizard(true)} className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200 whitespace-nowrap">
+            <i className="fas fa-edit mr-2"></i>Edit Book/Ch
           </button>
         </div>
       </header>
 
-      {/* Main Content Area - Scrollable */}
+      {/* Main Content Area */}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-         {/* Left: PDF Viewer (Fixed in Content Mode) */}
+         {/* Left: Viewer (PDF or Lecture Player) */}
          {activeTab === 'content' && (
-           <div className="w-full md:w-1/2 h-full bg-slate-800 border-r border-slate-200 relative">
-             <PdfViewer url={course.pdfUrl || ''} />
-             {!course.pdfUrl && (
-               <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-800 z-10">
-                  <i className="fas fa-file-pdf text-4xl mb-4 opacity-50"></i>
-                  <p>No Textbook Uploaded</p>
-                  <button onClick={() => setShowWizard(true)} className="mt-4 text-blue-400 hover:underline">Upload PDF</button>
-               </div>
+           <div className="w-full md:w-1/2 h-[40vh] md:h-full bg-slate-800 border-b md:border-b-0 md:border-r border-slate-200 relative shrink-0">
+             {activeLecture ? (
+                 <LecturePlayer lecture={activeLecture} onClose={() => setActiveLecture(null)} />
+             ) : (
+                 <>
+                   <PdfViewer url={course.pdfUrl || ''} />
+                   {!course.pdfUrl && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-800 z-10 p-4 text-center">
+                        <i className="fas fa-file-pdf text-4xl mb-4 opacity-50"></i>
+                        <p>No Textbook Uploaded</p>
+                        <button onClick={() => setShowWizard(true)} className="mt-4 text-blue-400 hover:underline">Upload PDF to use Generator</button>
+                    </div>
+                   )}
+                 </>
              )}
            </div>
          )}
 
          {/* Right: Study/Gen Area */}
-         <div className={`w-full ${activeTab === 'content' ? 'md:w-1/2' : 'md:w-full'} h-full overflow-y-auto bg-slate-50 p-6`}>
-            {/* Tabs inside right panel if content mode, or top if study mode */}
-            <div className="flex gap-2 mb-6 border-b border-slate-200 pb-2">
-              <button onClick={() => setActiveTab('content')} className={`px-4 py-2 text-sm font-bold rounded transition-colors ${activeTab === 'content' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}>Generator</button>
-              <button onClick={() => setActiveTab('study')} className={`px-4 py-2 text-sm font-bold rounded transition-colors ${activeTab === 'study' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}>Study & Stats</button>
+         <div className={`w-full ${activeTab === 'content' ? 'md:w-1/2 h-full' : 'md:w-full h-full'} overflow-y-auto bg-slate-50 p-4 md:p-6 flex flex-col`}>
+            {/* Tabs */}
+            <div className="flex gap-2 mb-4 md:mb-6 border-b border-slate-200 pb-2 shrink-0 overflow-x-auto">
+              <button onClick={() => setActiveTab('content')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'content' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}>AI Generator</button>
+              <button onClick={() => setActiveTab('study')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'study' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}>Study Library</button>
+              <button onClick={() => setActiveTab('performance')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'performance' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}>Performance</button>
             </div>
 
-            {activeTab === 'content' ? (
-              <GeneratorPanel course={course} onUpdate={onUpdate} />
-            ) : (
-              <LibraryPanel course={course} onUpdate={onUpdate} onUpdateFlashcard={onUpdateFlashcard} />
-            )}
+            <div className="flex-1">
+              {activeTab === 'content' && (
+                <GeneratorPanel course={course} onUpdate={onUpdate} onViewLecture={handleViewLecture} />
+              )}
+              {activeTab === 'study' && (
+                <LibraryPanel course={course} onUpdate={onUpdate} onUpdateFlashcard={onUpdateFlashcard} />
+              )}
+              {activeTab === 'performance' && (
+                <div className="h-full flex flex-col">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6 flex-1 min-h-[400px]">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-slate-800 text-lg">Chapter Performance</h3>
+                            <div className="text-xs text-slate-500">Based on Quiz Results</div>
+                        </div>
+                        {performanceData.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                                <i className="fas fa-chart-line text-4xl mb-4 opacity-50"></i>
+                                <p className="font-medium">No quiz data available yet.</p>
+                                <p className="text-sm mt-1">Take a quiz in the Library tab to see your progress!</p>
+                            </div>
+                        ) : (
+                            <ResponsiveContainer width="100%" height="90%">
+                                <LineChart data={performanceData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                    <XAxis dataKey="date" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} dy={10} />
+                                    <YAxis domain={[0, 100]} tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} unit="%" />
+                                    <Tooltip 
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                        formatter={(val: any) => [`${val}%`, 'Score']}
+                                        labelFormatter={(label, payload) => {
+                                            if (payload && payload.length > 0) {
+                                                const data = payload[0].payload;
+                                                return `${data.fullDate} • ${data.label}`;
+                                            }
+                                            return label;
+                                        }}
+                                    />
+                                    <Line 
+                                        type="monotone" 
+                                        dataKey="score" 
+                                        stroke="#2563eb" 
+                                        strokeWidth={3} 
+                                        dot={{ r: 5, fill: '#2563eb', strokeWidth: 2, stroke: '#fff' }} 
+                                        activeDot={{ r: 8 }} 
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        )}
+                    </div>
+                    
+                    {performanceData.length > 0 && (
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                           <div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-xs text-slate-500 uppercase">Recent History</div>
+                           {performanceData.slice().reverse().slice(0, 5).map((d, i) => (
+                               <div key={i} className="flex justify-between items-center p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                                   <div>
+                                       <div className="font-bold text-slate-800 text-sm">{d.label}</div>
+                                       <div className="text-xs text-slate-500">{d.material}</div>
+                                   </div>
+                                   <div className={`text-lg font-bold ${d.score >= 80 ? 'text-green-600' : d.score >= 60 ? 'text-blue-600' : 'text-red-500'}`}>
+                                       {d.score}%
+                                   </div>
+                               </div>
+                           ))}
+                        </div>
+                    )}
+                </div>
+              )}
+            </div>
          </div>
       </div>
 
@@ -115,6 +253,14 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
         onSave={handleImportSave} 
         onToast={showToast} 
       />
+
+      {showRecorder && (
+          <LectureRecorder 
+              onSave={handleRecordingSave} 
+              onCancel={() => setShowRecorder(false)} 
+              onToast={showToast}
+          />
+      )}
     </div>
   );
 };

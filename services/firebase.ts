@@ -1,3 +1,4 @@
+
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { 
   getAuth, 
@@ -9,25 +10,57 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 
-const env = (import.meta as any).env || {};
+// Helper to sanitize env vars
+const clean = (val: string | undefined) => val ? val.replace(/["']/g, "").trim() : undefined;
 
+// Safe environment access
+const getEnv = (key: string): string | undefined => {
+  try {
+    // Check import.meta.env (Vite standard)
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+      // @ts-ignore
+      return import.meta.env[key];
+    }
+  } catch (e) {
+    // Ignore error
+  }
+  return undefined;
+};
+
+// Use defensive getter
 const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: env.VITE_FIREBASE_APP_ID,
-  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID
+  apiKey: clean(getEnv('VITE_FIREBASE_API_KEY')),
+  authDomain: clean(getEnv('VITE_FIREBASE_AUTH_DOMAIN')),
+  projectId: clean(getEnv('VITE_FIREBASE_PROJECT_ID')),
+  storageBucket: clean(getEnv('VITE_FIREBASE_STORAGE_BUCKET')),
+  messagingSenderId: clean(getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID')),
+  appId: clean(getEnv('VITE_FIREBASE_APP_ID')),
+  measurementId: clean(getEnv('VITE_FIREBASE_MEASUREMENT_ID'))
 };
 
 // --- Debugging for User ---
 console.log("--- Firebase Config Check ---");
-console.log("VITE_FIREBASE_API_KEY:", firebaseConfig.apiKey ? "Present" : "MISSING (Is it undefined?)");
-console.log("VITE_FIREBASE_AUTH_DOMAIN:", firebaseConfig.authDomain ? "Present" : "MISSING");
-console.log("VITE_FIREBASE_PROJECT_ID:", firebaseConfig.projectId ? "Present" : "MISSING");
-if (!firebaseConfig.apiKey) {
-  console.warn("CRITICAL: API Key is missing. Ensure your Vercel Environment Variables start with 'VITE_'. Example: VITE_FIREBASE_API_KEY");
+const configKeys = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID'
+];
+
+let missingCount = 0;
+configKeys.forEach(key => {
+    const val = getEnv(key);
+    const isSet = !!(val && val.trim().length > 0);
+    if (!isSet) missingCount++;
+});
+
+if (missingCount > 0) {
+    console.info(`ℹ️ Firebase Config: ${missingCount} keys missing. This is normal in Preview/Dev if not using .env file. Auth will fail gracefully.`);
+} else {
+    console.log("✅ Firebase Config Loaded");
 }
 // ---------------------------
 
@@ -47,7 +80,7 @@ if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
     console.error("Firebase Initialization Error:", e);
   }
 } else {
-  console.warn("Firebase configuration incomplete. Check .env file or Vercel settings.");
+  console.log("Firebase running in offline/demo mode (Missing Config)");
 }
 
 export { auth };
@@ -62,7 +95,7 @@ export const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error) {
-    console.error("Google Sign In Error", error);
+    console.error("Google Sign In Error Object:", error);
     throw error;
   }
 };

@@ -30,6 +30,12 @@ export const Login: React.FC<Props> = ({ onLoginSuccess }) => {
        return; 
     }
 
+    // Specific check for the user's current error
+    if (e.message?.includes("CONFIGURATION_NOT_FOUND") || JSON.stringify(e).includes("CONFIGURATION_NOT_FOUND")) {
+        setError("Setup Error: Go to Firebase Console > Project Settings > General and ensure a 'Support Email' is set. Also enable Google Sign-In in Authentication.");
+        return;
+    }
+
     const isConfigError = 
       e.code === 'auth/invalid-api-key' || 
       e.code === 'auth/configuration-not-found' ||
@@ -43,6 +49,8 @@ export const Login: React.FC<Props> = ({ onLoginSuccess }) => {
       setError("Email already in use. Please sign in.");
     } else if (e.code === 'auth/weak-password') {
       setError("Password should be at least 6 characters.");
+    } else if (e.code === 'auth/popup-closed-by-user') {
+      setError("Sign-in cancelled.");
     } else {
       setError(e.message || "Authentication failed.");
     }

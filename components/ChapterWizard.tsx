@@ -1,7 +1,7 @@
+
 import React, { useState } from 'react';
-import { Course, Chapter } from '../types';
+import { Course, Chapter, Subchapter } from '../types';
 import { PdfViewer } from './PdfViewer';
-import { loadPdfDocument } from '../services/pdfUtils';
 
 interface Props {
   course: Course;
@@ -28,9 +28,10 @@ export const ChapterWizard: React.FC<Props> = ({ course, onSave, onCancel, onToa
   const [chapters, setChapters] = useState<Chapter[]>(course.chapters);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Auto-detect state placeholders (functionality temporarily disabled)
-  const isDetecting = false;
-  const detectProgress = { current: 0, total: 0 };
+  // Helper: Deep copy to avoid mutation issues
+  const updateChapters = (fn: (prev: Chapter[]) => Chapter[]) => {
+    setChapters(prev => fn(JSON.parse(JSON.stringify(prev))));
+  };
 
   const handleOpenStaxSelect = async (book: typeof OPENSTAX_BOOKS[0]) => {
     if(!confirm(`Download ${book.title}? This may take 10-20 seconds depending on connection.`)) return;
@@ -61,10 +62,43 @@ export const ChapterWizard: React.FC<Props> = ({ course, onSave, onCancel, onToa
   };
 
   const updateChapter = (index: number, field: keyof Chapter, value: any) => {
-    const newChapters = [...chapters];
-    (newChapters[index] as any)[field] = value;
-    if (newChapters[index].isSuggested) newChapters[index].isSuggested = false;
-    setChapters(newChapters);
+    updateChapters(prev => {
+      (prev[index] as any)[field] = value;
+      if (prev[index].isSuggested) prev[index].isSuggested = false;
+      return prev;
+    });
+  };
+
+  const addSubchapter = (chapterIndex: number) => {
+    updateChapters(prev => {
+      const parent = prev[chapterIndex];
+      if (!parent.subchapters) parent.subchapters = [];
+      parent.subchapters.push({
+        id: uuid(),
+        title: '',
+        startPage: parent.startPage || 0,
+        endPage: parent.endPage || 0
+      });
+      return prev;
+    });
+  };
+
+  const updateSubchapter = (chapterIndex: number, subIndex: number, field: keyof Subchapter, value: any) => {
+    updateChapters(prev => {
+      if (prev[chapterIndex].subchapters) {
+         (prev[chapterIndex].subchapters![subIndex] as any)[field] = value;
+      }
+      return prev;
+    });
+  };
+
+  const deleteSubchapter = (chapterIndex: number, subIndex: number) => {
+    updateChapters(prev => {
+      if (prev[chapterIndex].subchapters) {
+        prev[chapterIndex].subchapters!.splice(subIndex, 1);
+      }
+      return prev;
+    });
   };
 
   const handleAutoDetectPlaceholder = () => {
@@ -137,80 +171,110 @@ export const ChapterWizard: React.FC<Props> = ({ course, onSave, onCancel, onToa
                <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shadow-sm z-10">
                  <div>
                    <h3 className="font-bold text-slate-800">Map Chapters</h3>
-                   <p className="text-xs text-slate-500">Use the viewer to find page numbers.</p>
+                   <p className="text-xs text-slate-500">Break down large chapters into sections for faster AI generation.</p>
                  </div>
                  <div className="flex gap-2">
                    <button 
                       onClick={handleAutoDetectPlaceholder}
                       className="text-xs bg-slate-100 text-slate-500 border border-slate-200 px-3 py-2 rounded font-bold flex items-center shadow-sm transition-all cursor-not-allowed opacity-80 hover:bg-slate-200"
-                      title="Advanced TOC detection coming soon"
                     >
                        <i className="fas fa-magic mr-2 text-slate-400"></i> Auto-Detect
                    </button>
-                   <button onClick={() => setChapters([...chapters, { id: uuid(), title: '', startPage: 0, endPage: 0 }])} className="text-xs bg-primary text-white px-3 py-2 rounded hover:bg-blue-600 shadow-sm font-bold">
+                   <button onClick={() => updateChapters(p => [...p, { id: uuid(), title: '', startPage: 0, endPage: 0 }])} className="text-xs bg-primary text-white px-3 py-2 rounded hover:bg-blue-600 shadow-sm font-bold">
                      <i className="fas fa-plus mr-1"></i> Add Chapter
                    </button>
                  </div>
                </div>
-               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/50">
+               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
                  {chapters.length === 0 && (
                    <div className="text-center text-slate-400 mt-10 p-6 border-2 border-dashed border-slate-200 rounded-xl">
                      <i className="fas fa-list-ol text-2xl mb-2"></i>
                      <p>No chapters defined.</p>
-                     <p className="text-xs mt-1">Add chapters manually.</p>
                    </div>
                  )}
                  {chapters.map((ch, idx) => (
                    <div key={ch.id} className="p-4 border border-slate-200 rounded-lg bg-white shadow-sm hover:border-blue-300 transition-all group relative">
-                      {/* Suggestion Badge */}
                       {ch.isSuggested && (
                           <div className="absolute top-0 right-0 transform translate-x-1/3 -translate-y-1/3 z-10">
                               <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
-                                  <i className="fas fa-robot text-[8px]"></i> Suggested by AI (from TOC)
+                                  <i className="fas fa-robot text-[8px]"></i> Suggested
                               </span>
                           </div>
                       )}
 
-                      <div className="flex justify-between mb-3">
+                      {/* Parent Chapter Row */}
+                      <div className="flex justify-between mb-3 items-center">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                           <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">{idx + 1}</span>
                           Chapter
                         </span>
-                        <button 
-                          onClick={() => setChapters(chapters.filter((_, i) => i !== idx))} 
-                          className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-all"
-                          title="Delete Chapter"
-                        >
-                          <i className="fas fa-trash-alt"></i>
-                        </button>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => addSubchapter(idx)}
+                                className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                                type="button"
+                            >
+                                <i className="fas fa-indent mr-1"></i> Add Topic / Section
+                            </button>
+                            <button 
+                              onClick={() => setChapters(chapters.filter((_, i) => i !== idx))} 
+                              className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                              type="button"
+                            >
+                              <i className="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
                       </div>
-                      <div className="space-y-3">
-                        <div>
+                      
+                      <div className="grid grid-cols-12 gap-3 mb-3">
+                        <div className="col-span-8">
                           <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Title</label>
                           <input 
-                            className="w-full p-2 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none transition-all bg-white text-slate-900 placeholder:text-slate-400" 
-                            placeholder="e.g. Introduction to Cells" 
+                            className="w-full p-2 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none bg-white text-slate-900" 
+                            placeholder="Chapter Title" 
                             value={ch.title}
                             onChange={(e) => updateChapter(idx, 'title', e.target.value)}
                           />
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1">
-                            <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Start Page</label>
-                            <input 
-                              type="number" className="w-full p-2 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none bg-white text-slate-900 placeholder:text-slate-400"
-                              value={ch.startPage || ''} onChange={(e) => updateChapter(idx, 'startPage', parseInt(e.target.value))}
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">End Page</label>
-                            <input 
-                              type="number" className="w-full p-2 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none bg-white text-slate-900 placeholder:text-slate-400"
-                              value={ch.endPage || ''} onChange={(e) => updateChapter(idx, 'endPage', parseInt(e.target.value))}
-                            />
-                          </div>
+                        <div className="col-span-2">
+                            <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Start</label>
+                            <input type="number" className="w-full p-2 border border-slate-300 rounded text-sm outline-none bg-white text-slate-900" value={ch.startPage || ''} onChange={(e) => updateChapter(idx, 'startPage', parseInt(e.target.value))} />
+                        </div>
+                        <div className="col-span-2">
+                            <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">End</label>
+                            <input type="number" className="w-full p-2 border border-slate-300 rounded text-sm outline-none bg-white text-slate-900" value={ch.endPage || ''} onChange={(e) => updateChapter(idx, 'endPage', parseInt(e.target.value))} />
                         </div>
                       </div>
+
+                      {/* Subchapters List */}
+                      {ch.subchapters && ch.subchapters.length > 0 && (
+                          <div className="pl-4 border-l-2 border-slate-200 space-y-3 mt-4">
+                              {ch.subchapters.map((sub, sIdx) => (
+                                  <div key={sub.id} className="relative">
+                                      <div className="flex items-center gap-2 mb-1">
+                                          <span className="text-[10px] font-bold text-slate-400 uppercase">Section {idx+1}.{sIdx+1}</span>
+                                          <button onClick={() => deleteSubchapter(idx, sIdx)} className="text-slate-300 hover:text-red-400 text-xs ml-auto" type="button"><i className="fas fa-times"></i></button>
+                                      </div>
+                                      <div className="grid grid-cols-12 gap-2">
+                                          <div className="col-span-6">
+                                              <input 
+                                                className="w-full p-1.5 border border-slate-200 rounded text-xs bg-white text-slate-900 focus:ring-1 focus:ring-blue-200 outline-none"
+                                                placeholder="Section Topic (e.g. Mitochondria)"
+                                                value={sub.title}
+                                                onChange={(e) => updateSubchapter(idx, sIdx, 'title', e.target.value)}
+                                              />
+                                          </div>
+                                          <div className="col-span-3">
+                                              <input type="number" className="w-full p-1.5 border border-slate-200 rounded text-xs bg-white text-slate-900 outline-none" placeholder="Start" value={sub.startPage || ''} onChange={(e) => updateSubchapter(idx, sIdx, 'startPage', parseInt(e.target.value))} />
+                                          </div>
+                                          <div className="col-span-3">
+                                              <input type="number" className="w-full p-1.5 border border-slate-200 rounded text-xs bg-white text-slate-900 outline-none" placeholder="End" value={sub.endPage || ''} onChange={(e) => updateSubchapter(idx, sIdx, 'endPage', parseInt(e.target.value))} />
+                                          </div>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      )}
                    </div>
                  ))}
                </div>

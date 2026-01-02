@@ -1,6 +1,7 @@
-import React, { useState, useEffect, createContext, useContext, useRef } from 'react';
+
+import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult } from './types';
 import { saveCourses, loadCourses, savePdfBlob, getPdfBlob, deleteCourseData, seedInitialData } from './services/storage';
 import { generateContent, fixFlashcardContent } from './services/geminiService';
@@ -14,12 +15,32 @@ import { PdfViewer } from './components/PdfViewer';
 import { ReviewSession, ReviewItem } from './components/ReviewSession';
 import { Login } from './components/Login';
 import { CourseView } from './components/CourseView';
+import { SettingsPanel } from './components/SettingsPanel';
 import { auth, signOut as firebaseSignOut } from './services/firebase';
 import { GeneratorPanel, FlashcardViewer } from './components/GeneratorPanel';
 
 // --- Utils ---
 const uuid = () => Math.random().toString(36).substring(2, 9);
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+// Helper: Fisher-Yates Shuffle
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const newArr = [...array];
+  for (let i = newArr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+  }
+  return newArr;
+};
+
+// Helper: Difficulty Label
+const getDifficultyLabel = (level: number) => {
+  if (level <= 1.5) return "Easy";
+  if (level <= 2.5) return "Easy-Medium";
+  if (level <= 3.5) return "Medium";
+  if (level <= 4.5) return "Medium-Hard";
+  return "Hard";
+};
 
 // --- Toast System ---
 interface ToastMsg { id: string; msg: string; type: 'success' | 'error' | 'info'; }
@@ -47,6 +68,27 @@ const ToastContainer = ({ children }: { children?: React.ReactNode }) => {
   );
 };
 
+// --- Mobile Navigation ---
+const MobileNav = ({ user, onLogout }: { user: any, onLogout: () => void }) => {
+  const navigate = useNavigate();
+  return (
+    <div className="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+      <div className="flex items-center gap-2" onClick={() => navigate('/')}>
+        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white"><i className="fas fa-graduation-cap"></i></div>
+        <h1 className="text-lg font-bold text-slate-800">StudyAI</h1>
+      </div>
+      <div className="flex items-center gap-3">
+          <Link to="/review" className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 border border-slate-200">
+             <i className="fas fa-layer-group text-xs"></i>
+          </Link>
+          <Link to="/settings" className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 border border-slate-200">
+             <i className="fas fa-cog text-xs"></i>
+          </Link>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,8 +96,6 @@ function App() {
 
   // Auth Listener
   useEffect(() => {
-    // Safety check: if Firebase isn't configured, auth will be undefined.
-    // In that case, we stop loading and let the Login component handle the UI for missing config.
     if (!auth) {
         console.warn("Firebase Auth not initialized. Skipping auth listener.");
         setLoading(false);
@@ -68,12 +108,12 @@ function App() {
       } else {
         // Keep user null, will show Login
       }
-      setLoading(false); // Ensure loading stops once auth check is done
+      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // Data Loading (Only load if user is present or we are in a demo mode)
+  // Data Loading
   useEffect(() => {
     if (!user) return; 
 
@@ -113,6 +153,15 @@ function App() {
     }));
   };
 
+  const handleLogout = async () => {
+     try {
+       await firebaseSignOut();
+       window.location.reload();
+     } catch (e) {
+       console.error("Logout failed", e);
+     }
+  };
+
   if (!user) {
     return (
        <Login onLoginSuccess={setUser} />
@@ -124,16 +173,23 @@ function App() {
   return (
     <ToastContainer>
       <Router>
-        <div className="h-screen flex flex-col md:flex-row bg-slate-50 font-sans overflow-hidden">
-          <Sidebar courses={courses} onAddCourse={addCourse} onDeleteCourse={deleteCourse} user={user} />
-          <main className="flex-1 overflow-y-auto h-full relative">
-            <Routes>
-              <Route path="/" element={<Dashboard courses={courses} onDeleteCourse={deleteCourse} />} />
-              <Route path="/review" element={<ReviewController courses={courses} onUpdateCard={handleFlashcardUpdate} />} />
-              <Route path="/course/:courseId" element={<CourseView courses={courses} onUpdate={updateCourse} onUpdateFlashcard={handleFlashcardUpdate} />} />
-            </Routes>
-            <Pomodoro />
+        <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 font-sans md:h-screen md:overflow-hidden relative">
+          <Sidebar courses={courses} onAddCourse={addCourse} onDeleteCourse={deleteCourse} user={user} onLogout={handleLogout} />
+          
+          <main className="flex-1 w-full relative flex flex-col h-full overflow-hidden">
+             <MobileNav user={user} onLogout={handleLogout} />
+             <div className="flex-1 overflow-y-auto">
+                <Routes>
+                  <Route path="/" element={<Dashboard courses={courses} onDeleteCourse={deleteCourse} />} />
+                  <Route path="/review" element={<ReviewController courses={courses} onUpdateCard={handleFlashcardUpdate} />} />
+                  <Route path="/settings" element={<SettingsPanel user={user} onLogout={handleLogout} />} />
+                  <Route path="/course/:courseId" element={<CourseView courses={courses} onUpdate={updateCourse} onUpdateFlashcard={handleFlashcardUpdate} />} />
+                </Routes>
+             </div>
           </main>
+          
+          {/* Pomodoro at Root Level for correct Z-Index and Boundary calculation */}
+          <Pomodoro />
         </div>
       </Router>
     </ToastContainer>
@@ -178,7 +234,7 @@ const ReviewController = ({ courses, onUpdateCard }: { courses: Course[], onUpda
 };
 
 // --- Sidebar ---
-const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user }: { courses: Course[], onAddCourse: (c: Course) => void, onDeleteCourse: (id: string) => void, user: any }) => {
+const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCourse, setNewCourse] = useState({ title: '', code: '', subtitle: '', description: '', semester: 'Fall 2024' });
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
@@ -195,18 +251,9 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user }: { courses: Cour
     setNewCourse({ title: '', code: '', subtitle: '', description: '', semester: 'Fall 2024' });
   };
 
-  const handleLogout = async () => {
-     try {
-       await firebaseSignOut();
-       window.location.reload(); // Hard reload to clear state
-     } catch (e) {
-       console.error("Logout failed", e);
-     }
-  };
-
   return (
     <>
-      <aside className="w-full md:w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col h-full z-20 hidden md:flex">
+      <aside className="w-full md:w-64 bg-white border-r border-slate-200 flex-shrink-0 flex-col h-full z-20 hidden md:flex">
         <div className="p-6 border-b border-slate-100 flex items-center gap-3">
           <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white"><i className="fas fa-graduation-cap"></i></div>
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">StudyAI</h1>
@@ -219,7 +266,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user }: { courses: Cour
            </div>
            <div className="flex-1 min-w-0">
               <div className="text-sm font-bold text-slate-700 truncate">{user.displayName || "Student"}</div>
-              <button onClick={handleLogout} className="text-xs text-slate-400 hover:text-red-500">Sign Out</button>
+              <Link to="/settings" className="text-xs text-slate-400 hover:text-primary">Settings</Link>
            </div>
         </div>
 
@@ -230,9 +277,12 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user }: { courses: Cour
           <Link to="/review" className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-primary font-medium transition-colors">
             <i className="fas fa-layer-group w-5"></i> Review
           </Link>
+          <Link to="/settings" className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-primary font-medium transition-colors">
+            <i className="fas fa-cog w-5"></i> Settings
+          </Link>
 
           <div className="mt-6 mb-2 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">My Courses</div>
-          {courses.map(course => (
+          {courses.map((course: Course) => (
             <div key={course.id} className="group flex items-center justify-between px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors">
               <Link to={`/course/${course.id}`} className="flex-1 flex items-center gap-3 min-w-0">
                 <span className="font-mono text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">{course.code}</span>
@@ -255,7 +305,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user }: { courses: Cour
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">Code</label>
             <input 
-              className="w-full p-2 border border-slate-300 rounded focus:ring-primary outline-none bg-white text-slate-900 placeholder:text-slate-400" 
+              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-primary outline-none bg-white text-slate-900 placeholder:text-slate-400" 
               placeholder="BIO101" 
               value={newCourse.code} 
               onChange={e => setNewCourse({...newCourse, code: e.target.value})} 
@@ -264,7 +314,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user }: { courses: Cour
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">Title</label>
             <input 
-              className="w-full p-2 border border-slate-300 rounded focus:ring-primary outline-none bg-white text-slate-900 placeholder:text-slate-400" 
+              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-primary outline-none bg-white text-slate-900 placeholder:text-slate-400" 
               placeholder="Intro to Biology" 
               value={newCourse.title} 
               onChange={e => setNewCourse({...newCourse, title: e.target.value})} 
@@ -273,7 +323,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user }: { courses: Cour
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1">Semester</label>
             <select 
-              className="w-full p-2 border border-slate-300 rounded focus:ring-primary outline-none bg-white text-slate-900"
+              className="w-full p-3 border border-slate-300 rounded-lg focus:ring-primary outline-none bg-white text-slate-900"
               value={newCourse.semester}
               onChange={e => setNewCourse({...newCourse, semester: e.target.value})}
             >
@@ -285,8 +335,8 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user }: { courses: Cour
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-2">
-          <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-500">Cancel</button>
-          <button onClick={handleCreate} disabled={!newCourse.title} className="px-4 py-2 bg-primary text-white rounded font-bold">Create</button>
+          <button onClick={() => setIsModalOpen(false)} className="px-6 py-3 text-slate-500 font-bold">Cancel</button>
+          <button onClick={handleCreate} disabled={!newCourse.title} className="px-6 py-3 bg-primary text-white rounded-lg font-bold shadow-md">Create</button>
         </div>
       </Modal>
 
@@ -300,6 +350,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user }: { courses: Cour
   );
 };
 
+// ... (Dashboard remains unchanged except for potentially more props if needed, but keeping as is for brevity) ...
 // --- Dashboard ---
 const Dashboard = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCourse: (id: string) => void }) => {
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
@@ -323,11 +374,37 @@ const Dashboard = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCou
       }, 0);
   }, 0);
 
+  // Calculate Chart Data (Quiz History)
+  const chartData = React.useMemo(() => {
+    const history: {date: string, score: number, total: number}[] = [];
+    courses.forEach(c => {
+        c.quizHistory.forEach(q => history.push(q));
+    });
+    
+    // Group by date
+    const grouped = history.reduce((acc, curr) => {
+        const d = new Date(curr.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        if (!acc[d]) acc[d] = { date: d, score: 0, total: 0, count: 0 };
+        acc[d].score += curr.score;
+        acc[d].total += curr.total;
+        acc[d].count += 1;
+        return acc;
+    }, {} as Record<string, any>);
+
+    return Object.values(grouped)
+        .map((g: any) => ({ 
+            date: g.date, 
+            percentage: Math.round((g.score / g.total) * 100) 
+        }))
+        .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .slice(-10); // Last 10 days
+  }, [courses]);
+
   return (
-    <div className="p-8 max-w-7xl mx-auto h-full overflow-y-auto">
-      <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="p-4 md:p-8 max-w-7xl mx-auto h-full overflow-y-auto">
+      <header className="mb-6 md:mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-           <h2 className="text-3xl font-bold text-slate-900 tracking-tight">Dashboard</h2>
+           <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Dashboard</h2>
            <p className="text-slate-500 mt-1">Overview of your academic progress.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -343,14 +420,14 @@ const Dashboard = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCou
       </header>
 
       {/* Hero Review Card */}
-      <div className="mb-8 bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg flex items-center justify-between">
-          <div>
+      <div className="mb-8 bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="text-center md:text-left">
               <h3 className="text-2xl font-bold mb-1">Ready to Review?</h3>
               <p className="text-slate-300">You have <span className="font-bold text-white">{dueCount}</span> cards due for review today.</p>
           </div>
           <button 
             onClick={() => navigate('/review')}
-            className="px-6 py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold shadow-md transition-all flex items-center gap-2"
+            className="w-full md:w-auto px-6 py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2"
           >
               <i className="fas fa-play"></i> Start Session
           </button>
@@ -362,27 +439,70 @@ const Dashboard = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCou
         <StatCard label="Study Materials" value={filteredCourses.reduce((acc, c) => acc + c.materials.length, 0)} icon="fa-layer-group" color="text-amber-600" bg="bg-amber-50" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCourses.map(course => (
-          <div key={course.id} className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all relative group flex flex-col h-64">
-             <div className="p-6 flex-1">
-                <div className="flex justify-between items-start mb-4">
-                  <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-1 rounded border border-slate-200">{course.code}</span>
-                  <button onClick={(e) => {e.preventDefault(); setCourseToDelete(course)}} className="text-slate-300 hover:text-red-500 p-1"><i className="fas fa-trash-alt"></i></button>
+      {/* Progress Chart */}
+      {chartData.length > 0 && (
+          <div className="mb-10 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+             <div className="flex justify-between items-center mb-6">
+                <h4 className="font-bold text-slate-800 flex items-center"><i className="fas fa-chart-line text-primary mr-2"></i> Performance Trends</h4>
+                <div className="flex gap-2">
+                    <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">Quiz Scores %</span>
                 </div>
-                <h4 className="text-lg font-bold text-slate-900 mb-1 line-clamp-1">{course.title}</h4>
+             </div>
+             <div className="h-72 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <defs>
+                            <linearGradient id="colorPerc" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+                        <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} unit="%" domain={[0, 100]} />
+                        <Tooltip 
+                            contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                            formatter={(value: any) => [`${value}%`, 'Score']}
+                            cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 4' }}
+                        />
+                        <Area 
+                            type="monotone" 
+                            dataKey="percentage" 
+                            stroke="#3b82f6" 
+                            strokeWidth={3} 
+                            fillOpacity={1} 
+                            fill="url(#colorPerc)" 
+                            activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
+                        />
+                    </AreaChart>
+                </ResponsiveContainer>
+             </div>
+          </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
+        {filteredCourses.map(course => (
+          <div key={course.id} className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all relative group flex flex-col h-auto min-h-[16rem]">
+             <Link to={`/course/${course.id}`} className="absolute inset-0 z-0 rounded-xl" aria-label={`View ${course.title}`}></Link>
+             
+             <div className="p-6 flex-1 pointer-events-none">
+                <div className="flex justify-between items-start mb-4 pointer-events-auto">
+                  <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-1 rounded border border-slate-200">{course.code}</span>
+                  <button onClick={(e) => {e.preventDefault(); e.stopPropagation(); setCourseToDelete(course)}} className="text-slate-300 hover:text-red-500 p-2 -mr-2 -mt-2 z-10 relative"><i className="fas fa-trash-alt"></i></button>
+                </div>
+                <h4 className="text-lg font-bold text-slate-900 mb-1 line-clamp-2">{course.title}</h4>
                 <div className="flex items-center gap-2 mb-4">
                    <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{course.semester}</span>
                    <p className="text-sm text-slate-500 line-clamp-1">{course.subtitle}</p>
                 </div>
                 <div className="flex gap-4 text-xs text-slate-400 mt-auto">
-                   <span className="flex items-center gap-1"><i className="fas fa-file-pdf"></i> {course.pdfName ? 'PDF Linked' : 'No PDF'}</span>
+                   <span className="flex items-center gap-1"><i className="fas fa-file-pdf"></i> {course.pdfName ? 'PDF' : 'No PDF'}</span>
                    <span className="flex items-center gap-1"><i className="fas fa-list"></i> {course.chapters.length} Ch</span>
                 </div>
              </div>
-             <Link to={`/course/${course.id}`} className="bg-slate-50 p-3 text-center text-sm font-bold text-primary border-t border-slate-100 hover:bg-blue-50 transition-colors rounded-b-xl">
+             <div className="bg-slate-50 p-3 text-center text-sm font-bold text-primary border-t border-slate-100 rounded-b-xl pointer-events-none">
                Enter Course <i className="fas fa-arrow-right ml-1 text-xs"></i>
-             </Link>
+             </div>
           </div>
         ))}
         {filteredCourses.length === 0 && (
@@ -401,7 +521,8 @@ const Dashboard = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCou
   );
 };
 
-// --- Specialized Delete Modal ---
+// ... (CourseDeleteModal, MaterialDeleteModal, StatCard, VisualDifficulty) ...
+
 const CourseDeleteModal = ({ course, onClose, onConfirm }: { course: Course | null, onClose: () => void, onConfirm: () => void }) => {
   const [confirmName, setConfirmName] = useState("");
   
@@ -411,18 +532,14 @@ const CourseDeleteModal = ({ course, onClose, onConfirm }: { course: Course | nu
 
   return (
     <Modal isOpen={!!course} onClose={onClose} title="Delete Course" maxWidth="max-w-md">
-       <div className="p-2">
+       <div className="p-4">
          <div className="bg-red-50 border border-red-100 rounded-lg p-4 mb-4 flex items-start gap-3">
             <i className="fas fa-exclamation-triangle text-red-500 mt-1"></i>
             <div>
               <h4 className="font-bold text-red-800 text-sm">Permanent Action</h4>
-              <p className="text-xs text-red-600 mt-1">This will permanently delete:</p>
-              <ul className="list-disc list-inside text-xs text-red-600 mt-1 space-y-0.5 ml-1">
-                 <li>The uploaded textbook PDF</li>
-                 <li>All {course.chapters.length} chapters and mappings</li>
-                 <li>All {course.materials.length} study materials (flashcards, quizzes)</li>
-                 <li>All progress and SRS data</li>
-              </ul>
+              <p className="text-xs text-red-600 mt-1 leading-relaxed">
+                 This will permanently delete the course, textbook, chapters, and all generated study materials.
+              </p>
             </div>
          </div>
          
@@ -439,16 +556,68 @@ const CourseDeleteModal = ({ course, onClose, onConfirm }: { course: Course | nu
          />
 
          <div className="flex justify-end gap-3">
-           <button onClick={onClose} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancel</button>
+           <button onClick={onClose} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
            <button 
              onClick={onConfirm} 
              disabled={!isMatch}
-             className="px-4 py-2 bg-red-500 text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-600 shadow-sm transition-all"
+             className="px-6 py-2 bg-red-500 text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-600 shadow-md transition-colors"
            >
              Delete Course
            </button>
          </div>
        </div>
+    </Modal>
+  );
+};
+
+const MaterialDeleteModal = ({ material, onClose, onConfirm }: { material: StudyMaterial | null, onClose: () => void, onConfirm: () => void }) => {
+  if (!material) return null;
+
+  return (
+    <Modal isOpen={!!material} onClose={onClose} title="Delete Material" maxWidth="max-w-sm">
+       <div className="p-4">
+         <p className="text-slate-600 font-medium mb-6">
+            Are you sure you want to delete <span className="font-bold text-slate-800">"{material.title}"</span>?
+         </p>
+         <div className="flex justify-end gap-3">
+           <button onClick={onClose} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
+           <button 
+             onClick={onConfirm} 
+             className="px-6 py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 shadow-md transition-colors"
+           >
+             Delete
+           </button>
+         </div>
+       </div>
+    </Modal>
+  );
+};
+
+// Simple Rename Modal
+const RenameMaterialModal = ({ material, onClose, onConfirm }: { material: StudyMaterial | null, onClose: () => void, onConfirm: (newName: string) => void }) => {
+  const [name, setName] = useState("");
+
+  useEffect(() => {
+    if (material) setName(material.title);
+  }, [material]);
+
+  if (!material) return null;
+
+  return (
+    <Modal isOpen={!!material} onClose={onClose} title="Rename Item" maxWidth="max-w-sm">
+      <div className="p-4">
+        <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Title</label>
+        <input 
+          className="w-full p-2 border border-slate-300 rounded focus:ring-primary outline-none text-slate-900 font-bold"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+        />
+        <div className="flex justify-end gap-3 mt-6">
+           <button onClick={onClose} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-lg">Cancel</button>
+           <button onClick={() => onConfirm(name)} disabled={!name.trim()} className="px-6 py-2 bg-primary text-white rounded-lg font-bold shadow-md hover:bg-blue-600 disabled:opacity-50">Save</button>
+        </div>
+      </div>
     </Modal>
   );
 };
@@ -460,394 +629,491 @@ const StatCard = ({ label, value, icon, color, bg }: any) => (
   </div>
 );
 
-// --- Library Panel ---
+const VisualDifficulty = ({ level }: { level: number }) => {
+  const pct = Math.max(0, Math.min(100, ((level - 1) / 4) * 100));
+
+  return (
+    <div className="flex flex-col gap-1 w-24">
+      <div className="h-2 w-full bg-slate-100 rounded-full relative overflow-hidden border border-slate-200">
+         <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 via-yellow-400 to-red-500 opacity-80"></div>
+         {/* Indicator Arrow */}
+         <div 
+           className="absolute top-0 bottom-0 w-1 bg-slate-900 shadow-sm" 
+           style={{ left: `${pct}%`, transform: 'translateX(-50%)' }}
+         ></div>
+      </div>
+      <div className="flex justify-between text-[8px] font-bold text-slate-400 uppercase tracking-tighter">
+         <span>Easy</span>
+         <span>Hard</span>
+      </div>
+    </div>
+  );
+};
+
+// --- UPDATED LIBRARY PANEL ---
 export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: Course, onUpdate: (c: Course) => void, onUpdateFlashcard: (cid: string, mid: string, c: Flashcard) => void }) => {
-  const [activeMat, setActiveMat] = useState<StudyMaterial | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [renameId, setRenameId] = useState<string | null>(null);
-  const [newName, setNewName] = useState("");
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [filterTab, setFilterTab] = useState<string>('MULTI');
-  const [fixing, setFixing] = useState(false);
+  const [selectedMaterial, setSelectedMaterial] = useState<StudyMaterial | null>(null);
+  const [materialToDelete, setMaterialToDelete] = useState<StudyMaterial | null>(null);
+  const [materialToRename, setMaterialToRename] = useState<StudyMaterial | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { showToast } = useContext(ToastContext);
 
-  // Initialize filterTab if unset (default to MULTI, or first available source)
-  // Simplified for this view
+  // Group materials by Chapter
+  const groupedMaterials = useMemo(() => {
+     const groups: Record<string, StudyMaterial[]> = {};
+     const mixed: StudyMaterial[] = [];
+     const general: StudyMaterial[] = [];
+     const subMap: Record<string, string> = {}; // Map Subchapter ID -> Parent Chapter ID
 
-  // Filter materials based on tab
-  // If tab is 'MULTI', show multi-chapter or lecture-based materials or anything with >1 source
-  const filteredMaterials = course.materials.filter(m => {
-    if (filterTab === 'MULTI') return (m.sourceChapterIds?.length || 0) > 1 || (m.sourceChapterIds?.length === 0);
-    // Specific chapter logic
-    return m.sourceChapterIds?.length === 1 && m.sourceChapterIds[0] === filterTab;
-  });
+     // Init groups & build subchapter map
+     course.chapters.forEach(ch => { 
+         groups[ch.id] = []; 
+         if (ch.subchapters) {
+             ch.subchapters.forEach(sub => {
+                 subMap[sub.id] = ch.id;
+             });
+         }
+     });
 
-  // Sort materials by date descending
-  const sortedMaterials = [...filteredMaterials].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+     course.materials.forEach(mat => {
+        if (!mat.sourceChapterIds || mat.sourceChapterIds.length === 0) {
+           general.push(mat);
+        } else if (mat.sourceChapterIds.length === 1) {
+           const id = mat.sourceChapterIds[0];
+           if (groups[id]) {
+               groups[id].push(mat); // Direct match to Chapter
+           } else if (subMap[id] && groups[subMap[id]]) {
+               groups[subMap[id]].push(mat); // Match to Subchapter -> Add to Parent Chapter
+           } else {
+               general.push(mat); // Orphaned ID (Lecture or deleted chapter) fallback
+           }
+        } else {
+           mixed.push(mat);
+        }
+     });
 
-  const handleComplete = (score: number) => {
-    if (activeMat?.type === ContentType.QUIZ) {
-      onUpdate({ ...course, quizHistory: [...course.quizHistory, { date: new Date().toISOString(), score, total: (activeMat.content as any).length }] });
-    }
-  };
+     return { groups, mixed, general };
+  }, [course]);
 
-  const handleExitQuiz = () => {
-    setActiveMat(null);
-  }
+  // Source Name Helper
+  const getSourceDisplay = (mat: StudyMaterial) => {
+      if (!mat.sourceChapterIds || mat.sourceChapterIds.length === 0) return "General Notes";
+      
+      const names = mat.sourceChapterIds.map(id => {
+          const ch = course.chapters.find(c => c.id === id);
+          if (ch) return `Ch ${course.chapters.indexOf(ch) + 1}`;
+          
+          // Check for subchapters
+          for (const c of course.chapters) {
+              const s = c.subchapters?.find(sub => sub.id === id);
+              if (s) return `Ch ${course.chapters.indexOf(c) + 1}.${c.subchapters!.indexOf(s) + 1}`;
+          }
 
-  const handleFixCard = async (card: Flashcard) => {
-    if (!activeMat || fixing) return;
-    setFixing(true);
-    showToast("Fixing card... please wait.", "info");
+          const lec = course.lectures.find(l => l.id === id);
+          if (lec) return `Lecture`;
+          return null;
+      }).filter(Boolean);
 
-    try {
-        // Retrieve context from chapters
-        let context = "";
-        const relevantChapters = course.chapters.filter(ch => activeMat.sourceChapterIds?.includes(ch.id));
-        context += relevantChapters.map(ch => ch.extractedText || "").join("\n");
-        
-        // Also retrieve context from lectures if any
-        const relevantLectures = course.lectures.filter(l => activeMat.sourceChapterIds?.includes(l.id));
-        context += relevantLectures.map(l => l.transcript || "").join("\n");
-
-        if (!context) context = `Card Context: ${card.front} ${card.back}`;
-
-        const fixed = await fixFlashcardContent(context);
-        const updatedCard = { ...card, front: fixed.front, back: fixed.back };
-        
-        onUpdateFlashcard(course.id, activeMat.id, updatedCard);
-        
-        // Update local activeMat state slightly hacky to reflect immediately without closing
-        const updatedContent = (activeMat.content as Flashcard[]).map(c => c.id === card.id ? updatedCard : c);
-        setActiveMat({ ...activeMat, content: updatedContent });
-
-        showToast("Card fixed successfully!");
-    } catch (e) {
-        showToast("Failed to fix card.", "error");
-    } finally {
-        setFixing(false);
-    }
-  };
-
-  const hasBrokenCards = (mat: StudyMaterial) => {
-      if (mat.type !== ContentType.FLASHCARDS) return false;
-      return (mat.content as Flashcard[]).some(c => !c.front || !c.back || !c.front.trim() || !c.back.trim());
-  };
-
-  const handleSaveMissedFlashcards = (missedQs: Question[]) => {
-    if (missedQs.length === 0) return;
-    
-    const newCards: Flashcard[] = missedQs.map(q => ({
-      id: uuid(),
-      front: q.text,
-      back: `Answer: ${q.correctAnswer}\n\nExplanation: ${q.explanation || ''}`,
-      mastered: false,
-      ...getInitialCardState(true) // Initialize with easier stats for missed Qs
-    }));
-    
-    const newMat: StudyMaterial = {
-      id: uuid(),
-      type: ContentType.FLASHCARDS,
-      title: `Missed from Quiz - ${formatDate(new Date().toISOString())}`,
-      createdAt: new Date().toISOString(),
-      difficulty: activeMat?.difficulty || Difficulty.MEDIUM,
-      content: newCards,
-      sourceChapterIds: activeMat?.sourceChapterIds || [] // Inherit chapter tags
-    };
-
-    onUpdate({ ...course, materials: [newMat, ...course.materials] });
-    showToast(`${newCards.length} flashcards created from errors!`);
+      if (names.length === 0) return "General";
+      if (names.length > 2) return `${names[0]} + ${names.length - 1} more`;
+      return names.join(", ");
   };
 
   const toggleSelect = (id: string) => {
-    const newSet = new Set(selectedIds);
-    if (newSet.has(id)) newSet.delete(id);
-    else newSet.add(id);
-    setSelectedIds(newSet);
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
   };
 
   const handleMerge = () => {
-    if (selectedIds.size < 2) return;
+    if (selectedIds.length < 2) return;
+    const selectedMats = course.materials.filter(m => selectedIds.includes(m.id));
     
-    const itemsToMerge = course.materials.filter(m => selectedIds.has(m.id));
-    const firstType = itemsToMerge[0].type;
-    
-    if (itemsToMerge.some(m => m.type !== firstType)) {
-      showToast("Can only merge items of the same type.", "error");
-      return;
+    // Validation
+    const type = selectedMats[0].type;
+    if (selectedMats.some(m => m.type !== type)) {
+        showToast("Merge failed: Can only merge items of the same type.", "error");
+        return;
+    }
+    if (type !== ContentType.FLASHCARDS && type !== ContentType.QUIZ && type !== ContentType.MOCK_TEST) {
+        showToast("Merge failed: Only Flashcards and Quizzes can be merged.", "error");
+        return;
     }
 
-    let mergedContent: any;
-    const newTitle = `Merged ${firstType === ContentType.FLASHCARDS ? 'Deck' : 'Set'}`;
-
-    if (firstType === ContentType.FLASHCARDS) {
-      const allCards = itemsToMerge.flatMap(m => m.content as Flashcard[]);
-      const seen = new Set();
-      mergedContent = allCards.filter(c => {
-        const key = c.front.toLowerCase().trim();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-    } else if (firstType === ContentType.QUIZ) {
-       const allQs = itemsToMerge.flatMap(m => m.content as Question[]);
-       const seen = new Set();
-       mergedContent = allQs.filter(q => {
-         const key = q.text.toLowerCase().trim();
-         if (seen.has(key)) return false;
-         seen.add(key);
-         return true;
-       });
-    } else {
-      mergedContent = itemsToMerge.map(m => `--- ${m.title} ---\n\n${m.content}`).join("\n\n");
+    // Combine & Shuffle
+    const rawContent = selectedMats.flatMap(m => m.content as unknown as (Flashcard | Question)[]);
+    const shuffledContent = shuffleArray(rawContent);
+    
+    // Dedupe for Flashcards based on front text
+    let uniqueContent = shuffledContent;
+    if (type === ContentType.FLASHCARDS) {
+        const seen = new Set();
+        uniqueContent = (shuffledContent as Flashcard[]).filter(c => {
+            const dup = seen.has(c.front);
+            seen.add(c.front);
+            return !dup;
+        });
     }
 
-    // Combine chapter IDs
-    const combinedChapterIds = Array.from(new Set(itemsToMerge.flatMap(m => m.sourceChapterIds || [])));
+    // Determine target Source ID (To keep it in Chapter 1 if possible)
+    const allSourceIds = selectedMats.flatMap(m => m.sourceChapterIds || []);
+    // Map subchapter IDs to parent chapter IDs where applicable
+    const normalizedSourceIds = allSourceIds.map(id => {
+       // Check if it's a subchapter
+       for (const ch of course.chapters) {
+           if (ch.subchapters?.some(sub => sub.id === id)) return ch.id;
+       }
+       return id; // Return original if not a subchapter (e.g. it is a chapter ID or lecture ID)
+    });
+    
+    const uniqueSourceIds = Array.from(new Set(normalizedSourceIds));
+    const mergedSourceIds = uniqueSourceIds.length === 1 ? uniqueSourceIds : []; // If all from same parent chapter, keep it. Else mixed.
+
+    // Calculate Average Difficulty
+    const totalDiff = selectedMats.reduce((acc, m) => acc + (m.difficulty || Difficulty.MEDIUM), 0);
+    const avgDiff = totalDiff / selectedMats.length;
 
     const newMat: StudyMaterial = {
-      id: uuid(),
-      type: firstType,
-      title: newTitle,
-      createdAt: new Date().toISOString(),
-      difficulty: itemsToMerge[0].difficulty, 
-      content: mergedContent,
-      sourceChapterIds: combinedChapterIds
+        id: uuid(),
+        type: type,
+        title: `Merged: ${selectedMats[0].title} + ${selectedMats.length - 1} more`,
+        createdAt: new Date().toISOString(),
+        difficulty: avgDiff,
+        content: uniqueContent as any,
+        sourceChapterIds: mergedSourceIds // Use smart merged IDs
     };
 
-    // Remove originals and add new
-    const remainingMaterials = course.materials.filter(m => !selectedIds.has(m.id));
-    onUpdate({ ...course, materials: [newMat, ...remainingMaterials] });
-    setSelectedIds(new Set());
-    showToast(`Merged into "${newTitle}" – originals deleted.`);
+    onUpdate({ ...course, materials: [newMat, ...course.materials] });
+    setSelectedIds([]);
+    showToast("Materials merged & shuffled successfully!");
   };
 
-  const handleDeleteClick = () => {
-    if (selectedIds.size === 0) return;
-    setDeleteConfirmOpen(true);
+  const confirmDeleteMaterial = () => {
+      if (materialToDelete) {
+          const newMaterials = course.materials.filter(m => m.id !== materialToDelete.id);
+          onUpdate({ ...course, materials: newMaterials });
+          setMaterialToDelete(null);
+          setSelectedMaterial(null);
+          showToast("Study material deleted.");
+      }
   };
 
-  const confirmDelete = () => {
-    const remaining = course.materials.filter(m => !selectedIds.has(m.id));
-    onUpdate({ ...course, materials: remaining });
-    setSelectedIds(new Set());
-    setDeleteConfirmOpen(false);
-    showToast("Items deleted successfully.", "success");
+  const confirmRenameMaterial = (newName: string) => {
+      if (materialToRename && newName.trim()) {
+          const updated = { ...materialToRename, title: newName.trim() };
+          const newMaterials = course.materials.map(m => m.id === materialToRename.id ? updated : m);
+          onUpdate({ ...course, materials: newMaterials });
+          setMaterialToRename(null);
+          showToast("Renamed successfully.");
+      }
   };
 
-  const startRename = (mat: StudyMaterial, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setRenameId(mat.id);
-    setNewName(mat.title);
-  };
-
-  const saveRename = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (renameId && newName.trim()) {
-      const updatedMats = course.materials.map(m => m.id === renameId ? { ...m, title: newName.trim() } : m);
-      onUpdate({ ...course, materials: updatedMats });
-      setRenameId(null);
-      showToast("Renamed successfully.");
-    }
-  };
-
-  const cancelRename = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setRenameId(null);
-  };
-
-  const getDifficultyBadge = (d?: Difficulty) => {
-    if (!d) return null;
-    if (d === 1) return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-50 text-green-600 border border-green-100">Easy</span>;
-    if (d === 3) return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">Medium</span>;
-    return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-100">Hard</span>;
-  };
-
-  const getChapterBadge = (mat: StudyMaterial) => {
-    const ids = mat.sourceChapterIds || [];
-    if (ids.length === 0) return null;
+  const handleShuffleMaterial = () => {
+    if (!selectedMaterial) return;
+    const content = selectedMaterial.content as any[];
+    if (!content || content.length === 0) return;
     
-    // Check if it's a Lecture ID
-    const lecture = course.lectures.find(l => ids.includes(l.id));
-    if (lecture && ids.length === 1) {
-        return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">Note</span>;
-    }
-
-    if (ids.length === 1) {
-      const idx = course.chapters.findIndex(c => c.id === ids[0]);
-      if (idx === -1) return null;
-      return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">Ch.{idx + 1}</span>;
-    }
+    const shuffled = shuffleArray([...content]);
+    const updatedMat = { ...selectedMaterial, content: shuffled };
+    const newMaterials = course.materials.map(m => m.id === selectedMaterial.id ? updatedMat : m);
     
-    return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">Mixed</span>;
+    onUpdate({ ...course, materials: newMaterials });
+    setSelectedMaterial(updatedMat);
+    showToast("Deck shuffled!");
   };
 
-  if (activeMat) {
-    return (
-      <div className="animate-fade-in-up h-full flex flex-col">
-        <div className="mb-4 flex items-center justify-between">
-          <button onClick={() => setActiveMat(null)} className="text-sm font-bold text-slate-500 hover:text-slate-800"><i className="fas fa-arrow-left mr-2"></i>Back to Library</button>
-          <div className="flex items-center gap-3">
-             <h3 className="font-bold text-slate-800">{activeMat.title}</h3>
-             {fixing && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded animate-pulse"><i className="fas fa-magic mr-1"></i>Fixing...</span>}
+  const handleExport = (mat: StudyMaterial) => {
+    let content = "";
+    let filename = `${mat.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.csv`;
+    let type = "text/csv;charset=utf-8;";
+
+    if (mat.type === ContentType.FLASHCARDS) {
+        const cards = mat.content as Flashcard[];
+        // CSV format compatible with Anki: Front,Back
+        content = cards.map(c => `"${c.front.replace(/"/g, '""')}","${c.back.replace(/"/g, '""')}"`).join("\n");
+    } else if (mat.type === ContentType.QUIZ || mat.type === ContentType.MOCK_TEST) {
+        const questions = mat.content as Question[];
+        content = questions.map(q => 
+            `Q: ${q.text}\nA: ${q.correctAnswer}\n${q.options ? 'Options: ' + q.options.join(', ') : ''}\n`
+        ).join("\n---\n");
+        filename = filename.replace('.csv', '.txt');
+        type = "text/plain;charset=utf-8;";
+    } else {
+        content = mat.content as string;
+        filename = filename.replace('.csv', '.txt');
+        type = "text/plain;charset=utf-8;";
+    }
+
+    const dataStr = `data:${type},` + encodeURIComponent(content);
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", filename);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    showToast("Export downloaded!");
+  };
+
+  // Convert Quiz questions to Flashcards
+  const handleSaveMissedToFlashcards = (missed: Question[]) => {
+      if (!missed || missed.length === 0) return;
+
+      const newFlashcards: Flashcard[] = missed.map(q => ({
+          id: uuid(),
+          front: q.text,
+          back: `Answer: ${q.correctAnswer}\n\n${q.explanation || ''}`,
+          source: q.source || `Quiz: ${selectedMaterial?.title || 'Unknown'}`,
+          ...getInitialCardState(true)
+      }));
+
+      const newMat: StudyMaterial = {
+          id: uuid(),
+          type: ContentType.FLASHCARDS,
+          title: `Flashcards from ${selectedMaterial?.title || 'Quiz'}`,
+          createdAt: new Date().toISOString(),
+          difficulty: selectedMaterial?.difficulty || Difficulty.MEDIUM,
+          content: newFlashcards,
+          sourceChapterIds: selectedMaterial?.sourceChapterIds || []
+      };
+
+      onUpdate({ ...course, materials: [newMat, ...course.materials] });
+      showToast(`Created ${newFlashcards.length} flashcards from quiz questions!`);
+  };
+
+  const handleQuizComplete = (score: number) => {
+      if (!selectedMaterial) return;
+      const result: QuizResult = {
+          date: new Date().toISOString(),
+          score: score,
+          total: (selectedMaterial.content as Question[]).length,
+          chapterIds: selectedMaterial.sourceChapterIds,
+          materialTitle: selectedMaterial.title
+      };
+      
+      const newHistory = [...course.quizHistory, result];
+      onUpdate({ ...course, quizHistory: newHistory });
+      showToast(`Quiz completed! Score saved.`, "success");
+  };
+
+  const renderMaterialCard = (mat: StudyMaterial) => (
+    <div key={mat.id} className={`group bg-white p-5 rounded-xl border flex flex-col justify-between hover:shadow-lg transition-all relative overflow-hidden ${selectedIds.includes(mat.id) ? 'border-primary ring-2 ring-primary bg-blue-50/50' : 'border-slate-200 hover:border-blue-300'}`}>
+       
+       <div className="flex justify-between items-start mb-3">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg shrink-0 shadow-sm ${
+             mat.type === ContentType.FLASHCARDS ? 'bg-amber-100 text-amber-600' : 
+             mat.type === ContentType.QUIZ || mat.type === ContentType.MOCK_TEST ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'
+          }`}>
+             <i className={`fas ${
+                mat.type === ContentType.FLASHCARDS ? 'fa-bolt' : 
+                mat.type === ContentType.QUIZ || mat.type === ContentType.MOCK_TEST ? 'fa-question-circle' : 'fa-align-left'
+             }`}></i>
           </div>
-        </div>
-        <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative">
-           {activeMat.type === ContentType.QUIZ && (
-             <div className="h-full overflow-y-auto">
-               <QuizTaker 
-                 questions={activeMat.content as Question[]} 
-                 onComplete={handleComplete} 
-                 onExit={handleExitQuiz}
-                 onSaveMissed={handleSaveMissedFlashcards}
-               />
+          <div className="flex gap-2 z-10">
+             <input 
+               type="checkbox" 
+               checked={selectedIds.includes(mat.id)}
+               onChange={() => toggleSelect(mat.id)}
+               className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+             />
+          </div>
+       </div>
+
+       <div className="mb-4">
+          <h4 className="font-bold text-slate-800 text-sm mb-1 leading-snug line-clamp-2 pr-6" title={mat.title}>{mat.title}</h4>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+             <span>{formatDate(mat.createdAt)}</span>
+             <span>•</span>
+             <span className="font-bold text-slate-500 bg-slate-100 px-1.5 rounded">{getSourceDisplay(mat)}</span>
+          </div>
+       </div>
+
+       <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
+          <div className="flex flex-col items-start mr-auto">
+             <VisualDifficulty level={mat.difficulty || Difficulty.MEDIUM} />
+             <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">{getDifficultyLabel(mat.difficulty || Difficulty.MEDIUM)}</span>
+          </div>
+          
+          <div className="flex gap-2 items-center">
+            <button 
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMaterialToRename(mat); }}
+              className="p-2 text-slate-300 hover:text-blue-500 transition-colors z-20"
+              title="Rename"
+              type="button"
+            >
+              <i className="fas fa-edit"></i>
+            </button>
+            <button 
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMaterialToDelete(mat); }}
+              className="p-2 text-slate-300 hover:text-red-500 transition-colors z-20"
+              title="Delete"
+              type="button"
+            >
+              <i className="fas fa-trash-alt"></i>
+            </button>
+            <button 
+              onClick={() => setSelectedMaterial(mat)} 
+              className="px-3 py-1.5 bg-slate-100 hover:bg-primary hover:text-white text-slate-600 text-xs font-bold rounded transition-colors shadow-sm"
+              type="button"
+            >
+              Open
+            </button>
+          </div>
+       </div>
+    </div>
+  );
+
+  if (selectedMaterial) {
+    return (
+        <div className="flex flex-col h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-fade-in">
+           <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:justify-between md:items-center bg-slate-50 gap-4">
+             <div className="flex items-center gap-3">
+               <button onClick={() => setSelectedMaterial(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 transition-colors"><i className="fas fa-arrow-left"></i></button>
+               <div>
+                  <h3 className="font-bold text-slate-800 line-clamp-1">{selectedMaterial.title}</h3>
+                  <div className="text-xs text-slate-500 font-medium">{(selectedMaterial.type || 'UNKNOWN').replace('_', ' ')} • {(selectedMaterial.content as any[]).length || 0} items</div>
+               </div>
              </div>
-           )}
-           {activeMat.type === ContentType.FLASHCARDS && (
-              <div className="h-full flex items-center justify-center">
-                 <FlashcardViewer cards={activeMat.content as Flashcard[]} onFixCard={handleFixCard} />
-              </div>
-           )}
-           {(activeMat.type === ContentType.NOTES || activeMat.type === ContentType.MINDMAP || activeMat.type === ContentType.ACTIVE_RECALL) && (
-             <div className="h-full overflow-y-auto p-8 prose max-w-none">
-               <pre className="whitespace-pre-wrap font-sans text-slate-700">{activeMat.content as string}</pre>
+             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                <button 
+                    onClick={handleShuffleMaterial}
+                    className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
+                >
+                    <i className="fas fa-random"></i> Shuffle
+                </button>
+                <button 
+                    onClick={() => handleExport(selectedMaterial)}
+                    className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
+                >
+                    <i className="fas fa-download"></i> Export
+                </button>
+                <button 
+                    onClick={() => setMaterialToDelete(selectedMaterial)}
+                    className="px-3 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-500 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
+                >
+                    <i className="fas fa-trash-alt"></i> Delete
+                </button>
+                <div className="bg-slate-50 px-3 py-1 rounded border border-slate-100 flex flex-col items-end whitespace-nowrap hidden sm:flex">
+                    <VisualDifficulty level={selectedMaterial.difficulty || Difficulty.MEDIUM} />
+                    <span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{getDifficultyLabel(selectedMaterial.difficulty || Difficulty.MEDIUM)}</span>
+                </div>
              </div>
-           )}
+           </div>
+           <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50">
+              {selectedMaterial.type === ContentType.FLASHCARDS && (
+                 <div className="h-full flex flex-col items-center justify-center">
+                    <FlashcardViewer cards={selectedMaterial.content as unknown as Flashcard[]} />
+                 </div>
+              )}
+              {(selectedMaterial.type === ContentType.QUIZ || selectedMaterial.type === ContentType.MOCK_TEST) && (
+                 <QuizTaker 
+                    questions={selectedMaterial.content as unknown as Question[]} 
+                    onExit={() => setSelectedMaterial(null)} 
+                    onSaveMissed={handleSaveMissedToFlashcards}
+                    onComplete={handleQuizComplete}
+                 />
+              )}
+              {(selectedMaterial.type === ContentType.NOTES || selectedMaterial.type === ContentType.MINDMAP || selectedMaterial.type === ContentType.ACTIVE_RECALL) && (
+                 <div className="prose prose-slate max-w-none bg-white p-8 rounded-xl shadow-sm border border-slate-100 mx-auto">
+                    <pre className="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed">{(selectedMaterial.content as unknown as string)}</pre>
+                 </div>
+              )}
+           </div>
+           
+           <MaterialDeleteModal 
+              material={materialToDelete} 
+              onClose={() => setMaterialToDelete(null)} 
+              onConfirm={confirmDeleteMaterial} 
+           />
         </div>
-      </div>
     );
   }
 
   return (
-    <div>
-      {/* Stats */}
-      <div className="mb-8 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <h4 className="font-bold text-slate-700 mb-4">Performance</h4>
-        <div className="h-48">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={course.quizHistory}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="date" tick={false} />
-              <YAxis domain={[0, 100]} fontSize={12} />
-              <Tooltip />
-              <Line type="monotone" dataKey="score" stroke="#2563eb" strokeWidth={3} dot={{r: 4}} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="mb-6 border-b border-slate-200 flex overflow-x-auto gap-1 no-scrollbar">
-         <button 
-           onClick={() => setFilterTab('MULTI')}
-           className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${filterTab === 'MULTI' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-         >
-           All Materials
-         </button>
-         {course.chapters.map((ch, idx) => (
-           <button 
-             key={ch.id}
-             onClick={() => setFilterTab(ch.id)}
-             className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${filterTab === ch.id ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-           >
-             Ch.{idx + 1}
-           </button>
-         ))}
-      </div>
-
-      {/* List Header */}
-      <div className="flex justify-between items-end mb-4 h-8">
-        <h4 className="font-bold text-slate-700 flex items-center gap-2">
-          Study Materials
-          <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{sortedMaterials.length}</span>
-        </h4>
-        {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2 animate-fade-in bg-slate-800 text-white px-2 py-1 rounded-lg shadow-lg z-10">
-            <span className="text-xs font-bold px-2">{selectedIds.size} selected</span>
-            {selectedIds.size >= 2 && (
-              <button onClick={handleMerge} className="text-xs bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded transition-colors border border-blue-500">
-                <i className="fas fa-object-group mr-1"></i> Merge
-              </button>
-            )}
-            <button onClick={handleDeleteClick} className="text-xs bg-red-600 hover:bg-red-500 px-3 py-1 rounded transition-colors border border-red-500">
-              <i className="fas fa-trash-alt mr-1"></i> Delete
+    <div className="h-full flex flex-col relative">
+       {/* Merge Bar - Fixed to viewport */}
+       {selectedIds.length > 1 && (
+         <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-4 animate-slide-up border border-slate-700">
+            <span className="font-bold text-sm">{selectedIds.length} Selected</span>
+            <div className="w-px h-4 bg-slate-600"></div>
+            <button onClick={handleMerge} className="text-sm font-bold hover:text-blue-300 transition-colors">
+                <i className="fas fa-object-group mr-2"></i>Merge & Shuffle
             </button>
-            <button onClick={() => setSelectedIds(new Set())} className="text-xs text-slate-400 hover:text-white px-2">
-              <i className="fas fa-times"></i>
-            </button>
-          </div>
-        )}
-      </div>
+            <button onClick={() => setSelectedIds([])} className="ml-2 text-slate-400 hover:text-white transition-colors"><i className="fas fa-times"></i></button>
+         </div>
+       )}
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-10">
-        {sortedMaterials.map(mat => (
-          <div 
-            key={mat.id} 
-            onClick={() => selectedIds.size > 0 ? toggleSelect(mat.id) : setActiveMat(mat)} 
-            className={`bg-white p-4 rounded-xl border transition-all group relative cursor-pointer flex flex-col justify-between ${selectedIds.has(mat.id) ? 'border-primary ring-1 ring-primary bg-blue-50/30' : 'border-slate-200 hover:border-blue-400 hover:shadow-md'}`}
-          >
-             {/* Checkbox Overlay */}
-             <div className="absolute top-3 right-3 z-10" onClick={(e) => { e.stopPropagation(); toggleSelect(mat.id); }}>
-                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${selectedIds.has(mat.id) ? 'bg-primary border-primary' : 'bg-white border-slate-300 group-hover:border-blue-300 shadow-sm'}`}>
-                   {selectedIds.has(mat.id) && <i className="fas fa-check text-white text-xs"></i>}
-                </div>
+       <div className="flex-1 overflow-y-auto space-y-6 pb-20 p-1">
+         {course.materials.length === 0 && (
+             <div className="text-center py-16 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+               <i className="fas fa-inbox text-5xl mb-4 text-slate-300"></i>
+               <p className="font-bold text-slate-500">Library is empty.</p>
+               <p className="text-sm mt-1">Use the Generator tab to create study materials.</p>
              </div>
-
-             {/* Meta Header */}
-             <div className="flex justify-between items-start mb-2 pr-8">
-                <div className="flex gap-2">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${mat.type === ContentType.QUIZ ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'}`}>{mat.type}</span>
-                  {getDifficultyBadge(mat.difficulty)}
-                  {getChapterBadge(mat)}
-                </div>
-                {hasBrokenCards(mat) && <div className="text-amber-500 text-xs" title="Contains invalid cards"><i className="fas fa-exclamation-triangle"></i></div>}
-             </div>
+         )}
+         
+         {/* Chapter Sections */}
+         {course.chapters.map((ch, idx) => {
+             const mats = groupedMaterials.groups[ch.id];
+             if (mats.length === 0) return null;
              
-             {/* Title / Rename Form */}
-             <div className="mb-2">
-               {renameId === mat.id ? (
-                  <form onSubmit={saveRename} className="flex gap-1" onClick={e => e.stopPropagation()}>
-                    <input 
-                      autoFocus 
-                      className="w-full text-sm font-bold border rounded p-1 outline-none ring-1 ring-primary bg-white text-slate-900" 
-                      value={newName} 
-                      onChange={e => setNewName(e.target.value)} 
-                    />
-                    <button type="submit" className="text-green-600 px-1 hover:bg-green-50 rounded"><i className="fas fa-check"></i></button>
-                    <button type="button" onClick={cancelRename} className="text-red-500 px-1 hover:bg-red-50 rounded"><i className="fas fa-times"></i></button>
-                  </form>
-               ) : (
-                  <div className="flex items-center gap-2 group/title">
-                     <h5 className="font-bold text-slate-800 text-lg leading-tight line-clamp-2">{mat.title}</h5>
-                     <button onClick={(e) => startRename(mat, e)} className="text-slate-300 hover:text-blue-500 opacity-0 group-hover/title:opacity-100 transition-opacity p-1"><i className="fas fa-pencil-alt text-xs"></i></button>
-                  </div>
-               )}
-             </div>
-             
-             <span className="text-xs text-slate-400 font-medium">{formatDate(mat.createdAt)}</span>
-          </div>
-        ))}
-        {sortedMaterials.length === 0 && (
-           <div className="col-span-2 py-12 text-center border-2 border-dashed border-slate-100 rounded-xl">
-             <i className="fas fa-folder-open text-slate-300 text-4xl mb-3"></i>
-             <p className="text-slate-500 font-medium">No materials yet.</p>
-             <p className="text-xs text-slate-400">Use the Generator to create flashcards or quizzes!</p>
-           </div>
-        )}
-      </div>
+             return (
+                 <details key={ch.id} open className="group bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" >
+                    <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 hover:bg-slate-100 transition-colors border-b border-slate-100">
+                        <div className="w-6 h-6 rounded bg-white border border-slate-200 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
+                            <i className="fas fa-chevron-right transform group-open:rotate-90 transition-transform"></i>
+                        </div>
+                        <span className="text-sm font-bold text-slate-700 uppercase tracking-wide">Chapter {idx + 1}: {ch.title}</span>
+                        <div className="ml-auto text-xs font-bold text-slate-400 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">{mats.length} Items</div>
+                    </summary>
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30">
+                        {mats.map(renderMaterialCard)}
+                    </div>
+                 </details>
+             );
+         })}
 
-      <Modal isOpen={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} title="Confirm Deletion" maxWidth="max-w-sm">
-        <div className="p-4 text-center">
-           <i className="fas fa-trash-alt text-3xl text-red-500 mb-4 bg-red-50 p-4 rounded-full"></i>
-           <h3 className="font-bold text-lg mb-2">Delete {selectedIds.size} Items?</h3>
-           <p className="text-slate-500 text-sm mb-6">These materials will be permanently removed from your library.</p>
-           <div className="flex justify-center gap-3">
-             <button onClick={() => setDeleteConfirmOpen(false)} className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-100 rounded-lg">Cancel</button>
-             <button onClick={confirmDelete} className="px-6 py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 shadow-md">Delete</button>
-           </div>
-        </div>
-      </Modal>
+         {/* Mixed Section */}
+         {groupedMaterials.mixed.length > 0 && (
+            <details open className="group bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 hover:bg-slate-100 transition-colors border-b border-slate-100">
+                    <div className="w-6 h-6 rounded bg-white border border-slate-200 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
+                        <i className="fas fa-chevron-right transform group-open:rotate-90 transition-transform"></i>
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 uppercase tracking-wide"><i className="fas fa-layer-group mr-2 text-slate-400"></i>Combined / Mixed</span>
+                    <div className="ml-auto text-xs font-bold text-slate-400 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">{groupedMaterials.mixed.length} Items</div>
+                </summary>
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30">
+                    {groupedMaterials.mixed.map(renderMaterialCard)}
+                </div>
+            </details>
+         )}
+
+         {/* General Section */}
+         {groupedMaterials.general.length > 0 && (
+            <details open className="group bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 hover:bg-slate-100 transition-colors border-b border-slate-100">
+                    <div className="w-6 h-6 rounded bg-white border border-slate-200 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
+                        <i className="fas fa-chevron-right transform group-open:rotate-90 transition-transform"></i>
+                    </div>
+                    <span className="text-sm font-bold text-slate-700 uppercase tracking-wide"><i className="fas fa-file-alt mr-2 text-slate-400"></i>General Notes</span>
+                    <div className="ml-auto text-xs font-bold text-slate-400 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">{groupedMaterials.general.length} Items</div>
+                </summary>
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30">
+                    {groupedMaterials.general.map(renderMaterialCard)}
+                </div>
+            </details>
+         )}
+       </div>
+       
+       <MaterialDeleteModal 
+          material={materialToDelete} 
+          onClose={() => setMaterialToDelete(null)} 
+          onConfirm={confirmDeleteMaterial} 
+       />
+       
+       <RenameMaterialModal
+          material={materialToRename}
+          onClose={() => setMaterialToRename(null)}
+          onConfirm={confirmRenameMaterial}
+       />
     </div>
   );
 };

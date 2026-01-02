@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Flashcard } from '../types';
 import { calculateReview, Rating } from '../services/srs';
@@ -132,9 +133,14 @@ export const ReviewSession: React.FC<Props> = ({ queue, onUpdateCard, onExit }) 
             </div>
 
             {isFlipped && (
-                <div className="flex-1 border-t border-slate-100 bg-blue-50/30 flex flex-col items-center justify-center p-12 text-center animate-fade-in-up">
-                    <div className="prose prose-slate max-w-none">
+                <div className="flex-1 border-t border-slate-100 bg-blue-50/30 flex flex-col items-center justify-center p-12 text-center animate-fade-in-up w-full">
+                    <div className="prose prose-slate max-w-none w-full">
                         <p className="text-xl text-slate-700 whitespace-pre-wrap font-medium">{currentItem.card.back}</p>
+                        {currentItem.card.source && (
+                            <p className="mt-6 text-xs text-slate-400 font-bold uppercase tracking-wide flex items-center justify-center gap-1">
+                                <i className="fas fa-map-marker-alt"></i> {currentItem.card.source}
+                            </p>
+                        )}
                     </div>
                 </div>
             )}

@@ -1,11 +1,11 @@
+
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Handle ESM/CJS interop for pdfjs-dist
 const pdfjs = (pdfjsLib as any).default || pdfjsLib;
 
-if (pdfjs.GlobalWorkerOptions) {
-  pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-}
+// CRITICAL: Match this worker version exactly with package.json "pdfjs-dist" version.
+pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 export interface PdfDocument {
   numPages: number;
@@ -13,13 +13,30 @@ export interface PdfDocument {
 }
 
 export const loadPdfDocument = async (url: string): Promise<PdfDocument> => {
+  if (!url) {
+    throw new Error("PDF URL is missing");
+  }
+
+  try {
+     if (typeof url !== 'string') throw new Error("URL must be a string");
+     if (!url.startsWith('blob:') && !url.startsWith('data:')) {
+        new URL(url, window.location.href);
+     }
+  } catch (e) {
+     console.error("Invalid URL:", url);
+     throw new Error("Invalid PDF URL format.");
+  }
+
   try {
     const loadingTask = pdfjs.getDocument(url);
     const pdf = await loadingTask.promise;
     return pdf;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error loading PDF:", error);
-    throw new Error("Failed to load PDF document.");
+    if (error.message && error.message.includes('version')) {
+        throw new Error(`PDF Version Mismatch: Main thread is v${pdfjs.version}, Worker is v3.11.174.`);
+    }
+    throw new Error("Failed to load PDF. Security restrictions may block this file.");
   }
 };
 
@@ -27,27 +44,41 @@ export const extractTextFromRange = async (
   pdf: PdfDocument, 
   startPage: number, 
   endPage: number,
-  onProgress?: (current: number) => void
+  onProgress?: (current: number, total: number) => void
 ): Promise<string> => {
-  let fullText = "";
   const start = Math.max(1, startPage);
   const end = Math.min(pdf.numPages, endPage);
+  const totalPages = end - start + 1;
+  
+  // Create an array of page numbers to fetch
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => start + i);
 
-  for (let i = start; i <= end; i++) {
-    if (onProgress) onProgress(i);
+  let completed = 0;
+
+  const pagePromises = pageNumbers.map(async (pageNum) => {
     try {
-      const page = await pdf.getPage(i);
+      const page = await pdf.getPage(pageNum);
       const textContent = await page.getTextContent();
+      
+      // Improved text joining strategy
       const pageText = textContent.items
-        .map((item: any) => item.str || '')
-        .join(' ');
-      // Adding clear delimiters helps the AI understand page boundaries vs content
-      fullText += `[Page ${i}]\n${pageText}\n`;
+        .map((item: any) => item.str)
+        .join(' ')
+        .replace(/\s+/g, ' ') // Collapse multiple spaces
+        .trim();
+
+      completed++;
+      if (onProgress) onProgress(completed, totalPages);
+
+      return `[Page ${pageNum}]\n${pageText}`;
     } catch (e) {
-      console.warn(`Failed to extract text from page ${i}`, e);
+      console.warn(`Failed to extract text from page ${pageNum}`, e);
+      return `[Page ${pageNum}] (Extraction Failed)`;
     }
-  }
-  return fullText;
+  });
+
+  const pageTexts = await Promise.all(pagePromises);
+  return pageTexts.join('\n\n');
 };
 
 export const extractAllText = async (pdf: PdfDocument): Promise<string> => {
