@@ -15,9 +15,14 @@ export const SettingsPanel: React.FC<Props> = ({ user, onLogout }) => {
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   const handleUpdateProfile = async () => {
-    // FIX: Guard against auth being undefined by capturing currentUser safely
+    // FIX: Guard against auth being undefined.
+    // We capture currentUser in a variable to ensure TS knows it's defined during the call.
     const currentUser = auth?.currentUser;
-    if (!currentUser) return;
+    
+    if (!currentUser) {
+        setMessage({ type: 'error', text: 'Authentication service not ready.' });
+        return;
+    }
 
     setLoading(true);
     setMessage(null);
