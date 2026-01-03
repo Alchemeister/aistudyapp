@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import Draggable from 'react-draggable';
 
@@ -8,9 +7,20 @@ export const Pomodoro = () => {
   const [isMinimized, setIsMinimized] = useState(false);
   const nodeRef = useRef(null);
   
-  // Load position if available, but bounds logic will constrain it to viewport
-  const savedPos = localStorage.getItem('pomodoro_pos');
-  const initialPos = savedPos ? JSON.parse(savedPos) : undefined; // undefined lets CSS handle start
+  // Load position safely
+  const getSavedPos = () => {
+    try {
+      const savedPos = localStorage.getItem('pomodoro_pos');
+      // Check if it looks like JSON before parsing, or catch the error
+      return savedPos ? JSON.parse(savedPos) : undefined;
+    } catch (e) {
+      // If data is corrupted (SyntaxError), return undefined to reset position
+      console.warn("Resetting Pomodoro position due to data corruption.");
+      return undefined;
+    }
+  };
+
+  const initialPos = getSavedPos();
 
   useEffect(() => {
     let interval: any = null;
@@ -26,7 +36,9 @@ export const Pomodoro = () => {
   }, [isActive, timeLeft]);
 
   const handleStop = (e: any, data: any) => {
-    localStorage.setItem('pomodoro_pos', JSON.stringify({ x: data.x, y: data.y }));
+    // Save as simple JSON object
+    const pos = { x: data.x, y: data.y };
+    localStorage.setItem('pomodoro_pos', JSON.stringify(pos));
   };
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
