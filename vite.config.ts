@@ -10,7 +10,6 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react()
     ],
-    // Removed manual resolve aliases and dedupe to prevent conflicts
     assetsInclude: ['**/*.min.js'],
     build: {
       target: 'esnext',
@@ -24,4 +23,4 @@ export default defineConfig(({ mode }) => {
       'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || ''),
     },
   };
-});;
+});
