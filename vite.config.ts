@@ -14,12 +14,18 @@ export default defineConfig(({ mode }) => {
     ],
     assetsInclude: ['**/*.min.js'],
     build: {
-      target: 'esnext',
+      target: 'es2020',
       rollupOptions: {
         output: {
           manualChunks: undefined,
         },
       },
+    },
+    resolve: {
+      dedupe: ['react', 'react-dom'],
+    },
+    optimizeDeps: {
+      include: ['react', 'react-dom'],
     },
     define: {
       'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || ''),
