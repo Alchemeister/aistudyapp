@@ -20,9 +20,11 @@ export default defineConfig(({ mode }) => {
         transformMixedEsModules: true,
       },
       rollupOptions: {
+        external: ['react', 'react-dom'],
         output: {
-          manualChunks: {
-            react: ['react', 'react-dom'],
+          globals: {
+            react: 'React',
+            'react-dom': 'ReactDOM',
           },
         },
       },
@@ -31,7 +33,7 @@ export default defineConfig(({ mode }) => {
       dedupe: ['react', 'react-dom', 'react-router-dom'],
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react-router-dom'],
+      include: ['react-router-dom'],
       esbuildOptions: {
         target: 'es2020',
       },
