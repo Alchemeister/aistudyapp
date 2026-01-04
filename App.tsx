@@ -19,10 +19,6 @@ import { SettingsPanel } from './components/SettingsPanel';
 import { auth, signOut as firebaseSignOut } from './services/firebase';
 import { GeneratorPanel, FlashcardViewer } from './components/GeneratorPanel';
 
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/195104b7-eab3-4c79-8f2a-a9a461713290',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:21',message:'React import check',data:{reactType:typeof React,reactKeys:React?Object.keys(React).slice(0,30):'null',reactCreateContextType:typeof React.createContext,reactCreateContextIsFunction:typeof React.createContext==='function',hasCreateContextInReact:!!React.createContext},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-// #endregion
-
 // --- Utils ---
 const uuid = () => Math.random().toString(36).substring(2, 9);
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -48,13 +44,7 @@ const getDifficultyLabel = (level: number) => {
 
 // --- Toast System ---
 interface ToastMsg { id: string; msg: string; type: 'success' | 'error' | 'info'; }
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/195104b7-eab3-4c79-8f2a-a9a461713290',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:47',message:'Before createContext call',data:{reactCreateContextType:typeof React.createContext,reactCreateContextIsFunction:typeof React.createContext==='function'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-// #endregion
 export const ToastContext = React.createContext<{ showToast: (msg: string, type?: 'success'|'error'|'info') => void }>({ showToast: () => {} });
-// #region agent log
-fetch('http://127.0.0.1:7242/ingest/195104b7-eab3-4c79-8f2a-a9a461713290',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:49',message:'After createContext call',data:{toastContextType:typeof ToastContext,toastContextCreated:!!ToastContext},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-// #endregion
 
 const ToastContainer = ({ children }: { children?: React.ReactNode }) => {
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
