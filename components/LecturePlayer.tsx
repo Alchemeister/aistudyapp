@@ -1,5 +1,5 @@
 
-import React from 'react';
+import { type FC } from 'react';
 import { Lecture } from '../types';
 
 interface Props {
@@ -7,7 +7,7 @@ interface Props {
   onClose: () => void;
 }
 
-export const LecturePlayer: React.FC<Props> = ({ lecture, onClose }) => {
+export const LecturePlayer: FC<Props> = ({ lecture, onClose }) => {
   return (
     <div className="h-full flex flex-col bg-slate-900 text-white relative">
       <div className="p-4 border-b border-slate-700 flex justify-between items-center shadow-md z-10">

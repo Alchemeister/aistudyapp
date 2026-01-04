@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type FC } from 'react';
 import { Lecture } from '../types';
 
 interface Props {
@@ -18,7 +18,7 @@ declare global {
   }
 }
 
-export const LectureRecorder: React.FC<Props> = ({ onSave, onCancel, onToast }) => {
+export const LectureRecorder: FC<Props> = ({ onSave, onCancel, onToast }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [transcript, setTranscript] = useState('');

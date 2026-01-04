@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import { useState, type FC } from 'react';
 import { Question } from '../types';
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
 
 type InternalState = 'active' | 'summary' | 'review';
 
-export const QuizTaker: React.FC<Props> = ({ questions, onComplete, onExit, onSaveMissed, mode = 'take' }) => {
+export const QuizTaker: FC<Props> = ({ questions, onComplete, onExit, onSaveMissed, mode = 'take' }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [internalState, setInternalState] = useState<InternalState>('active');

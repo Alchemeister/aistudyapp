@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import { useState, type FC, type ChangeEvent } from 'react';
 import { Course, Chapter, Subchapter } from '../types';
 import { PdfViewer } from './PdfViewer';
 
@@ -20,7 +20,7 @@ const OPENSTAX_BOOKS = [
 
 const uuid = () => Math.random().toString(36).substring(2, 9);
 
-export const ChapterWizard: React.FC<Props> = ({ course, onSave, onCancel, onToast }) => {
+export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) => {
   const [step, setStep] = useState(course.pdfUrl ? 2 : 1);
   const [pdfFile, setPdfFile] = useState<File | Blob | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string>(course.pdfUrl || '');
@@ -51,7 +51,7 @@ export const ChapterWizard: React.FC<Props> = ({ course, onSave, onCancel, onToa
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setPdfFile(file);

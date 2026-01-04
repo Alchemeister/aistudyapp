@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FC } from 'react';
 import { loadPdfDocument, renderPageToCanvas, PdfDocument } from '../services/pdfUtils';
 
 interface Props {
@@ -6,7 +6,7 @@ interface Props {
   initialPage?: number;
 }
 
-export const PdfViewer: React.FC<Props> = ({ url, initialPage = 1 }) => {
+export const PdfViewer: FC<Props> = ({ url, initialPage = 1 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [pdf, setPdf] = useState<PdfDocument | null>(null);
   const [pageNum, setPageNum] = useState(initialPage);

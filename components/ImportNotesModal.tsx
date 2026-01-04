@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, type FC, type ChangeEvent } from 'react';
 import { loadPdfDocument, extractAllText } from '../services/pdfUtils';
 import { Lecture } from '../types';
 
@@ -11,14 +11,14 @@ interface Props {
 
 const uuid = () => Math.random().toString(36).substring(2, 9);
 
-export const ImportNotesModal: React.FC<Props> = ({ isOpen, onClose, onSave, onToast }) => {
+export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onToast }) => {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState('');
 
   if (!isOpen) return null;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const f = e.target.files[0];
       setFile(f);

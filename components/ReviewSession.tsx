@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type FC } from 'react';
 import { Flashcard } from '../types';
 import { calculateReview, Rating } from '../services/srs';
 
@@ -16,7 +16,7 @@ interface Props {
   onExit: () => void;
 }
 
-export const ReviewSession: React.FC<Props> = ({ queue, onUpdateCard, onExit }) => {
+export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [sessionQueue, setSessionQueue] = useState<ReviewItem[]>(queue);

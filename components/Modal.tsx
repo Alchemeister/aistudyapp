@@ -1,15 +1,15 @@
-import React from 'react';
+import { type FC, type ReactNode } from 'react';
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  children: React.ReactNode;
-  actions?: React.ReactNode;
+  children: ReactNode;
+  actions?: ReactNode;
   maxWidth?: string;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, actions, maxWidth = 'max-w-md' }) => {
+export const Modal: FC<ModalProps> = ({ isOpen, onClose, title, children, actions, maxWidth = 'max-w-md' }) => {
   if (!isOpen) return null;
 
   return (

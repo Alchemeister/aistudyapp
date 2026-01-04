@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import { useState, type FC, type FormEvent } from 'react';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail } from '../services/firebase';
 
 interface Props {
   onLoginSuccess: (user: any) => void;
 }
 
-export const Login: React.FC<Props> = ({ onLoginSuccess }) => {
+export const Login: FC<Props> = ({ onLoginSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -67,7 +67,7 @@ export const Login: React.FC<Props> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleEmailAuth = async (e: React.FormEvent) => {
+  const handleEmailAuth = async (e: FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
       setError("Please fill in all fields.");

@@ -1,5 +1,5 @@
 
-import React, { useState, useContext, useMemo } from 'react';
+import { useState, useContext, useMemo } from 'react';
 import { Course, ContentType, Difficulty, Flashcard, Question, StudyMaterial, Lecture } from '../types';
 import { generateContent, fixFlashcardContent } from '../services/geminiService';
 import { loadPdfDocument, extractTextFromRange } from '../services/pdfUtils';

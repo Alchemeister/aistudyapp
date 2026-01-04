@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
+import { useState, useEffect, useContext, useRef, useMemo, createContext, type ReactNode, type FC } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult } from './types';
@@ -44,9 +44,9 @@ const getDifficultyLabel = (level: number) => {
 
 // --- Toast System ---
 interface ToastMsg { id: string; msg: string; type: 'success' | 'error' | 'info'; }
-export const ToastContext = React.createContext<{ showToast: (msg: string, type?: 'success'|'error'|'info') => void }>({ showToast: () => {} });
+export const ToastContext = createContext<{ showToast: (msg: string, type?: 'success'|'error'|'info') => void }>({ showToast: () => {} });
 
-const ToastContainer = ({ children }: { children?: React.ReactNode }) => {
+const ToastContainer = ({ children }: { children?: ReactNode }) => {
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
   const showToast = (msg: string, type: 'success'|'error'|'info' = 'success') => {
     const id = uuid();
@@ -375,7 +375,7 @@ const Dashboard = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCou
   }, 0);
 
   // Calculate Chart Data (Quiz History)
-  const chartData = React.useMemo(() => {
+  const chartData = useMemo(() => {
     const history: {date: string, score: number, total: number}[] = [];
     courses.forEach(c => {
         c.quizHistory.forEach(q => history.push(q));

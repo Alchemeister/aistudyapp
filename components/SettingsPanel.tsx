@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, type FC } from 'react';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { clearDatabase } from '../services/storage';
@@ -8,7 +8,7 @@ interface Props {
   onLogout: () => void;
 }
 
-export const SettingsPanel: React.FC<Props> = ({ user, onLogout }) => {
+export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
   const [displayName, setDisplayName] = useState(user.displayName || '');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
