@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useContext, useRef, useMemo, createContext, type ReactNode, type FC } from 'react';
+import React, { useState, useEffect, useContext, useRef, useMemo, createContext, type ReactNode, type FC } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult } from './types';

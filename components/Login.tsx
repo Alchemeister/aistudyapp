@@ -1,4 +1,4 @@
-import { useState, type FC, type FormEvent } from 'react';
+import React, { useState, type FC, type FormEvent } from 'react';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail } from '../services/firebase';
 
 interface Props {

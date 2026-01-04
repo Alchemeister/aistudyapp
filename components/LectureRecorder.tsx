@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef, type FC } from 'react';
+import React, { useState, useEffect, useRef, type FC } from 'react';
 import { Lecture } from '../types';
 
 interface Props {

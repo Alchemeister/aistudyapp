@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FC } from 'react';
+import React, { useEffect, useRef, useState, type FC } from 'react';
 import { loadPdfDocument, renderPageToCanvas, PdfDocument } from '../services/pdfUtils';
 
 interface Props {

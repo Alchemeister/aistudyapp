@@ -1,5 +1,5 @@
 
-import { useState, type FC, type ChangeEvent } from 'react';
+import React, { useState, type FC, type ChangeEvent } from 'react';
 import { Course, Chapter, Subchapter } from '../types';
 import { PdfViewer } from './PdfViewer';
 

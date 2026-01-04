@@ -1,5 +1,5 @@
 
-import { useState, useContext, useMemo } from 'react';
+import React, { useState, useContext, useMemo } from 'react';
 import { Course, Flashcard, Lecture } from '../types';
 import { PdfViewer } from './PdfViewer';
 import { GeneratorPanel } from './GeneratorPanel';

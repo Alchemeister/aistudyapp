@@ -1,5 +1,5 @@
 
-import { useState, type FC } from 'react';
+import React, { useState, type FC } from 'react';
 import { Question } from '../types';
 
 interface Props {

@@ -1,4 +1,4 @@
-import { useState, type FC, type ChangeEvent } from 'react';
+import React, { useState, type FC, type ChangeEvent } from 'react';
 import { loadPdfDocument, extractAllText } from '../services/pdfUtils';
 import { Lecture } from '../types';
 

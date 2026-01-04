@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback, type FC } from 'react';
+import React, { useState, useEffect, useCallback, type FC } from 'react';
 import { Flashcard } from '../types';
 import { calculateReview, Rating } from '../services/srs';
 

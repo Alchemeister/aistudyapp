@@ -9,23 +9,32 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react({
-        jsxRuntime: 'automatic',
+        jsxRuntime: 'classic',
       })
     ],
     assetsInclude: ['**/*.min.js'],
     build: {
       target: 'es2020',
+      commonjsOptions: {
+        include: [/node_modules/],
+        transformMixedEsModules: true,
+      },
       rollupOptions: {
         output: {
-          manualChunks: undefined,
+          manualChunks: {
+            react: ['react', 'react-dom'],
+          },
         },
       },
     },
     resolve: {
-      dedupe: ['react', 'react-dom'],
+      dedupe: ['react', 'react-dom', 'react-router-dom'],
     },
     optimizeDeps: {
-      include: ['react', 'react-dom'],
+      include: ['react', 'react-dom', 'react-router-dom'],
+      esbuildOptions: {
+        target: 'es2020',
+      },
     },
     define: {
       'process.env.API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || ''),

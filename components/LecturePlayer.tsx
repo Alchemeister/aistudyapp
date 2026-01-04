@@ -1,5 +1,5 @@
 
-import { type FC } from 'react';
+import React, { type FC } from 'react';
 import { Lecture } from '../types';
 
 interface Props {

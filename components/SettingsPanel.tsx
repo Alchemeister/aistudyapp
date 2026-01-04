@@ -1,4 +1,4 @@
-import { useState, type FC } from 'react';
+import React, { useState, type FC } from 'react';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { clearDatabase } from '../services/storage';
