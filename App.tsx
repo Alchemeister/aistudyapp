@@ -20,7 +20,7 @@ import { auth, signOut as firebaseSignOut } from './services/firebase';
 import { GeneratorPanel, FlashcardViewer } from './components/GeneratorPanel';
 
 // #region agent log
-fetch('http://127.0.0.1:7242/ingest/195104b7-eab3-4c79-8f2a-a9a461713290',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:21',message:'React import check',data:{reactType:typeof React,reactKeys:React?Object.keys(React).slice(0,30):'null',createContextType:typeof createContext,createContextIsFunction:typeof createContext==='function',reactCreateContextType:typeof React.createContext,reactCreateContextIsFunction:typeof React.createContext==='function',hasCreateContextInReact:!!React.createContext,hasCreateContextDirect:!!createContext},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+fetch('http://127.0.0.1:7242/ingest/195104b7-eab3-4c79-8f2a-a9a461713290',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:21',message:'React import check',data:{reactType:typeof React,reactKeys:React?Object.keys(React).slice(0,30):'null',reactCreateContextType:typeof React.createContext,reactCreateContextIsFunction:typeof React.createContext==='function',hasCreateContextInReact:!!React.createContext},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
 // #endregion
 
 // --- Utils ---
