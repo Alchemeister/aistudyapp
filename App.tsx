@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, createContext, useContext, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult } from './types';
@@ -18,6 +18,10 @@ import { CourseView } from './components/CourseView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { auth, signOut as firebaseSignOut } from './services/firebase';
 import { GeneratorPanel, FlashcardViewer } from './components/GeneratorPanel';
+
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/195104b7-eab3-4c79-8f2a-a9a461713290',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:21',message:'React import check',data:{reactType:typeof React,reactKeys:React?Object.keys(React).slice(0,30):'null',createContextType:typeof createContext,createContextIsFunction:typeof createContext==='function',reactCreateContextType:typeof React.createContext,reactCreateContextIsFunction:typeof React.createContext==='function',hasCreateContextInReact:!!React.createContext,hasCreateContextDirect:!!createContext},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+// #endregion
 
 // --- Utils ---
 const uuid = () => Math.random().toString(36).substring(2, 9);
@@ -44,7 +48,13 @@ const getDifficultyLabel = (level: number) => {
 
 // --- Toast System ---
 interface ToastMsg { id: string; msg: string; type: 'success' | 'error' | 'info'; }
-export const ToastContext = createContext<{ showToast: (msg: string, type?: 'success'|'error'|'info') => void }>({ showToast: () => {} });
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/195104b7-eab3-4c79-8f2a-a9a461713290',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:47',message:'Before createContext call',data:{reactCreateContextType:typeof React.createContext,reactCreateContextIsFunction:typeof React.createContext==='function'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+// #endregion
+export const ToastContext = React.createContext<{ showToast: (msg: string, type?: 'success'|'error'|'info') => void }>({ showToast: () => {} });
+// #region agent log
+fetch('http://127.0.0.1:7242/ingest/195104b7-eab3-4c79-8f2a-a9a461713290',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:49',message:'After createContext call',data:{toastContextType:typeof ToastContext,toastContextCreated:!!ToastContext},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+// #endregion
 
 const ToastContainer = ({ children }: { children?: React.ReactNode }) => {
   const [toasts, setToasts] = useState<ToastMsg[]>([]);

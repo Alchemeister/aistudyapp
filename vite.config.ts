@@ -8,7 +8,9 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      react()
+      react({
+        jsxRuntime: 'automatic',
+      })
     ],
     assetsInclude: ['**/*.min.js'],
     build: {
