@@ -10,6 +10,7 @@ import { ImportNotesModal } from './ImportNotesModal';
 import { LectureRecorder } from './LectureRecorder';
 import { LecturePlayer } from './LecturePlayer';
 import { savePdfBlob, saveMediaBlob } from '../services/storage';
+import { loadPdfDocument, generatePdfThumbnail } from '../services/pdfUtils';
 import { ToastContext } from '../App';
 import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
@@ -36,6 +37,15 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
       const blobId = await savePdfBlob(newCourse.id, file);
       newCourse.pdfBlobId = blobId;
       newCourse.pdfUrl = URL.createObjectURL(file);
+
+      // Generate PDF thumbnail
+      try {
+        const pdf = await loadPdfDocument(newCourse.pdfUrl);
+        const thumbnail = await generatePdfThumbnail(pdf, 200);
+        newCourse.pdfThumbnail = thumbnail;
+      } catch (e) {
+        console.warn('Failed to generate PDF thumbnail:', e);
+      }
     }
     onUpdate(newCourse);
     setShowWizard(false);

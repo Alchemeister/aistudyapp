@@ -491,20 +491,34 @@ const Dashboard = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCou
         {filteredCourses.map(course => (
           <div key={course.id} className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all relative group flex flex-col h-auto min-h-[16rem]">
              <Link to={`/course/${course.id}`} className="absolute inset-0 z-0 rounded-xl" aria-label={`View ${course.title}`}></Link>
-             
-             <div className="p-6 flex-1 pointer-events-none">
-                <div className="flex justify-between items-start mb-4 pointer-events-auto">
-                  <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-1 rounded border border-slate-200">{course.code}</span>
-                  <button onClick={(e) => {e.preventDefault(); e.stopPropagation(); setCourseToDelete(course)}} className="text-slate-300 hover:text-red-500 p-2 -mr-2 -mt-2 z-10 relative"><i className="fas fa-trash-alt"></i></button>
-                </div>
-                <h4 className="text-lg font-bold text-slate-900 mb-1 line-clamp-2">{course.title}</h4>
-                <div className="flex items-center gap-2 mb-4">
-                   <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{course.semester}</span>
-                   <p className="text-sm text-slate-500 line-clamp-1">{course.subtitle}</p>
-                </div>
-                <div className="flex gap-4 text-xs text-slate-400 mt-auto">
-                   <span className="flex items-center gap-1"><i className="fas fa-file-pdf"></i> {course.pdfName ? 'PDF' : 'No PDF'}</span>
-                   <span className="flex items-center gap-1"><i className="fas fa-list"></i> {course.chapters.length} Ch</span>
+
+             <div className="p-4 flex-1 pointer-events-none flex gap-4">
+                {/* PDF Thumbnail */}
+                {course.pdfThumbnail ? (
+                  <div className="flex-shrink-0 w-20 h-28 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shadow-sm">
+                    <img src={course.pdfThumbnail} alt="PDF preview" className="w-full h-full object-cover" />
+                  </div>
+                ) : course.pdfName ? (
+                  <div className="flex-shrink-0 w-20 h-28 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center">
+                    <i className="fas fa-file-pdf text-2xl text-slate-300"></i>
+                  </div>
+                ) : null}
+
+                {/* Content */}
+                <div className="flex-1 flex flex-col min-w-0">
+                  <div className="flex justify-between items-start mb-2 pointer-events-auto">
+                    <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-1 rounded border border-slate-200">{course.code}</span>
+                    <button onClick={(e) => {e.preventDefault(); e.stopPropagation(); setCourseToDelete(course)}} className="text-slate-300 hover:text-red-500 p-2 -mr-2 -mt-2 z-10 relative"><i className="fas fa-trash-alt"></i></button>
+                  </div>
+                  <h4 className="text-lg font-bold text-slate-900 mb-1 line-clamp-2">{course.title}</h4>
+                  <div className="flex items-center gap-2 mb-2">
+                     <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{course.semester}</span>
+                     <p className="text-sm text-slate-500 line-clamp-1 truncate">{course.subtitle}</p>
+                  </div>
+                  <div className="flex gap-4 text-xs text-slate-400 mt-auto">
+                     <span className="flex items-center gap-1"><i className="fas fa-file-pdf"></i> {course.pdfName ? 'PDF' : 'No PDF'}</span>
+                     <span className="flex items-center gap-1"><i className="fas fa-list"></i> {course.chapters.length} Ch</span>
+                  </div>
                 </div>
              </div>
              <div className="bg-slate-50 p-3 text-center text-sm font-bold text-primary border-t border-slate-100 rounded-b-xl pointer-events-none">

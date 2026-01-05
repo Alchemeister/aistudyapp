@@ -4,7 +4,7 @@ import Draggable from 'react-draggable';
 export const Pomodoro = () => {
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(true);
   const nodeRef = useRef(null);
   
   // Load position safely

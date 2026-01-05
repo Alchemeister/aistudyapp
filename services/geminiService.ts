@@ -186,7 +186,7 @@ const cleanConceptConnections = (data: any[]): any[] => {
 const cleanQuestions = (data: any[]): any[] => {
     if (!Array.isArray(data)) return [];
     return data
-        .map(item => {
+        .map((item, index) => {
             // Normalize Type
             let type = item.type || (item.options ? 'MC' : 'OPEN');
             let options = item.options || [];
@@ -195,7 +195,7 @@ const cleanQuestions = (data: any[]): any[] => {
             if (type === 'TF' && (!options || options.length === 0)) {
                 options = ['True', 'False'];
             }
-            
+
             // Repair MC questions missing options (Fallback to Open if completely broken)
             if (type === 'MC' && (!options || options.length === 0)) {
                  type = 'OPEN'; // Auto-convert to open ended if no options
@@ -203,6 +203,7 @@ const cleanQuestions = (data: any[]): any[] => {
 
             return {
                 ...item,
+                id: item.id || `q-${Date.now()}-${index}`, // Ensure unique ID
                 type: type,
                 text: item.text || item.question || "Question text missing",
                 options: options,
@@ -634,5 +635,60 @@ export const parseTableOfContents = async (fullText: string): Promise<TOCEntry[]
   } catch (e) {
     console.error("TOC Parse Error:", e);
     return [];
+  }
+};
+
+// --- AI Chat with Context (Pro Feature) ---
+export const chatWithContext = async (
+  userMessage: string,
+  contextText: string,
+  contextTitle: string,
+  chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
+): Promise<string> => {
+  const ai = getAiClient();
+  if (!ai) {
+    return "AI Chat requires a valid API key. Please add your Gemini API key in settings.";
+  }
+
+  try {
+    // Build conversation history for context
+    const historyText = chatHistory
+      .slice(-6) // Keep last 6 messages for context
+      .map(msg => `${msg.role === 'user' ? 'Student' : 'Tutor'}: ${msg.content}`)
+      .join('\n');
+
+    const prompt = `You are an expert tutor helping a student understand their study material.
+
+CONTEXT SOURCE: "${contextTitle}"
+
+RELEVANT MATERIAL:
+${contextText.substring(0, 12000)}
+
+${historyText ? `PREVIOUS CONVERSATION:\n${historyText}\n` : ''}
+
+STUDENT'S QUESTION: ${userMessage}
+
+INSTRUCTIONS:
+1. Answer ONLY based on the provided material above
+2. If the answer isn't in the material, say "I don't see that covered in the selected material"
+3. Be concise but thorough
+4. Use examples from the material when helpful
+5. If asked to explain a concept, break it down simply
+6. Reference specific parts of the material when relevant
+
+YOUR RESPONSE:`;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        responseMimeType: "text/plain",
+      }
+    });
+
+    return response.text || "I couldn't generate a response. Please try again.";
+  } catch (e: any) {
+    console.error("Chat Error:", e);
+    return "Sorry, there was an error processing your question. Please try again.";
   }
 };

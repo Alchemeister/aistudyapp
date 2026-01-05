@@ -98,20 +98,29 @@ export interface Lecture {
   fileName?: string; // New field for imports
 }
 
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}
+
 export interface Course {
   id: string;
   title: string;
-  subtitle?: string; 
-  semester: string;  
-  code: string; 
+  subtitle?: string;
+  semester: string;
+  code: string;
   description: string;
   pdfName?: string;
-  pdfBlobId?: string; 
-  pdfUrl?: string; 
+  pdfBlobId?: string;
+  pdfUrl?: string;
+  pdfThumbnail?: string; // Base64 thumbnail of first page
   chapters: Chapter[];
   lectures: Lecture[];
   materials: StudyMaterial[];
   quizHistory: QuizResult[];
+  chatHistory?: ChatMessage[]; // Pro feature: AI chat history
 }
 
 export interface AppState {

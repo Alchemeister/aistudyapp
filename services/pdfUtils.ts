@@ -122,3 +122,33 @@ export const renderPageToCanvas = async (
 
   await page.render(renderContext).promise;
 };
+
+// Generate a small thumbnail of the first page as base64
+export const generatePdfThumbnail = async (
+  pdf: PdfDocument,
+  width: number = 200
+): Promise<string> => {
+  const page = await pdf.getPage(1);
+  const viewport = page.getViewport({ scale: 1.0 });
+
+  // Calculate scale to fit desired width
+  const scale = width / viewport.width;
+  const scaledViewport = page.getViewport({ scale });
+
+  // Create offscreen canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = scaledViewport.width;
+  canvas.height = scaledViewport.height;
+
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  await page.render({
+    canvasContext: ctx,
+    viewport: scaledViewport,
+  }).promise;
+
+  // Convert to base64 JPEG (smaller than PNG)
+  return canvas.toDataURL('image/jpeg', 0.7);
+};

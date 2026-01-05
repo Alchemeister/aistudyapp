@@ -1,7 +1,7 @@
 
-import React, { useState, useContext, useMemo } from 'react';
-import { Course, ContentType, Difficulty, Flashcard, Question, StudyMaterial, Lecture, ConceptConnection } from '../types';
-import { generateContent, fixFlashcardContent } from '../services/geminiService';
+import React, { useState, useContext, useMemo, useRef, useEffect } from 'react';
+import { Course, ContentType, Difficulty, Flashcard, Question, StudyMaterial, Lecture, ConceptConnection, ChatMessage } from '../types';
+import { generateContent, fixFlashcardContent, chatWithContext } from '../services/geminiService';
 import { loadPdfDocument, extractTextFromRange } from '../services/pdfUtils';
 import { getInitialCardState } from '../services/srs';
 import { Modal } from './Modal';
@@ -185,6 +185,20 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
   const [preview, setPreview] = useState<{type: ContentType, data: any} | null>(null);
   const [showDuplicates, setShowDuplicates] = useState(false); // Controls filtering in preview
   const { showToast } = useContext(ToastContext);
+
+  // Chat state (Pro feature)
+  const [showChat, setShowChat] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatContext, setChatContext] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom of chat when new messages arrive
+  useEffect(() => {
+    if (showChat && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [course.chatHistory, showChat]);
 
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
@@ -397,9 +411,111 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
       return showDuplicates ? preview.data.length : preview.data.filter((c: Flashcard) => !c.isDuplicate).length;
   };
 
-  const duplicateCount = preview && Array.isArray(preview.data) 
-      ? preview.data.filter((c: any) => c.isDuplicate).length 
+  const duplicateCount = preview && Array.isArray(preview.data)
+      ? preview.data.filter((c: any) => c.isDuplicate).length
       : 0;
+
+  // --- Chat Functions (Pro Feature) ---
+  const handleOpenChat = async () => {
+    if (selectedIds.length === 0) {
+      showToast("Select chapters/lectures to chat about", "error");
+      return;
+    }
+
+    setChatLoading(true);
+    setShowChat(true);
+
+    try {
+      let context = "";
+
+      // Build context from selected items
+      const selectedPdfItems: {title: string, start: number, end: number}[] = [];
+
+      course.chapters.forEach(ch => {
+        if (selectedIds.includes(ch.id)) {
+          selectedPdfItems.push({ title: ch.title, start: ch.startPage, end: ch.endPage });
+        } else if (ch.subchapters) {
+          ch.subchapters.forEach(sub => {
+            if (selectedIds.includes(sub.id)) {
+              selectedPdfItems.push({ title: sub.title, start: sub.startPage, end: sub.endPage });
+            }
+          });
+        }
+      });
+
+      if (selectedPdfItems.length > 0 && course.pdfBlobId) {
+        const blob = await getPdfBlob(course.pdfBlobId);
+        if (blob) {
+          const blobUrl = URL.createObjectURL(blob);
+          const doc = await loadPdfDocument(blobUrl);
+
+          for (const item of selectedPdfItems) {
+            if (item.start && item.end) {
+              const text = await extractTextFromRange(doc, item.start, item.end);
+              context += `\nSection: ${item.title}\n${text}\n`;
+            }
+          }
+          URL.revokeObjectURL(blobUrl);
+        }
+      }
+
+      // Add lectures
+      const selectedLectures = course.lectures.filter(l => selectedIds.includes(l.id));
+      if (selectedLectures.length > 0) {
+        context += selectedLectures.map(l => `\nLecture: ${l.title}\n${l.transcript}\n`).join("\n");
+      }
+
+      setChatContext(context);
+    } catch (e) {
+      console.error("Error loading chat context:", e);
+      showToast("Error loading content", "error");
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleSendChat = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userMessage: ChatMessage = {
+      id: uuid(),
+      role: 'user',
+      content: chatInput.trim(),
+      timestamp: new Date().toISOString()
+    };
+
+    // Add user message immediately
+    const updatedHistory = [...(course.chatHistory || []), userMessage];
+    onUpdate({ ...course, chatHistory: updatedHistory });
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const response = await chatWithContext(
+        userMessage.content,
+        chatContext,
+        course.title,
+        updatedHistory.map(m => ({ role: m.role, content: m.content }))
+      );
+
+      const assistantMessage: ChatMessage = {
+        id: uuid(),
+        role: 'assistant',
+        content: response,
+        timestamp: new Date().toISOString()
+      };
+
+      onUpdate({ ...course, chatHistory: [...updatedHistory, assistantMessage] });
+    } catch (e) {
+      showToast("Failed to get response", "error");
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const clearChatHistory = () => {
+    onUpdate({ ...course, chatHistory: [] });
+  };
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -516,8 +632,100 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
              badge="Pro"
              fullWidth
           />
+
+          {/* AI Chat Button (Pro) */}
+          <button
+            onClick={handleOpenChat}
+            disabled={generating || selectedIds.length === 0}
+            className="col-span-2 md:col-span-3 flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-bold hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+          >
+            <i className="fas fa-comments"></i>
+            <span>Ask AI Tutor</span>
+            <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wide">Pro</span>
+          </button>
         </div>
       </div>
+
+      {/* AI Chat Modal (Pro) */}
+      <Modal isOpen={showChat} onClose={() => setShowChat(false)} title="AI Tutor Chat" maxWidth="max-w-2xl">
+        <div className="flex flex-col h-[60vh]">
+          {/* Chat Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <i className="fas fa-book-open"></i>
+              <span>Context: {selectedIds.length} item(s) selected</span>
+            </div>
+            {(course.chatHistory?.length || 0) > 0 && (
+              <button
+                onClick={clearChatHistory}
+                className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+              >
+                <i className="fas fa-trash mr-1"></i> Clear History
+              </button>
+            )}
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+            {(!course.chatHistory || course.chatHistory.length === 0) && !chatLoading && (
+              <div className="text-center py-12 text-slate-400">
+                <i className="fas fa-robot text-4xl mb-3 text-slate-300"></i>
+                <p className="font-medium">Ask me anything about the selected material!</p>
+                <p className="text-sm mt-1">I'll only answer based on what you've selected.</p>
+              </div>
+            )}
+
+            {course.chatHistory?.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] p-3 rounded-2xl ${
+                    msg.role === 'user'
+                      ? 'bg-primary text-white rounded-br-md'
+                      : 'bg-slate-100 text-slate-700 rounded-bl-md'
+                  }`}
+                >
+                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                </div>
+              </div>
+            ))}
+
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-slate-100 p-3 rounded-2xl rounded-bl-md">
+                  <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                </div>
+              </div>
+            )}
+
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="pt-3 border-t border-slate-200 mt-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendChat()}
+                placeholder="Ask a question about the material..."
+                className="flex-1 p-3 border border-slate-300 rounded-xl focus:border-primary focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                disabled={chatLoading || !chatContext}
+              />
+              <button
+                onClick={handleSendChat}
+                disabled={chatLoading || !chatInput.trim() || !chatContext}
+                className="px-5 py-3 bg-primary text-white rounded-xl font-bold disabled:opacity-50 hover:bg-blue-600 transition-colors"
+              >
+                <i className="fas fa-paper-plane"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       {/* Preview Modal */}
       <Modal isOpen={!!preview} onClose={() => setPreview(null)} title="Preview Generated Content" maxWidth="max-w-3xl">
