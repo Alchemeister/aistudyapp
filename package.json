@@ -25,5 +25,9 @@
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.2.2",
     "vite": "^5.1.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.54.0",
+    "@rollup/rollup-linux-x64-musl": "^4.54.0"
   }
 }
