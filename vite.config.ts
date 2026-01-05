@@ -1,5 +1,5 @@
 import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
+import react from '@vitejs/plugin-react-swc';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
@@ -12,11 +12,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [
-      react({
-        jsxRuntime: 'classic',
-      })
-    ],
+    plugins: [react()],
     assetsInclude: ['**/*.min.js'],
     build: {
       target: 'es2020',
