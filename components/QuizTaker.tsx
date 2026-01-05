@@ -388,8 +388,8 @@ export const QuizTaker: FC<Props> = ({ questions, onComplete, onExit, onSaveMiss
         <span>{Math.round(((currentIndex + 1) / questions.length) * 100)}%</span>
       </div>
       
-      <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 mb-6 flex-1 overflow-y-auto">
-        <h3 className="text-xl font-bold mb-8 text-slate-800 leading-relaxed">
+      <div className="bg-white p-4 md:p-8 rounded-2xl shadow-sm border border-slate-200 mb-6 flex-1 overflow-y-auto">
+        <h3 className="text-lg md:text-xl font-bold mb-6 md:mb-8 text-slate-800 leading-relaxed">
              {(currentQ.text || '').replace(/_{2,}/g, '______')}
         </h3>
         

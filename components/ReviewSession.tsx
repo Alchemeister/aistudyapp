@@ -121,7 +121,7 @@ export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
            className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border border-slate-200 flex flex-col overflow-hidden transition-all duration-300 min-h-[400px]"
            onClick={() => !isFlipped && setIsFlipped(true)}
          >
-            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center cursor-pointer hover:bg-slate-50/50 transition-colors">
+            <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 md:p-12 text-center cursor-pointer hover:bg-slate-50/50 transition-colors">
                <h3 className="text-2xl font-bold text-slate-800 leading-relaxed">
                  {currentItem.card.front}
                </h3>
@@ -133,7 +133,7 @@ export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
             </div>
 
             {isFlipped && (
-                <div className="flex-1 border-t border-slate-100 bg-blue-50/30 flex flex-col items-center justify-center p-12 text-center animate-fade-in-up w-full">
+                <div className="flex-1 border-t border-slate-100 bg-blue-50/30 flex flex-col items-center justify-center p-4 sm:p-8 md:p-12 text-center animate-fade-in-up w-full">
                     <div className="prose prose-slate max-w-none w-full">
                         <p className="text-xl text-slate-700 whitespace-pre-wrap font-medium">{currentItem.card.back}</p>
                         {currentItem.card.source && (
@@ -157,7 +157,7 @@ export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
                  Show Answer <span className="text-blue-200 text-sm ml-2 font-normal">(Space)</span>
              </button>
          ) : (
-             <div className="max-w-3xl mx-auto grid grid-cols-4 gap-4">
+             <div className="max-w-3xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                  <RateBtn label="Again" sub="< 1m" color="bg-red-100 text-red-700 border-red-200 hover:bg-red-200" onClick={() => handleRate('again')} shortcut="1" />
                  <RateBtn label="Hard" sub="2d" color="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200" onClick={() => handleRate('hard')} shortcut="2" />
                  <RateBtn label="Good" sub="3d" color="bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200" onClick={() => handleRate('good')} shortcut="3" />
@@ -170,11 +170,11 @@ export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
 };
 
 const RateBtn = ({ label, sub, color, onClick, shortcut }: any) => (
-    <button 
+    <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center py-3 rounded-xl border-b-4 active:border-b-0 active:translate-y-1 transition-all ${color}`}
+      className={`flex flex-col items-center justify-center py-3 min-h-[56px] rounded-xl border-b-4 active:border-b-0 active:translate-y-1 transition-all ${color}`}
     >
-        <span className="font-bold text-lg">{label}</span>
-        <span className="text-xs opacity-75 font-medium">{sub} • {shortcut}</span>
+        <span className="font-bold text-base sm:text-lg">{label}</span>
+        <span className="text-[10px] sm:text-xs opacity-75 font-medium">{sub} • {shortcut}</span>
     </button>
 );

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useRef, useMemo, createContext, type ReactNode, type FC } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
-import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult } from './types';
+import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection } from './types';
 import { saveCourses, loadCourses, savePdfBlob, getPdfBlob, deleteCourseData, seedInitialData } from './services/storage';
 import { generateContent, fixFlashcardContent } from './services/geminiService';
 import { loadPdfDocument, extractTextFromRange } from './services/pdfUtils';
@@ -84,6 +84,13 @@ const MobileNav = ({ user, onLogout }: { user: any, onLogout: () => void }) => {
           <Link to="/settings" className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 border border-slate-200">
              <i className="fas fa-cog text-xs"></i>
           </Link>
+          <button
+            onClick={onLogout}
+            className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:text-red-500 border border-slate-200"
+            title="Logout"
+          >
+             <i className="fas fa-sign-out-alt text-xs"></i>
+          </button>
       </div>
     </div>
   );
@@ -176,7 +183,7 @@ function App() {
         <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 font-sans md:h-screen md:overflow-hidden relative">
           <Sidebar courses={courses} onAddCourse={addCourse} onDeleteCourse={deleteCourse} user={user} onLogout={handleLogout} />
           
-          <main className="flex-1 w-full relative flex flex-col h-full overflow-hidden">
+          <main className="flex-1 w-full relative flex flex-col md:h-full md:overflow-hidden">
              <MobileNav user={user} onLogout={handleLogout} />
              <div className="flex-1 overflow-y-auto">
                 <Routes>
@@ -898,12 +905,14 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
        
        <div className="flex justify-between items-start mb-3">
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg shrink-0 shadow-sm ${
-             mat.type === ContentType.FLASHCARDS ? 'bg-amber-100 text-amber-600' : 
-             mat.type === ContentType.QUIZ || mat.type === ContentType.MOCK_TEST ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'
+             mat.type === ContentType.FLASHCARDS ? 'bg-amber-100 text-amber-600' :
+             mat.type === ContentType.QUIZ || mat.type === ContentType.MOCK_TEST ? 'bg-purple-100 text-purple-600' :
+             mat.type === ContentType.CONCEPT_CONNECTIONS ? 'bg-cyan-100 text-cyan-600' : 'bg-blue-100 text-blue-600'
           }`}>
              <i className={`fas ${
-                mat.type === ContentType.FLASHCARDS ? 'fa-bolt' : 
-                mat.type === ContentType.QUIZ || mat.type === ContentType.MOCK_TEST ? 'fa-question-circle' : 'fa-align-left'
+                mat.type === ContentType.FLASHCARDS ? 'fa-bolt' :
+                mat.type === ContentType.QUIZ || mat.type === ContentType.MOCK_TEST ? 'fa-question-circle' :
+                mat.type === ContentType.CONCEPT_CONNECTIONS ? 'fa-share-nodes' : 'fa-align-left'
              }`}></i>
           </div>
           <div className="flex gap-2 z-10">
@@ -1014,6 +1023,33 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
                  <div className="prose prose-slate max-w-none bg-white p-8 rounded-xl shadow-sm border border-slate-100 mx-auto">
                     <pre className="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed">{(selectedMaterial.content as unknown as string)}</pre>
                  </div>
+              )}
+              {selectedMaterial.type === ContentType.CONCEPT_CONNECTIONS && (
+                <div className="space-y-6 max-w-2xl mx-auto">
+                  {(selectedMaterial.content as unknown as ConceptConnection[]).map((conn, idx) => (
+                    <div key={conn.id || idx} className="p-6 border border-slate-200 rounded-xl bg-white shadow-sm">
+                      <div className="flex items-start justify-between mb-3">
+                        <h4 className="text-lg font-bold text-slate-800">{conn.concept}</h4>
+                        <span className="text-xs font-bold uppercase px-2 py-1 rounded bg-cyan-100 text-cyan-700 tracking-wide">
+                          {conn.relationship}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {conn.relatedConcepts.map((rel, rIdx) => (
+                          <div key={rIdx} className="px-3 py-1.5 bg-cyan-50 text-cyan-700 rounded-lg text-sm font-medium border border-cyan-200">
+                            {rel}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-slate-600 leading-relaxed mb-3">{conn.explanation}</p>
+                      {conn.source && (
+                        <p className="text-xs text-slate-400 font-bold uppercase flex items-center gap-1 mt-4 pt-4 border-t border-slate-100">
+                          <i className="fas fa-book"></i> {conn.source}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
            </div>
            

@@ -7,7 +7,8 @@ export enum ContentType {
   MOCK_TEST = 'MOCK_TEST',
   NOTES = 'NOTES',
   MINDMAP = 'MINDMAP',
-  ACTIVE_RECALL = 'ACTIVE_RECALL'
+  ACTIVE_RECALL = 'ACTIVE_RECALL',
+  CONCEPT_CONNECTIONS = 'CONCEPT_CONNECTIONS'
 }
 
 export enum Difficulty {
@@ -42,6 +43,15 @@ export interface Question {
   keywords?: string[]; // For basic Short Answer checking
 }
 
+export interface ConceptConnection {
+  id: string;
+  concept: string;           // Main concept name
+  relatedConcepts: string[]; // 3-5 related terms/concepts
+  relationship: string;      // Type of relationship (e.g., "causes", "is part of", "requires")
+  explanation: string;       // 1-2 sentence explanation of how they connect
+  source?: string;           // Page citation
+}
+
 export interface QuizResult {
   date: string;
   score: number;
@@ -56,7 +66,7 @@ export interface StudyMaterial {
   title: string;
   createdAt: string;
   difficulty?: Difficulty;
-  content: Flashcard[] | Question[] | string; // string for Notes/Mindmap(SVG/Text)
+  content: Flashcard[] | Question[] | ConceptConnection[] | string; // string for Notes/Mindmap(SVG/Text)
   sourceChapterIds?: string[];
 }
 

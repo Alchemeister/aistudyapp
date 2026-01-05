@@ -1,6 +1,6 @@
 
 import React, { useState, useContext, useMemo } from 'react';
-import { Course, ContentType, Difficulty, Flashcard, Question, StudyMaterial, Lecture } from '../types';
+import { Course, ContentType, Difficulty, Flashcard, Question, StudyMaterial, Lecture, ConceptConnection } from '../types';
 import { generateContent, fixFlashcardContent } from '../services/geminiService';
 import { loadPdfDocument, extractTextFromRange } from '../services/pdfUtils';
 import { getInitialCardState } from '../services/srs';
@@ -371,6 +371,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
     if (preview.type === ContentType.FLASHCARDS) typeLabel = 'Flashcards';
     if (preview.type === ContentType.QUIZ) typeLabel = 'Quiz';
     if (preview.type === ContentType.MOCK_TEST) typeLabel = 'Mock Test';
+    if (preview.type === ContentType.CONCEPT_CONNECTIONS) typeLabel = 'Concepts';
 
     const title = `${typeLabel}: ${baseTitle}`;
 
@@ -402,7 +403,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
+      <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
         <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center"><i className="fas fa-robot text-primary mr-2"></i>AI Study Generator</h3>
         
         {/* Selection */}
@@ -470,7 +471,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
         </div>
 
         {/* Difficulty & Count */}
-        <div className="mb-6 grid grid-cols-2 gap-4">
+        <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <div className="flex justify-between mb-2">
               <label className="text-xs font-bold text-slate-400 uppercase">2. Difficulty</label>
@@ -504,12 +505,13 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
           <GenBtn icon="fa-bolt" label="Flashcards" onClick={() => handleGenerate(ContentType.FLASHCARDS)} loading={generating} status={status} />
           <GenBtn icon="fa-question-circle" label="Quiz" onClick={() => handleGenerate(ContentType.QUIZ)} loading={generating} status={status} />
           <GenBtn icon="fa-align-left" label="Summary" onClick={() => handleGenerate(ContentType.NOTES)} loading={generating} status={status} />
-          
-          <GenBtn 
-             icon="fa-file-signature" 
-             label="Generate Mock Test" 
-             onClick={() => handleGenerate(ContentType.MOCK_TEST)} 
-             loading={generating} 
+          <GenBtn icon="fa-share-nodes" label="Concepts" onClick={() => handleGenerate(ContentType.CONCEPT_CONNECTIONS)} loading={generating} status={status} />
+
+          <GenBtn
+             icon="fa-file-signature"
+             label="Generate Mock Test"
+             onClick={() => handleGenerate(ContentType.MOCK_TEST)}
+             loading={generating}
              status={status}
              badge="Pro"
              fullWidth
@@ -539,6 +541,33 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
                <pre className="whitespace-pre-wrap font-sans text-slate-700 text-sm">{preview.data as string}</pre>
              </div>
            )}
+          {preview?.type === ContentType.CONCEPT_CONNECTIONS && (
+            <div className="space-y-4">
+              {(preview.data as ConceptConnection[]).map((conn, idx) => (
+                <div key={conn.id || idx} className="p-5 border border-slate-200 rounded-xl bg-white shadow-sm">
+                  <div className="flex items-start justify-between mb-3">
+                    <h4 className="text-lg font-bold text-slate-800">{conn.concept}</h4>
+                    <span className="text-xs font-bold uppercase px-2 py-1 rounded bg-cyan-100 text-cyan-700 tracking-wide">
+                      {conn.relationship}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {conn.relatedConcepts.map((rel, rIdx) => (
+                      <span key={rIdx} className="px-3 py-1.5 bg-cyan-50 text-cyan-700 rounded-lg text-sm font-medium border border-cyan-200">
+                        {rel}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-slate-600 text-sm leading-relaxed">{conn.explanation}</p>
+                  {conn.source && (
+                    <p className="text-xs text-slate-400 font-bold uppercase mt-3 pt-3 border-t border-slate-100 flex items-center gap-1">
+                      <i className="fas fa-book"></i> {conn.source}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         
         {/* Footer with Dupe Control */}

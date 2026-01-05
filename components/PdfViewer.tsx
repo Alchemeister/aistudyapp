@@ -55,15 +55,15 @@ export const PdfViewer: FC<Props> = ({ url, initialPage = 1 }) => {
     <div className="flex flex-col h-full bg-slate-100">
       {/* Toolbar */}
       <div className="bg-slate-800 text-white p-2 flex justify-between items-center shadow-md z-10">
-        <div className="flex items-center gap-2">
-           <button onClick={() => changePage(-1)} disabled={pageNum <= 1} className="p-1 px-3 bg-slate-700 rounded hover:bg-slate-600 disabled:opacity-50"><i className="fas fa-chevron-left"></i></button>
-           <span className="text-sm font-mono">{pageNum} / {pdf?.numPages}</span>
-           <button onClick={() => changePage(1)} disabled={pageNum >= (pdf?.numPages || 0)} className="p-1 px-3 bg-slate-700 rounded hover:bg-slate-600 disabled:opacity-50"><i className="fas fa-chevron-right"></i></button>
+        <div className="flex items-center gap-1 sm:gap-2">
+           <button onClick={() => changePage(-1)} disabled={pageNum <= 1} className="p-2 sm:px-3 bg-slate-700 rounded hover:bg-slate-600 disabled:opacity-50 min-w-[40px] min-h-[40px] flex items-center justify-center"><i className="fas fa-chevron-left"></i></button>
+           <span className="text-xs sm:text-sm font-mono px-1">{pageNum} / {pdf?.numPages}</span>
+           <button onClick={() => changePage(1)} disabled={pageNum >= (pdf?.numPages || 0)} className="p-2 sm:px-3 bg-slate-700 rounded hover:bg-slate-600 disabled:opacity-50 min-w-[40px] min-h-[40px] flex items-center justify-center"><i className="fas fa-chevron-right"></i></button>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setScale(s => Math.max(0.5, s - 0.25))} className="p-1 hover:text-blue-300"><i className="fas fa-minus-circle"></i></button>
-          <span className="text-xs font-mono w-12 text-center">{Math.round(scale * 100)}%</span>
-          <button onClick={() => setScale(s => Math.min(3.0, s + 0.25))} className="p-1 hover:text-blue-300"><i className="fas fa-plus-circle"></i></button>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <button onClick={() => setScale(s => Math.max(0.5, s - 0.25))} className="p-2 hover:text-blue-300 min-w-[40px] min-h-[40px] flex items-center justify-center"><i className="fas fa-minus-circle"></i></button>
+          <span className="text-xs font-mono w-10 sm:w-12 text-center">{Math.round(scale * 100)}%</span>
+          <button onClick={() => setScale(s => Math.min(3.0, s + 0.25))} className="p-2 hover:text-blue-300 min-w-[40px] min-h-[40px] flex items-center justify-center"><i className="fas fa-plus-circle"></i></button>
         </div>
       </div>
 

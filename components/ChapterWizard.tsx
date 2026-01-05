@@ -2,6 +2,8 @@
 import React, { useState, type FC, type ChangeEvent } from 'react';
 import { Course, Chapter, Subchapter } from '../types';
 import { PdfViewer } from './PdfViewer';
+import { loadPdfDocument, extractTOCText } from '../services/pdfUtils';
+import { parseTableOfContents } from '../services/geminiService';
 
 interface Props {
   course: Course;
@@ -27,6 +29,8 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
   const [pdfName, setPdfName] = useState(course.pdfName || '');
   const [chapters, setChapters] = useState<Chapter[]>(course.chapters);
   const [isLoading, setIsLoading] = useState(false);
+  const [tocDetecting, setTocDetecting] = useState(false);
+  const [tocStatus, setTocStatus] = useState('');
 
   // Helper: Deep copy to avoid mutation issues
   const updateChapters = (fn: (prev: Chapter[]) => Chapter[]) => {
@@ -101,8 +105,83 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
     });
   };
 
-  const handleAutoDetectPlaceholder = () => {
-    if (onToast) onToast("Coming soon – advanced TOC detection", "info");
+  const handleAutoDetect = async () => {
+    if (!pdfUrl) {
+      if (onToast) onToast("Please upload a PDF first", "error");
+      return;
+    }
+
+    setTocDetecting(true);
+    setTocStatus("Loading PDF...");
+
+    try {
+      // Load the PDF document
+      const pdf = await loadPdfDocument(pdfUrl);
+
+      // Extract text from first 30 pages
+      setTocStatus("Reading first 30 pages...");
+      const tocText = await extractTOCText(pdf, 30, (curr, tot) => {
+        setTocStatus(`Reading page ${curr} of ${tot}...`);
+      });
+
+      if (tocText.length < 200) {
+        if (onToast) onToast("Not enough text found in first 30 pages", "error");
+        setTocDetecting(false);
+        setTocStatus('');
+        return;
+      }
+
+      // Send to AI for TOC parsing
+      setTocStatus("AI analyzing structure...");
+      const tocEntries = await parseTableOfContents(tocText);
+
+      if (tocEntries.length === 0) {
+        if (onToast) onToast("Could not detect chapters. Try adding manually.", "info");
+        setTocDetecting(false);
+        setTocStatus('');
+        return;
+      }
+
+      // Convert TOC entries to Chapter[] format
+      const detectedChapters: Chapter[] = tocEntries.map((entry, idx) => {
+        // Calculate end page (next chapter's start - 1, or use start + 20 as estimate)
+        const nextEntry = tocEntries[idx + 1];
+        const endPage = nextEntry ? nextEntry.start_page - 1 : entry.start_page + 20;
+
+        // Convert children to subchapters
+        const subchapters: Subchapter[] = (entry.children || []).map((child, sIdx) => {
+          const nextChild = entry.children?.[sIdx + 1];
+          const subEndPage = nextChild ? nextChild.start_page - 1 : endPage;
+
+          return {
+            id: uuid(),
+            title: child.title,
+            startPage: child.start_page,
+            endPage: Math.min(subEndPage, endPage),
+          };
+        });
+
+        return {
+          id: uuid(),
+          title: entry.title,
+          startPage: entry.start_page,
+          endPage: Math.max(entry.start_page, endPage),
+          isSuggested: true,
+          subchapters: subchapters.length > 0 ? subchapters : undefined,
+        };
+      });
+
+      // Set chapters (replace existing)
+      setChapters(detectedChapters);
+      if (onToast) onToast(`Detected ${detectedChapters.length} chapters! Review and adjust page numbers.`, "success");
+
+    } catch (e: any) {
+      console.error("TOC Detection Error:", e);
+      if (onToast) onToast(e.message || "Failed to detect TOC", "error");
+    } finally {
+      setTocDetecting(false);
+      setTocStatus('');
+    }
   };
 
   return (
@@ -174,11 +253,25 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                    <p className="text-xs text-slate-500">Break down large chapters into sections for faster AI generation.</p>
                  </div>
                  <div className="flex gap-2">
-                   <button 
-                      onClick={handleAutoDetectPlaceholder}
-                      className="text-xs bg-slate-100 text-slate-500 border border-slate-200 px-3 py-2 rounded font-bold flex items-center shadow-sm transition-all cursor-not-allowed opacity-80 hover:bg-slate-200"
+                   <button
+                      onClick={handleAutoDetect}
+                      disabled={tocDetecting}
+                      className={`text-xs px-3 py-2 rounded font-bold flex items-center shadow-sm transition-all ${
+                        tocDetecting
+                          ? 'bg-purple-100 text-purple-600 border border-purple-200 cursor-wait'
+                          : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600'
+                      }`}
                     >
-                       <i className="fas fa-magic mr-2 text-slate-400"></i> Auto-Detect
+                       {tocDetecting ? (
+                         <>
+                           <i className="fas fa-circle-notch fa-spin mr-2"></i>
+                           {tocStatus || 'Detecting...'}
+                         </>
+                       ) : (
+                         <>
+                           <i className="fas fa-magic mr-2"></i> Auto-Detect
+                         </>
+                       )}
                    </button>
                    <button onClick={() => updateChapters(p => [...p, { id: uuid(), title: '', startPage: 0, endPage: 0 }])} className="text-xs bg-primary text-white px-3 py-2 rounded hover:bg-blue-600 shadow-sm font-bold">
                      <i className="fas fa-plus mr-1"></i> Add Chapter
