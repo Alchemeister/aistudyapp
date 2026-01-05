@@ -2,7 +2,7 @@
 node_modules/
 
 # Build output
-dist/
+# dist/  # Temporarily including dist for Vercel static deploy test
 build/
 
 # Environment variables
