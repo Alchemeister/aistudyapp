@@ -2,6 +2,90 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ContentType, Difficulty } from "../types";
 
+// --- Generation Tracking ---
+const STORAGE_KEY = 'ai_generation_usage';
+const FREE_LIMIT = 50;
+
+interface GenerationUsage {
+  generationsThisMonth: number;
+  periodStart: string;
+  periodEnd: string;
+  lastGeneration?: string;
+}
+
+const getMonthBounds = () => {
+  const now = new Date();
+  const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { periodStart: periodStart.toISOString(), periodEnd: periodEnd.toISOString() };
+};
+
+export const getGenerationUsage = (): GenerationUsage => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const usage = JSON.parse(stored) as GenerationUsage;
+
+      // Validate the stored data has required fields
+      if (typeof usage.generationsThisMonth !== 'number' || !usage.periodEnd) {
+        console.warn('Invalid stored usage data, resetting:', usage);
+        throw new Error('Invalid usage data');
+      }
+
+      // Check if we need to reset for new month
+      const now = new Date();
+      const periodEnd = new Date(usage.periodEnd);
+
+      // Only reset if period end is valid and we're past it
+      if (!isNaN(periodEnd.getTime()) && now > periodEnd) {
+        console.log('New month detected, resetting credits. Old period:', usage.periodEnd);
+        const bounds = getMonthBounds();
+        const resetUsage: GenerationUsage = {
+          generationsThisMonth: 0,
+          ...bounds
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(resetUsage));
+        return resetUsage;
+      }
+
+      return usage;
+    }
+  } catch (e) {
+    console.warn('Failed to load generation usage, initializing:', e);
+  }
+
+  const bounds = getMonthBounds();
+  const initialUsage: GenerationUsage = {
+    generationsThisMonth: 0,
+    ...bounds
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(initialUsage));
+  console.log('Initialized new usage tracking:', initialUsage);
+  return initialUsage;
+};
+
+export const getRemainingGenerations = (): number => {
+  const usage = getGenerationUsage();
+  return Math.max(0, FREE_LIMIT - usage.generationsThisMonth);
+};
+
+export const getGenerationLimit = (): number => FREE_LIMIT;
+
+const recordGeneration = (type: ContentType): void => {
+  try {
+    const usage = getGenerationUsage();
+    const updated: GenerationUsage = {
+      ...usage,
+      generationsThisMonth: usage.generationsThisMonth + 1,
+      lastGeneration: new Date().toISOString()
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    console.log(`Generation recorded (${type}). Used: ${updated.generationsThisMonth}/${FREE_LIMIT}`);
+  } catch (e) {
+    console.warn('Failed to record generation:', e);
+  }
+};
+
 // FAST MODEL: Gemini 3 Flash (High speed, lower cost)
 const MODEL_NAME = "gemini-3-flash-preview"; 
 
@@ -307,7 +391,9 @@ export const generateContent = async (
       });
 
       const raw = cleanAndParseJson(response.text || "[]");
-      return cleanFlashcards(raw);
+      const result = cleanFlashcards(raw);
+      if (result.length > 0) recordGeneration(type);
+      return result;
     }
 
     if (type === ContentType.QUIZ || type === ContentType.MOCK_TEST) {
@@ -408,7 +494,9 @@ ${safeText}`;
       });
 
       const raw = cleanAndParseJson(response.text || "[]");
-      return cleanQuestions(raw);
+      const result = cleanQuestions(raw);
+      if (result.length > 0) recordGeneration(type);
+      return result;
     }
 
     // Notes / Mindmap
@@ -425,6 +513,7 @@ ${safeText}`;
             responseMimeType: "text/plain",
         }
       });
+      if (response.text) recordGeneration(type);
       return response.text;
     }
 
@@ -469,7 +558,9 @@ ${safeText}`;
       });
 
       const raw = cleanAndParseJson(response.text || "[]");
-      return cleanConceptConnections(raw);
+      const result = cleanConceptConnections(raw);
+      if (result.length > 0) recordGeneration(type);
+      return result;
     }
 
   } catch (error: any) {
@@ -477,6 +568,111 @@ ${safeText}`;
     if (error.message === "SOURCE_TEXT_EMPTY") throw error;
     if (!process.env.API_KEY) return getMockData(type, count);
     return []; 
+  }
+};
+
+/**
+ * Generate a comprehensive exam (midterm/final) from existing study materials
+ * This avoids token limits by using curated flashcards and quiz questions
+ * instead of raw PDF text.
+ */
+export const generateExamFromMaterials = async (
+  flashcards: { front: string; back: string; source?: string }[],
+  existingQuestions: { text: string; correctAnswer: string; type: string; source?: string }[],
+  courseTitle: string,
+  questionCount: number = 100,
+  difficulty: Difficulty = Difficulty.MEDIUM
+): Promise<any[]> => {
+  const ai = getAiClient();
+
+  if (!ai) {
+    // Return mock data if no API key
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    return getMockData(ContentType.MOCK_TEST, Math.min(questionCount, 20)) as any[];
+  }
+
+  // Build a summary of available content
+  const flashcardSummary = flashcards.slice(0, 150).map(fc =>
+    `Q: ${fc.front}\nA: ${fc.back}${fc.source ? ` (${fc.source})` : ''}`
+  ).join('\n\n');
+
+  const existingQuestionSummary = existingQuestions.slice(0, 100).map(q =>
+    `[${q.type}] ${q.text} → ${q.correctAnswer}${q.source ? ` (${q.source})` : ''}`
+  ).join('\n\n');
+
+  const totalSourceItems = flashcards.length + existingQuestions.length;
+
+  if (totalSourceItems < 10) {
+    console.warn("Not enough source material for exam generation");
+    throw new Error("INSUFFICIENT_MATERIALS");
+  }
+
+  const difficultyPrompt = difficulty === 5
+    ? "Expert level - include analysis, synthesis, and application questions"
+    : difficulty === 3
+      ? "Undergraduate level - mix of recall, understanding, and application"
+      : "Introductory level - focus on core concepts and definitions";
+
+  // Determine question type distribution based on count
+  const mcCount = Math.floor(questionCount * 0.50);  // 50% Multiple Choice
+  const tfCount = Math.floor(questionCount * 0.15);  // 15% True/False
+  const fillCount = Math.floor(questionCount * 0.15); // 15% Fill in Blank
+  const shortCount = Math.floor(questionCount * 0.15); // 15% Short Answer
+  const matchCount = questionCount - mcCount - tfCount - fillCount - shortCount; // Remainder
+
+  try {
+    const prompt = `Create a comprehensive ${questionCount}-question exam for "${courseTitle}".
+
+You have access to the following study materials that students have been learning:
+
+=== FLASHCARDS (${flashcards.length} total, showing first 150) ===
+${flashcardSummary}
+
+=== PREVIOUS QUIZ QUESTIONS (${existingQuestions.length} total, showing first 100) ===
+${existingQuestionSummary}
+
+Difficulty Level: ${difficultyPrompt}
+
+REQUIRED QUESTION DISTRIBUTION:
+- ${mcCount} Multiple Choice (MC) questions with exactly 4 options
+- ${tfCount} True/False (TF) questions
+- ${fillCount} Fill in the Blank (FILL_BLANK) questions
+- ${shortCount} Short Answer (SHORT_ANSWER) questions
+- ${matchCount} Matching (MATCHING) questions with word bank
+
+EXAM CREATION RULES:
+1. Create NEW questions inspired by the study materials - don't just copy them directly
+2. Vary the wording and approach from the source flashcards/questions
+3. Include some SYNTHESIS questions that combine concepts from different topics
+4. Make questions progressively harder throughout the exam
+5. Ensure comprehensive coverage of all topics represented in the materials
+6. For Short Answer questions, include "keywords" array for grading
+
+QUESTION FORMATS:
+MC: {"type": "MC", "text": "...", "options": ["A", "B", "C", "D"], "correctAnswer": "B", "explanation": "...", "source": "..."}
+TF: {"type": "TF", "text": "...", "options": ["True", "False"], "correctAnswer": "True", "explanation": "...", "source": "..."}
+FILL_BLANK: {"type": "FILL_BLANK", "text": "The _____ is...", "options": [], "correctAnswer": "answer", "explanation": "...", "source": "..."}
+SHORT_ANSWER: {"type": "SHORT_ANSWER", "text": "...", "options": [], "correctAnswer": "...", "keywords": ["key1", "key2"], "explanation": "...", "source": "..."}
+MATCHING: {"type": "MATCHING", "text": "Select the term that...", "options": ["word1", "word2", "word3", "word4"], "correctAnswer": "word1", "explanation": "...", "source": "..."}
+
+Return ONLY a JSON array of questions. No markdown wrapping.`;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+      }
+    });
+
+    const raw = cleanAndParseJson(response.text || "[]");
+    const result = cleanQuestions(raw);
+    if (result.length > 0) recordGeneration(ContentType.MOCK_TEST);
+    return result;
+  } catch (error: any) {
+    console.error("Exam generation error:", error);
+    if (!process.env.API_KEY) return getMockData(ContentType.MOCK_TEST, Math.min(questionCount, 20)) as any[];
+    throw error;
   }
 };
 

@@ -76,6 +76,7 @@ export interface Subchapter {
   startPage?: number;  // Optional - not needed if using notes only
   endPage?: number;    // Optional - not needed if using notes only
   notes?: string;      // User's lecture notes for this section
+  notesTitle?: string; // Custom title for the attached notes
   isNotesOnly?: boolean; // True if this section has no PDF pages, just notes
 }
 
@@ -86,6 +87,7 @@ export interface Chapter {
   endPage?: number;     // Optional - not needed if using notes only
   extractedText?: string;
   notes?: string;       // User's notes for this chapter
+  notesTitle?: string;  // Custom title for the attached notes
   isNotesOnly?: boolean; // True if chapter has no PDF, just notes
   isSuggested?: boolean;
   subchapters?: Subchapter[]; // Nested sections

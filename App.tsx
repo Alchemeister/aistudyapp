@@ -5,7 +5,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection } from './types';
 import { saveCourses, loadCourses, savePdfBlob, getPdfBlob, deleteCourseData, seedInitialData } from './services/storage';
 import { loadCloudCourses, debouncedCloudSync, immediateCloudSync, mergeCourses, deleteCloudCourse, isCloudSyncAvailable } from './services/cloudSync';
-import { generateContent, fixFlashcardContent } from './services/geminiService';
+import { generateContent, fixFlashcardContent, getRemainingGenerations, getGenerationLimit, getGenerationUsage } from './services/geminiService';
 import { loadPdfDocument, extractTextFromRange } from './services/pdfUtils';
 import { getInitialCardState } from './services/srs';
 import { Pomodoro } from './components/Pomodoro';
@@ -92,6 +92,14 @@ const MobileNav = ({ user, onLogout, dueCount }: { user: any, onLogout: () => vo
         <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">StudyAI</h1>
       </div>
       <div className="flex items-center gap-2">
+          {/* Generation Counter Badge */}
+          <div
+            className="px-2 py-1 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center gap-1"
+            title={`${getRemainingGenerations()} AI credits remaining this month`}
+          >
+            <i className="fas fa-bolt text-primary text-[10px]"></i>
+            <span className="text-xs font-bold text-primary">{getRemainingGenerations()}</span>
+          </div>
           <button
             onClick={toggleDarkMode}
             className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600"
@@ -435,6 +443,31 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
             <i className={`fas ${darkMode ? 'fa-sun text-amber-500' : 'fa-moon text-indigo-500'} w-5 text-center`}></i>
             {!collapsed && <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
           </button>
+
+          {/* Generation Counter */}
+          {!collapsed && (
+            <div className="mt-4 px-3 py-3 bg-gradient-to-br from-primary/10 to-blue-500/10 dark:from-primary/20 dark:to-blue-500/20 rounded-lg border border-primary/20 dark:border-primary/30">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">AI Credits</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">This month</span>
+              </div>
+              <div className="mt-2 flex items-end gap-2">
+                <span className="text-2xl font-bold text-primary">{getRemainingGenerations()}</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400 mb-0.5">/ {getGenerationLimit()}</span>
+              </div>
+              <div className="mt-2 w-full h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-blue-500 rounded-full transition-all duration-500"
+                  style={{ width: `${(getRemainingGenerations() / getGenerationLimit()) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+          {collapsed && (
+            <div className="mt-2 mx-auto w-10 h-10 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center" title={`${getRemainingGenerations()} AI credits remaining`}>
+              <span className="text-xs font-bold text-primary">{getRemainingGenerations()}</span>
+            </div>
+          )}
 
           {!collapsed && (
             <>

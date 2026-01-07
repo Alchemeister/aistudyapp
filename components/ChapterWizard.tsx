@@ -178,8 +178,11 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
         };
       });
 
-      // Set chapters (replace existing)
-      setChapters(detectedChapters);
+      // Preserve any existing notes-only chapters, then add detected PDF chapters
+      setChapters(prev => {
+        const notesOnlyChapters = prev.filter(ch => ch.isNotesOnly);
+        return [...detectedChapters, ...notesOnlyChapters];
+      });
       if (onToast) onToast(`Detected ${detectedChapters.length} chapters! Review and adjust page numbers.`, "success");
 
     } catch (e: any) {

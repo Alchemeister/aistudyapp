@@ -95,7 +95,11 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
             ...ch,
             subchapters: ch.subchapters.map(sub =>
               sub.id === subchapterId
-                ? { ...sub, notes: sub.notes ? `${sub.notes}\n\n--- ${title || 'Additional Notes'} ---\n${notes}` : notes }
+                ? {
+                    ...sub,
+                    notes: sub.notes ? `${sub.notes}\n\n--- ${title || 'Additional Notes'} ---\n${notes}` : notes,
+                    notesTitle: sub.notesTitle || (title.trim() || undefined) // Preserve existing or set new custom title
+                  }
                 : sub
             )
           };
@@ -103,7 +107,8 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
           // Add notes to chapter level
           return {
             ...ch,
-            notes: ch.notes ? `${ch.notes}\n\n--- ${title || 'Additional Notes'} ---\n${notes}` : notes
+            notes: ch.notes ? `${ch.notes}\n\n--- ${title || 'Additional Notes'} ---\n${notes}` : notes,
+            notesTitle: ch.notesTitle || (title.trim() || undefined) // Preserve existing or set new custom title
           };
         }
       }
@@ -112,14 +117,52 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
     onUpdate({ ...course, chapters: updatedChapters });
   };
 
-  const handleCreateNotesChapter = (title: string, notes: string) => {
-    const newChapter = {
-      id: Math.random().toString(36).substring(2, 9),
-      title,
-      isNotesOnly: true,
-      notes
-    };
-    onUpdate({ ...course, chapters: [...course.chapters, newChapter] });
+  const handleCreateNotesChapter = (title: string, notes: string, sectionTitle?: string) => {
+    const chapterId = Math.random().toString(36).substring(2, 9);
+
+    if (sectionTitle) {
+      // Create chapter with a subchapter containing the notes
+      const newChapter = {
+        id: chapterId,
+        title,
+        isNotesOnly: true,
+        subchapters: [{
+          id: Math.random().toString(36).substring(2, 9),
+          title: sectionTitle,
+          isNotesOnly: true,
+          notes
+        }]
+      };
+      onUpdate({ ...course, chapters: [...course.chapters, newChapter] });
+    } else {
+      // Create chapter with notes at chapter level (old behavior)
+      const newChapter = {
+        id: chapterId,
+        title,
+        isNotesOnly: true,
+        notes
+      };
+      onUpdate({ ...course, chapters: [...course.chapters, newChapter] });
+    }
+  };
+
+  const handleCreateSubchapter = (chapterId: string, sectionTitle: string, notes: string) => {
+    const updatedChapters = course.chapters.map(ch => {
+      if (ch.id === chapterId) {
+        const newSubchapter = {
+          id: Math.random().toString(36).substring(2, 9),
+          title: sectionTitle,
+          isNotesOnly: true,
+          notes
+        };
+        return {
+          ...ch,
+          subchapters: [...(ch.subchapters || []), newSubchapter]
+        };
+      }
+      return ch;
+    });
+    onUpdate({ ...course, chapters: updatedChapters });
   };
 
   const handleRecordingSave = async (lecture: Partial<Lecture>, blob?: Blob) => {
@@ -177,7 +220,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
             onClick={() => setShowImport(true)}
             className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 rounded-lg transition-colors shadow-sm whitespace-nowrap"
           >
-             <i className="fas fa-file-import mr-2 text-slate-500 dark:text-slate-400"></i>Import
+             <i className="fas fa-file-import mr-2 text-slate-500 dark:text-slate-400"></i>Import Notes
           </button>
 
           <div className="w-px h-6 bg-slate-200 dark:bg-slate-600 mx-1 hidden md:block"></div>
@@ -311,6 +354,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
         onSave={handleImportSave}
         onSaveToChapter={handleSaveToChapter}
         onCreateNotesChapter={handleCreateNotesChapter}
+        onCreateSubchapter={handleCreateSubchapter}
         onToast={showToast}
         course={course}
       />

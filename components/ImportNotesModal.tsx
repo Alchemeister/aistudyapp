@@ -7,7 +7,8 @@ interface Props {
   onClose: () => void;
   onSave: (note: Partial<Lecture>) => void;
   onSaveToChapter: (chapterId: string, subchapterId: string | null, notes: string, title: string) => void;
-  onCreateNotesChapter: (title: string, notes: string) => void;
+  onCreateNotesChapter: (title: string, notes: string, sectionTitle?: string) => void;
+  onCreateSubchapter: (chapterId: string, sectionTitle: string, notes: string) => void;
   onToast: (msg: string, type: 'success'|'error'|'info') => void;
   course: Course;
 }
@@ -16,13 +17,18 @@ const uuid = () => Math.random().toString(36).substring(2, 9);
 
 type TargetType = 'new_chapter' | 'existing' | 'standalone';
 
-export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToChapter, onCreateNotesChapter, onToast, course }) => {
+export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToChapter, onCreateNotesChapter, onCreateSubchapter, onToast, course }) => {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [title, setTitle] = useState('');
   const [targetType, setTargetType] = useState<TargetType>('new_chapter');
   const [selectedChapterId, setSelectedChapterId] = useState<string>('');
   const [selectedSubchapterId, setSelectedSubchapterId] = useState<string>('');
+  const [createNewSection, setCreateNewSection] = useState(false);
+  const [newSectionTitle, setNewSectionTitle] = useState('');
+  // For new chapter with section flow
+  const [addAsSection, setAddAsSection] = useState(true); // Default to creating section
+  const [sectionTitle, setSectionTitle] = useState('');
 
   if (!isOpen) return null;
 
@@ -78,11 +84,19 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
       const content = await extractContent(file);
 
       if (targetType === 'new_chapter') {
-        onCreateNotesChapter(title || "Imported Notes", content);
-        onToast("Notes chapter created!", "success");
+        // Pass section title if user wants notes as a section within the new chapter
+        const secTitle = addAsSection && sectionTitle.trim() ? sectionTitle.trim() : undefined;
+        onCreateNotesChapter(title || "Imported Notes", content, secTitle);
+        onToast(secTitle ? "Chapter with section created!" : "Notes chapter created!", "success");
       } else if (targetType === 'existing' && selectedChapterId) {
-        onSaveToChapter(selectedChapterId, selectedSubchapterId || null, content, title);
-        onToast("Notes added to chapter!", "success");
+        if (createNewSection && newSectionTitle.trim()) {
+          // Create a new subchapter/section with these notes
+          onCreateSubchapter(selectedChapterId, newSectionTitle.trim(), content);
+          onToast("New section created with notes!", "success");
+        } else {
+          onSaveToChapter(selectedChapterId, selectedSubchapterId || null, content, title);
+          onToast("Notes added to chapter!", "success");
+        }
       } else {
         // Standalone lecture (old behavior)
         const note: Partial<Lecture> = {
@@ -103,6 +117,10 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
       setTargetType('new_chapter');
       setSelectedChapterId('');
       setSelectedSubchapterId('');
+      setCreateNewSection(false);
+      setNewSectionTitle('');
+      setAddAsSection(true);
+      setSectionTitle('');
     } catch (e) {
       console.error(e);
       onToast("Failed to parse file.", "error");
@@ -204,6 +222,52 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
                 </div>
               </div>
 
+              {/* New Chapter Configuration */}
+              {targetType === 'new_chapter' && (
+                <div className="space-y-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <div>
+                    <label className="block text-xs font-bold text-amber-600 dark:text-amber-400 uppercase mb-1">Chapter Name</label>
+                    <input
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder="e.g., Week 5, Unit 3, Midterm Review..."
+                      className="w-full p-2 border border-amber-300 dark:border-amber-700 rounded text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-amber-400 outline-none"
+                    />
+                  </div>
+
+                  <label className="flex items-start gap-3 cursor-pointer p-2 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={addAsSection}
+                      onChange={(e) => setAddAsSection(e.target.checked)}
+                      className="mt-1 w-4 h-4 rounded text-amber-500 focus:ring-amber-400"
+                    />
+                    <div>
+                      <div className="font-bold text-sm text-slate-700 dark:text-slate-200">Add as section within chapter</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Creates a subsection for your notes (recommended for lecture notes)</p>
+                    </div>
+                  </label>
+
+                  {addAsSection && (
+                    <div className="ml-7">
+                      <label className="block text-xs font-bold text-amber-600 dark:text-amber-400 uppercase mb-1">Section Name</label>
+                      <input
+                        type="text"
+                        value={sectionTitle}
+                        onChange={(e) => setSectionTitle(e.target.value)}
+                        placeholder="e.g., Monday Lecture, Reading Notes, Lab 3..."
+                        className="w-full p-2 border border-amber-300 dark:border-amber-700 rounded text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-amber-400 outline-none"
+                      />
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                        <i className="fas fa-info-circle mr-1"></i>
+                        Structure: {title || "Chapter"} → {sectionTitle || "Section"} → Your Notes
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Chapter selector for existing */}
               {targetType === 'existing' && course.chapters.length > 0 && (
                 <div className="space-y-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -223,21 +287,60 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
                     </select>
                   </div>
 
-                  {selectedChapter?.subchapters && selectedChapter.subchapters.length > 0 && (
-                    <div>
-                      <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase mb-1">Select Section (optional)</label>
-                      <select
-                        value={selectedSubchapterId}
-                        onChange={(e) => setSelectedSubchapterId(e.target.value)}
-                        className="w-full p-2 border border-blue-300 dark:border-blue-700 rounded text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
-                      >
-                        <option value="">-- Add to chapter level --</option>
-                        {selectedChapter.subchapters.map((sub, sIdx) => (
-                          <option key={sub.id} value={sub.id}>
-                            {course.chapters.indexOf(selectedChapter) + 1}.{sIdx + 1}: {sub.title} {sub.notes ? '(has notes)' : ''}
-                          </option>
-                        ))}
-                      </select>
+                  {selectedChapterId && (
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-blue-600 dark:text-blue-400 uppercase mb-1">Section Options</label>
+
+                      {/* Toggle between existing section or create new */}
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => { setCreateNewSection(false); setNewSectionTitle(''); }}
+                          className={`flex-1 px-3 py-2 text-xs font-bold rounded transition-all ${!createNewSection ? 'bg-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500'}`}
+                        >
+                          {selectedChapter?.subchapters?.length ? 'Select Existing' : 'Add to Chapter'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setCreateNewSection(true); setSelectedSubchapterId(''); }}
+                          className={`flex-1 px-3 py-2 text-xs font-bold rounded transition-all ${createNewSection ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500'}`}
+                        >
+                          <i className="fas fa-plus mr-1"></i> Create New Section
+                        </button>
+                      </div>
+
+                      {/* Existing section dropdown */}
+                      {!createNewSection && selectedChapter?.subchapters && selectedChapter.subchapters.length > 0 && (
+                        <select
+                          value={selectedSubchapterId}
+                          onChange={(e) => setSelectedSubchapterId(e.target.value)}
+                          className="w-full p-2 border border-blue-300 dark:border-blue-700 rounded text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+                        >
+                          <option value="">-- Add to chapter level --</option>
+                          {selectedChapter.subchapters.map((sub, sIdx) => (
+                            <option key={sub.id} value={sub.id}>
+                              {course.chapters.indexOf(selectedChapter) + 1}.{sIdx + 1}: {sub.title} {sub.notes ? '(has notes)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      {/* New section title input */}
+                      {createNewSection && (
+                        <div>
+                          <input
+                            type="text"
+                            value={newSectionTitle}
+                            onChange={(e) => setNewSectionTitle(e.target.value)}
+                            placeholder="Enter new section title..."
+                            className="w-full p-2 border border-green-300 dark:border-green-700 rounded text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-green-400 outline-none"
+                          />
+                          <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                            <i className="fas fa-info-circle mr-1"></i>
+                            This will create a new section within the chapter
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -250,18 +353,20 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
                 </div>
               )}
 
-              {/* Title */}
-              <div>
-                <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
-                  {targetType === 'existing' ? '3. Note Label (optional)' : '3. Title'}
-                </label>
-                <input
-                  className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded text-sm font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-700 focus:ring-primary outline-none"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder={targetType === 'existing' ? "e.g. Monday Lecture" : "Name your notes"}
-                />
-              </div>
+              {/* Title - only for existing/standalone (new_chapter has its own inputs) */}
+              {targetType !== 'new_chapter' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">
+                    {targetType === 'existing' ? '3. Note Label (optional)' : '3. Title'}
+                  </label>
+                  <input
+                    className="w-full p-2 border border-slate-300 dark:border-slate-600 rounded text-sm font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-700 focus:ring-primary outline-none"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder={targetType === 'existing' ? "e.g. Monday Lecture" : "Name your notes"}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -270,7 +375,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
           <button onClick={onClose} className="px-4 py-2 text-slate-500 font-medium hover:text-slate-700 dark:hover:text-slate-300">Cancel</button>
           <button
             onClick={processFile}
-            disabled={!file || loading || (targetType === 'existing' && !selectedChapterId)}
+            disabled={!file || loading || (targetType === 'existing' && !selectedChapterId) || (targetType === 'existing' && createNewSection && !newSectionTitle.trim()) || (targetType === 'new_chapter' && addAsSection && !sectionTitle.trim())}
             className="px-6 py-2 bg-primary text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2 hover:bg-blue-600 transition-colors"
           >
             {loading && <i className="fas fa-circle-notch fa-spin"></i>}
