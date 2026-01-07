@@ -27,19 +27,52 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onToast }
     }
   };
 
+  // Extract text from DOCX (simplified - extracts raw text from XML)
+  const extractDocxText = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+
+    // DOCX is a ZIP file - find document.xml content
+    // Simple extraction without full ZIP library
+    const text = new TextDecoder().decode(uint8Array);
+
+    // Look for text between <w:t> tags (Word text elements)
+    const matches = text.match(/<w:t[^>]*>([^<]*)<\/w:t>/g) || [];
+    const extractedText = matches
+      .map(m => m.replace(/<[^>]+>/g, ''))
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (extractedText.length > 50) {
+      return extractedText;
+    }
+
+    // Fallback: try to extract any readable text
+    const readable = text.replace(/<[^>]+>/g, ' ').replace(/[^\x20-\x7E\n]/g, ' ').replace(/\s+/g, ' ').trim();
+    return readable.substring(0, 50000); // Limit size
+  };
+
   const processFile = async () => {
     if (!file) return;
     setLoading(true);
     try {
       let content = "";
-      
-      if (file.type === 'application/pdf') {
+      const fileName = file.name.toLowerCase();
+
+      if (file.type === 'application/pdf' || fileName.endsWith('.pdf')) {
         const fileUrl = URL.createObjectURL(file);
         const doc = await loadPdfDocument(fileUrl);
         content = await extractAllText(doc);
         URL.revokeObjectURL(fileUrl);
+      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || fileName.endsWith('.docx')) {
+        content = await extractDocxText(file);
+      } else if (fileName.endsWith('.rtf')) {
+        // Basic RTF - strip RTF codes
+        const raw = await file.text();
+        content = raw.replace(/\{\\[^{}]+\}|\\[a-z]+\d*\s?/gi, '').replace(/[{}]/g, '').trim();
       } else {
-        // Plain text or Markdown
+        // Plain text, Markdown, or other text files
         content = await file.text();
       }
 
@@ -77,9 +110,9 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onToast }
         <div className="p-6 space-y-6">
            {/* Drop Area */}
            <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors relative group cursor-pointer">
-              <input 
-                type="file" 
-                accept=".txt,.md,.pdf" 
+              <input
+                type="file"
+                accept=".txt,.md,.pdf,.docx,.rtf,.doc"
                 onChange={handleFileChange}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
@@ -93,7 +126,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onToast }
                 <div className="text-slate-400">
                     <i className="fas fa-cloud-upload-alt text-3xl mb-2 group-hover:text-primary transition-colors"></i>
                     <p className="font-bold text-sm text-slate-600">Click to Upload</p>
-                    <p className="text-xs mt-1">Supports PDF, TXT, MD</p>
+                    <p className="text-xs mt-1">PDF, DOCX, TXT, MD, RTF</p>
                 </div>
               )}
            </div>

@@ -45,33 +45,33 @@ const getSimilarity = (s1: string, s2: string): number => {
 };
 
 const GenBtn = ({ icon, label, onClick, loading, status, disabled, badge, fullWidth }: any) => (
-  <button 
-    onClick={onClick} 
-    disabled={loading || disabled} 
-    className={`relative flex flex-col items-center justify-center p-4 border rounded-xl transition-all group h-24 ${fullWidth ? 'col-span-2 md:col-span-3 bg-blue-50 border-blue-200' : ''} ${
-      disabled 
-        ? 'border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed' 
-        : 'border-slate-200 hover:border-primary hover:bg-blue-50 cursor-pointer'
+  <button
+    onClick={onClick}
+    disabled={loading || disabled}
+    className={`relative flex flex-col items-center justify-center p-4 border rounded-xl transition-all group h-24 ${fullWidth ? 'col-span-2 md:col-span-3 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800' : ''} ${
+      disabled
+        ? 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 opacity-60 cursor-not-allowed'
+        : 'border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer'
     }`}
   >
     {loading && fullWidth ? (
        <div className="flex items-center gap-3">
           <i className="fas fa-circle-notch fa-spin text-primary"></i>
-          <span className="text-slate-600 font-bold">{status}</span>
+          <span className="text-slate-600 dark:text-slate-300 font-bold">{status}</span>
        </div>
     ) : loading ? (
       <>
         <i className="fas fa-circle-notch fa-spin text-primary mb-2"></i>
-        <span className="text-[10px] text-slate-500 animate-pulse text-center leading-tight px-1">{status}</span>
+        <span className="text-[10px] text-slate-500 dark:text-slate-400 animate-pulse text-center leading-tight px-1">{status}</span>
       </>
     ) : (
       <>
-        <i className={`fas ${icon} mb-2 text-xl ${disabled ? 'text-slate-300' : 'text-slate-400 group-hover:text-primary'}`}></i>
-        <span className={`text-xs font-bold ${disabled ? 'text-slate-400' : 'text-slate-600 group-hover:text-primary'}`}>{label}</span>
+        <i className={`fas ${icon} mb-2 text-xl ${disabled ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400 group-hover:text-primary'}`}></i>
+        <span className={`text-xs font-bold ${disabled ? 'text-slate-400' : 'text-slate-600 dark:text-slate-300 group-hover:text-primary'}`}>{label}</span>
       </>
     )}
     {badge && (
-      <span className="absolute top-2 right-2 text-[8px] font-bold bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+      <span className="absolute top-2 right-2 text-[8px] font-bold bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
         {badge}
       </span>
     )}
@@ -108,12 +108,12 @@ export const FlashcardViewer = ({ cards, onFixCard }: { cards: Flashcard[], onFi
           style={{ transformStyle: 'preserve-3d', transform: flipped && !isBroken ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
         >
           {/* Front */}
-          <div 
-            className={`absolute inset-0 backface-hidden bg-white border shadow-sm rounded-xl flex flex-col items-center justify-center p-8 text-center overflow-hidden ${card.isDuplicate ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'}`}
+          <div
+            className={`absolute inset-0 backface-hidden bg-white dark:bg-slate-800 border shadow-sm rounded-xl flex flex-col items-center justify-center p-8 text-center overflow-hidden ${card.isDuplicate ? 'border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-900/20' : 'border-slate-200 dark:border-slate-700'}`}
             style={{ backfaceVisibility: 'hidden' }}
           >
             {card.isDuplicate && (
-                <div className="absolute top-3 right-3 bg-amber-100 text-amber-600 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10">
+                <div className="absolute top-3 right-3 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10">
                     <i className="fas fa-clone"></i> Duplicate Skipped
                 </div>
             )}
@@ -127,7 +127,7 @@ export const FlashcardViewer = ({ cards, onFixCard }: { cards: Flashcard[], onFi
             ) : (
                <>
                  <div className="overflow-y-auto w-full max-h-full flex flex-col items-center justify-center">
-                    <h4 className={`text-2xl font-bold leading-relaxed ${card.isDuplicate ? 'text-slate-500 opacity-70' : 'text-slate-800'}`}>{card.front}</h4>
+                    <h4 className={`text-2xl font-bold leading-relaxed ${card.isDuplicate ? 'text-slate-500 opacity-70' : 'text-slate-800 dark:text-slate-100'}`}>{card.front}</h4>
                  </div>
                  <span className="absolute bottom-6 text-sm text-slate-400 font-medium uppercase tracking-wider">Tap to Flip</span>
                </>
@@ -135,14 +135,14 @@ export const FlashcardViewer = ({ cards, onFixCard }: { cards: Flashcard[], onFi
           </div>
 
           {/* Back */}
-          <div 
-            className={`absolute inset-0 backface-hidden border shadow-sm rounded-xl flex flex-col items-center justify-center p-8 text-center ${card.isDuplicate ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}
+          <div
+            className={`absolute inset-0 backface-hidden border shadow-sm rounded-xl flex flex-col items-center justify-center p-8 text-center ${card.isDuplicate ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'}`}
             style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
           >
              <div className="overflow-y-auto w-full max-h-full">
-                <h4 className={`text-xl font-medium leading-relaxed ${card.isDuplicate ? 'text-slate-600 opacity-80' : 'text-blue-900'}`}>{card.back}</h4>
+                <h4 className={`text-xl font-medium leading-relaxed ${card.isDuplicate ? 'text-slate-600 dark:text-slate-400 opacity-80' : 'text-blue-900 dark:text-blue-100'}`}>{card.back}</h4>
                 {card.source && (
-                    <div className="mt-6 pt-4 border-t border-blue-100 w-full">
+                    <div className="mt-6 pt-4 border-t border-blue-100 dark:border-blue-800 w-full">
                         <p className={`text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-1 ${card.isDuplicate ? 'text-slate-400' : 'text-blue-400'}`}>
                             <i className="fas fa-map-marker-alt"></i> {card.source}
                         </p>
@@ -186,6 +186,9 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
   const [showDuplicates, setShowDuplicates] = useState(false); // Controls filtering in preview
   const { showToast } = useContext(ToastContext);
 
+  // Generation config modal state
+  const [genConfigModal, setGenConfigModal] = useState<ContentType | null>(null);
+
   // Chat state (Pro feature)
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -202,6 +205,39 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
 
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  // Helper for content type labels
+  const getContentTypeLabel = (type: ContentType) => {
+    switch (type) {
+      case ContentType.FLASHCARDS: return 'Flashcards';
+      case ContentType.QUIZ: return 'Quiz Questions';
+      case ContentType.MOCK_TEST: return 'Mock Test Questions';
+      case ContentType.NOTES: return 'Summary Notes';
+      case ContentType.CONCEPT_CONNECTIONS: return 'Concept Connections';
+      default: return 'Items';
+    }
+  };
+
+  const getDifficultyLabel = (d: Difficulty) => {
+    if (d <= 1.5) return 'Easy';
+    if (d <= 3.5) return 'Medium';
+    return 'Hard';
+  };
+
+  const openGenConfig = (type: ContentType) => {
+    if (selectedIds.length === 0) {
+      showToast("Please select at least one chapter, section, or lecture.", "error");
+      return;
+    }
+    setGenConfigModal(type);
+  };
+
+  const startGeneration = () => {
+    if (genConfigModal) {
+      handleGenerate(genConfigModal);
+      setGenConfigModal(null);
+    }
   };
 
   const handleGenerate = async (type: ContentType) => {
@@ -519,14 +555,14 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
 
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
-        <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center"><i className="fas fa-robot text-primary mr-2"></i>AI Study Generator</h3>
-        
+      <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-8">
+        <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 mb-4 flex items-center"><i className="fas fa-robot text-primary mr-2"></i>AI Study Generator</h3>
+
         {/* Selection */}
         <div className="mb-6">
           <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">1. Select Source Material</label>
-          <div className="border border-slate-200 rounded-lg max-h-64 overflow-y-auto bg-slate-50 p-2 space-y-3">
-            
+          <div className="border border-slate-200 dark:border-slate-600 rounded-lg max-h-64 overflow-y-auto bg-slate-50 dark:bg-slate-700/50 p-2 space-y-3">
+
             {/* Chapters Section */}
             {course.chapters.length > 0 && (
               <div>
@@ -534,18 +570,18 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
                 {course.chapters.map((ch, idx) => (
                   <div key={ch.id}>
                     {/* Parent Chapter */}
-                    <label className="flex items-center gap-3 p-2 hover:bg-white rounded cursor-pointer transition-colors">
+                    <label className="flex items-center gap-3 p-2 hover:bg-white dark:hover:bg-slate-600 rounded cursor-pointer transition-colors">
                       <input type="checkbox" checked={selectedIds.includes(ch.id)} onChange={() => toggleSelection(ch.id)} className="rounded text-primary focus:ring-primary" />
-                      <span className="text-sm font-medium text-slate-700"><span className="text-slate-400 mr-1">Ch.{idx + 1}</span> {ch.title}</span>
-                      <span className="text-xs text-slate-400 ml-auto bg-slate-100 px-2 py-0.5 rounded">pp. {ch.startPage}-{ch.endPage}</span>
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200"><span className="text-slate-400 mr-1">Ch.{idx + 1}</span> {ch.title}</span>
+                      <span className="text-xs text-slate-400 ml-auto bg-slate-100 dark:bg-slate-600 px-2 py-0.5 rounded">pp. {ch.startPage}-{ch.endPage}</span>
                     </label>
-                    
+
                     {/* Subchapters */}
                     {ch.subchapters && ch.subchapters.map((sub, sIdx) => (
-                        <label key={sub.id} className="flex items-center gap-3 p-2 pl-8 hover:bg-white rounded cursor-pointer transition-colors border-l-2 border-slate-100 ml-2">
+                        <label key={sub.id} className="flex items-center gap-3 p-2 pl-8 hover:bg-white dark:hover:bg-slate-600 rounded cursor-pointer transition-colors border-l-2 border-slate-100 dark:border-slate-600 ml-2">
                            <input type="checkbox" checked={selectedIds.includes(sub.id)} onChange={() => toggleSelection(sub.id)} className="rounded text-blue-400 focus:ring-blue-400" />
-                           <span className="text-sm font-medium text-slate-600 text-xs"><span className="text-slate-300 mr-1">{idx+1}.{sIdx+1}</span> {sub.title}</span>
-                           <span className="text-[10px] text-slate-400 ml-auto border border-slate-200 px-1 rounded">{sub.startPage}-{sub.endPage}</span>
+                           <span className="text-sm font-medium text-slate-600 dark:text-slate-300 text-xs"><span className="text-slate-300 dark:text-slate-500 mr-1">{idx+1}.{sIdx+1}</span> {sub.title}</span>
+                           <span className="text-[10px] text-slate-400 ml-auto border border-slate-200 dark:border-slate-500 px-1 rounded">{sub.startPage}-{sub.endPage}</span>
                         </label>
                     ))}
                   </div>
@@ -558,18 +594,18 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
               <div>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2 mb-1 mt-2">Notes & Lectures</div>
                 {course.lectures.map((lec) => (
-                  <div key={lec.id} className="flex items-center gap-3 p-2 hover:bg-white rounded transition-colors group">
+                  <div key={lec.id} className="flex items-center gap-3 p-2 hover:bg-white dark:hover:bg-slate-600 rounded transition-colors group">
                     <label className="flex items-center gap-3 flex-1 cursor-pointer">
                         <input type="checkbox" checked={selectedIds.includes(lec.id)} onChange={() => toggleSelection(lec.id)} className="rounded text-primary focus:ring-primary" />
                         <i className={`fas ${lec.sourceType === 'upload' ? 'fa-file-alt text-amber-500' : 'fa-microphone text-purple-500'} w-4`}></i>
                         <div className="flex-1 min-w-0">
-                           <div className="text-sm font-medium text-slate-700 truncate">{lec.title}</div>
+                           <div className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{lec.title}</div>
                            <div className="text-[10px] text-slate-400">{formatDate(lec.date)}</div>
                         </div>
                     </label>
-                    <button 
+                    <button
                        onClick={(e) => { e.stopPropagation(); onViewLecture(lec); }}
-                       className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 rounded opacity-0 group-hover:opacity-100 transition-all"
+                       className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-600 rounded opacity-0 group-hover:opacity-100 transition-all"
                        title="View/Play"
                     >
                         <i className="fas fa-eye"></i>
@@ -578,7 +614,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
                 ))}
               </div>
             )}
-            
+
             {course.chapters.length === 0 && course.lectures.length === 0 && (
                <div className="text-sm text-slate-400 p-2 text-center">No content available. Add Chapters or Import Notes.</div>
             )}
@@ -586,65 +622,131 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
           </div>
         </div>
 
-        {/* Difficulty & Count */}
-        <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <div className="flex justify-between mb-2">
-              <label className="text-xs font-bold text-slate-400 uppercase">2. Difficulty</label>
-              <span className="text-xs font-bold text-primary">{difficulty === 1 ? 'Easy' : difficulty === 3 ? 'Medium' : 'Hard'}</span>
-            </div>
-            <input type="range" min="1" max="5" step="2" value={difficulty} onChange={e => setDifficulty(Number(e.target.value))} className="w-full accent-primary h-1 bg-slate-200 rounded appearance-none" />
-            <p className="text-[10px] text-slate-400 mt-1">Difficulty level of generated questions.</p>
-          </div>
-          <div>
-             <div className="flex justify-between mb-2">
-              <label className="text-xs font-bold text-slate-400 uppercase">3. Item Count</label>
-              <span className="text-xs font-bold text-primary">{itemCount} items</span>
-            </div>
-            <input type="range" min="5" max="30" step="5" value={itemCount} onChange={e => setItemCount(Number(e.target.value))} className="w-full accent-primary h-1 bg-slate-200 rounded appearance-none" />
-          </div>
-        </div>
-
-        {/* Mock Test Settings */}
-        <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
-           <div className="flex justify-between mb-2">
-              <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                 <i className="fas fa-file-signature text-purple-500"></i> Mock Test Settings
-              </label>
-              <span className="text-xs font-bold text-purple-600">{mockCount} Questions</span>
-           </div>
-           <input type="range" min="50" max="200" step="10" value={mockCount} onChange={e => setMockCount(Number(e.target.value))} className="w-full accent-purple-600 h-1 bg-slate-200 rounded appearance-none" />
-        </div>
-
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <GenBtn icon="fa-bolt" label="Flashcards" onClick={() => handleGenerate(ContentType.FLASHCARDS)} loading={generating} status={status} />
-          <GenBtn icon="fa-question-circle" label="Quiz" onClick={() => handleGenerate(ContentType.QUIZ)} loading={generating} status={status} />
-          <GenBtn icon="fa-align-left" label="Summary" onClick={() => handleGenerate(ContentType.NOTES)} loading={generating} status={status} />
-          <GenBtn icon="fa-share-nodes" label="Concepts" onClick={() => handleGenerate(ContentType.CONCEPT_CONNECTIONS)} loading={generating} status={status} />
-
-          <GenBtn
-             icon="fa-file-signature"
-             label="Generate Mock Test"
-             onClick={() => handleGenerate(ContentType.MOCK_TEST)}
-             loading={generating}
-             status={status}
-             badge="Pro"
-             fullWidth
-          />
-
-          {/* AI Chat Button (Pro) */}
+        {/* AI Tutor Button - Moved to top, right under selection */}
+        <div className="mb-6">
           <button
             onClick={handleOpenChat}
             disabled={generating || selectedIds.length === 0}
-            className="col-span-2 md:col-span-3 flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-bold hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+            className="w-full flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-bold hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
           >
             <i className="fas fa-comments"></i>
             <span>Ask AI Tutor</span>
             <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wide">Pro</span>
           </button>
+          <p className="text-[10px] text-slate-400 text-center mt-2">Chat with AI about your selected content</p>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-600"></div>
+          <span className="text-xs font-bold text-slate-400 uppercase">Or Generate Study Materials</span>
+          <div className="flex-1 h-px bg-slate-200 dark:bg-slate-600"></div>
+        </div>
+
+        {/* Action Buttons - Now open config modal */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <GenBtn icon="fa-bolt" label="Flashcards" onClick={() => openGenConfig(ContentType.FLASHCARDS)} loading={generating} status={status} />
+          <GenBtn icon="fa-question-circle" label="Quiz" onClick={() => openGenConfig(ContentType.QUIZ)} loading={generating} status={status} />
+          <GenBtn icon="fa-align-left" label="Summary" onClick={() => openGenConfig(ContentType.NOTES)} loading={generating} status={status} />
+          <GenBtn icon="fa-share-nodes" label="Concepts" onClick={() => openGenConfig(ContentType.CONCEPT_CONNECTIONS)} loading={generating} status={status} />
+
+          <GenBtn
+             icon="fa-file-signature"
+             label="Generate Mock Test"
+             onClick={() => openGenConfig(ContentType.MOCK_TEST)}
+             loading={generating}
+             status={status}
+             badge="Pro"
+             fullWidth
+          />
         </div>
       </div>
+
+      {/* Generation Config Modal */}
+      <Modal isOpen={!!genConfigModal} onClose={() => setGenConfigModal(null)} title="Configure Generation" maxWidth="max-w-md">
+        <div className="space-y-6">
+          {/* Preview Message */}
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 rounded-xl p-5 text-center">
+            <div className="text-3xl font-bold text-slate-800 mb-1">
+              {genConfigModal === ContentType.MOCK_TEST ? mockCount : itemCount}
+            </div>
+            <div className="text-sm text-slate-600">
+              <span className="font-bold text-primary">{getDifficultyLabel(difficulty)}</span>
+              {' '}
+              {genConfigModal && getContentTypeLabel(genConfigModal)}
+            </div>
+            <p className="text-xs text-slate-400 mt-2">
+              from {selectedIds.length} selected source{selectedIds.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+
+          {/* Item Count Slider */}
+          {genConfigModal !== ContentType.NOTES && (
+            <div>
+              <div className="flex justify-between mb-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">
+                  {genConfigModal === ContentType.MOCK_TEST ? 'Number of Questions' : 'Number of Items'}
+                </label>
+                <span className="text-sm font-bold text-primary">
+                  {genConfigModal === ContentType.MOCK_TEST ? mockCount : itemCount}
+                </span>
+              </div>
+              {genConfigModal === ContentType.MOCK_TEST ? (
+                <input
+                  type="range"
+                  min="50"
+                  max="200"
+                  step="10"
+                  value={mockCount}
+                  onChange={e => setMockCount(Number(e.target.value))}
+                  className="w-full accent-purple-600 h-2 bg-slate-200 rounded-full appearance-none cursor-pointer"
+                />
+              ) : (
+                <input
+                  type="range"
+                  min="5"
+                  max="30"
+                  step="5"
+                  value={itemCount}
+                  onChange={e => setItemCount(Number(e.target.value))}
+                  className="w-full accent-primary h-2 bg-slate-200 rounded-full appearance-none cursor-pointer"
+                />
+              )}
+            </div>
+          )}
+
+          {/* Difficulty Slider */}
+          <div>
+            <div className="flex justify-between mb-2">
+              <label className="text-xs font-bold text-slate-500 uppercase">Difficulty Level</label>
+              <span className="text-sm font-bold text-primary">{getDifficultyLabel(difficulty)}</span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="5"
+              step="2"
+              value={difficulty}
+              onChange={e => setDifficulty(Number(e.target.value))}
+              className="w-full accent-primary h-2 bg-slate-200 rounded-full appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+              <span>Easy</span>
+              <span>Medium</span>
+              <span>Hard</span>
+            </div>
+          </div>
+
+          {/* Generate Button */}
+          <button
+            onClick={startGeneration}
+            className="w-full py-4 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold text-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+          >
+            <i className="fas fa-magic"></i>
+            Generate {genConfigModal && getContentTypeLabel(genConfigModal)}
+          </button>
+        </div>
+      </Modal>
 
       {/* AI Chat Modal (Pro) */}
       <Modal isOpen={showChat} onClose={() => setShowChat(false)} title="AI Tutor Chat" maxWidth="max-w-2xl">

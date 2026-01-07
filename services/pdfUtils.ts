@@ -85,14 +85,16 @@ export const extractAllText = async (pdf: PdfDocument): Promise<string> => {
   return await extractTextFromRange(pdf, 1, pdf.numPages);
 };
 
-// Extract text from first N pages for TOC detection (default: 30 pages)
+// Extract text from a page range for TOC detection
 export const extractTOCText = async (
   pdf: PdfDocument,
-  maxPages: number = 30,
+  startPage: number = 1,
+  endPage: number = 30,
   onProgress?: (current: number, total: number) => void
 ): Promise<string> => {
-  const pagesToExtract = Math.min(maxPages, pdf.numPages);
-  return await extractTextFromRange(pdf, 1, pagesToExtract, onProgress);
+  const start = Math.max(1, startPage);
+  const end = Math.min(endPage, pdf.numPages);
+  return await extractTextFromRange(pdf, start, end, onProgress);
 };
 
 export const renderPageToCanvas = async (

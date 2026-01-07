@@ -21,13 +21,41 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
   const [showImport, setShowImport] = useState(false);
   const [showRecorder, setShowRecorder] = useState(false);
   const [activeLecture, setActiveLecture] = useState<Lecture | null>(null);
-  
+
   const { showToast } = useContext(ToastContext);
   const navigate = useNavigate();
 
   const urlParts = window.location.hash.split('/');
   const courseId = urlParts[urlParts.length - 1];
   const course = courses.find(c => c.id === courseId);
+
+  // --- Performance Graph Data (must be before any early return) ---
+  const performanceData = useMemo(() => {
+    if (!course || !course.quizHistory || course.quizHistory.length === 0) return [];
+
+    // Sort chronologically
+    const sorted = [...course.quizHistory].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return sorted.map((res, idx) => {
+        let label = `Quiz ${idx + 1}`;
+        // Attempt to find Chapter Name from IDs
+        if (res.chapterIds && res.chapterIds.length > 0) {
+            const ch = course.chapters.find(c => c.id === res.chapterIds![0]);
+            if (ch) label = `Ch ${course.chapters.indexOf(ch) + 1}`;
+            else label = "Mixed";
+        } else {
+            label = "General";
+        }
+
+        return {
+            date: new Date(res.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            score: Math.round((res.score / res.total) * 100),
+            label: label,
+            fullDate: new Date(res.date).toLocaleString(),
+            material: res.materialTitle || "Quiz"
+        };
+    });
+  }, [course]);
 
   if (!course) return <div className="p-8 text-center">Course not found</div>;
 
@@ -71,55 +99,27 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
   const handleViewLecture = (l: Lecture) => {
       setActiveLecture(l);
       // Ensure we are in the generator tab so the user sees the side-by-side or mobile switch
-      setActiveTab('content'); 
+      setActiveTab('content');
   };
 
-  // --- Performance Graph Data ---
-  const performanceData = useMemo(() => {
-    if (!course.quizHistory || course.quizHistory.length === 0) return [];
-    
-    // Sort chronologically
-    const sorted = [...course.quizHistory].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
-    return sorted.map((res, idx) => {
-        let label = `Quiz ${idx + 1}`;
-        // Attempt to find Chapter Name from IDs
-        if (res.chapterIds && res.chapterIds.length > 0) {
-            const ch = course.chapters.find(c => c.id === res.chapterIds![0]);
-            if (ch) label = `Ch ${course.chapters.indexOf(ch) + 1}`;
-            else label = "Mixed";
-        } else {
-            label = "General";
-        }
-
-        return {
-            date: new Date(res.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            score: Math.round((res.score / res.total) * 100),
-            label: label,
-            fullDate: new Date(res.date).toLocaleString(),
-            material: res.materialTitle || "Quiz"
-        };
-    });
-  }, [course.quizHistory, course.chapters]);
-
   return (
-    <div className="h-full flex flex-col bg-slate-50">
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 transition-colors">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 px-4 py-3 md:px-8 md:py-4 flex flex-col md:flex-row md:justify-between md:items-center shrink-0 shadow-sm z-10 gap-4">
+      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-3 md:px-8 md:py-4 flex flex-col md:flex-row md:justify-between md:items-center shrink-0 shadow-sm z-10 gap-4">
         <div className="flex items-start gap-3">
-          <button 
-             onClick={() => navigate('/')} 
-             className="md:hidden mt-1 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500"
+          <button
+             onClick={() => navigate('/')}
+             className="md:hidden mt-1 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300"
              aria-label="Back to Dashboard"
           >
              <i className="fas fa-arrow-left"></i>
           </button>
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1">
-               <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded">{course.code}</span>
-               <h2 className="text-lg md:text-xl font-bold text-slate-900 line-clamp-1">{course.title}</h2>
+               <span className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-xs font-bold px-2 py-0.5 rounded">{course.code}</span>
+               <h2 className="text-lg md:text-xl font-bold text-slate-900 dark:text-slate-100 line-clamp-1">{course.title}</h2>
             </div>
-            <div className="flex gap-4 text-xs text-slate-500 font-medium overflow-x-auto no-scrollbar whitespace-nowrap">
+            <div className="flex gap-4 text-xs text-slate-500 dark:text-slate-400 font-medium overflow-x-auto no-scrollbar whitespace-nowrap">
                <span><i className="fas fa-book mr-1"></i> {course.chapters.length} Ch</span>
                <span><i className="fas fa-file-alt mr-1"></i> {course.lectures.length} Notes</span>
                <span><i className="fas fa-clipboard-list mr-1"></i> {course.materials.length} Items</span>
@@ -127,24 +127,24 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
           </div>
         </div>
         <div className="flex gap-2 items-center w-full md:w-auto">
-          
-          <button 
+
+          <button
              onClick={() => setShowRecorder(true)}
-             className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors shadow-sm whitespace-nowrap flex items-center justify-center gap-2"
+             className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800 rounded-lg transition-colors shadow-sm whitespace-nowrap flex items-center justify-center gap-2"
           >
              <i className="fas fa-microphone"></i> Record
           </button>
 
-          <button 
+          <button
             onClick={() => setShowImport(true)}
-            className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg transition-colors shadow-sm whitespace-nowrap"
+            className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 rounded-lg transition-colors shadow-sm whitespace-nowrap"
           >
-             <i className="fas fa-file-import mr-2 text-slate-500"></i>Import
+             <i className="fas fa-file-import mr-2 text-slate-500 dark:text-slate-400"></i>Import
           </button>
-          
-          <div className="w-px h-6 bg-slate-200 mx-1 hidden md:block"></div>
 
-          <button onClick={() => setShowWizard(true)} className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200 whitespace-nowrap">
+          <div className="w-px h-6 bg-slate-200 dark:bg-slate-600 mx-1 hidden md:block"></div>
+
+          <button onClick={() => setShowWizard(true)} className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors border border-slate-200 dark:border-slate-600 whitespace-nowrap">
             <i className="fas fa-edit mr-2"></i>Edit Book/Ch
           </button>
         </div>
@@ -173,12 +173,12 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
          )}
 
          {/* Right: Study/Gen Area */}
-         <div className={`w-full ${activeTab === 'content' ? 'md:w-1/2 h-full' : 'md:w-full h-full'} overflow-y-auto bg-slate-50 p-4 md:p-6 flex flex-col`}>
+         <div className={`w-full ${activeTab === 'content' ? 'md:w-1/2 h-full' : 'md:w-full h-full'} overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 md:p-6 flex flex-col`}>
             {/* Tabs */}
-            <div className="flex gap-2 mb-4 md:mb-6 border-b border-slate-200 pb-2 shrink-0 overflow-x-auto">
-              <button onClick={() => setActiveTab('content')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'content' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}>AI Generator</button>
-              <button onClick={() => setActiveTab('study')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'study' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}>Study Library</button>
-              <button onClick={() => setActiveTab('performance')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'performance' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}>Performance</button>
+            <div className="flex gap-2 mb-4 md:mb-6 border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0 overflow-x-auto">
+              <button onClick={() => setActiveTab('content')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'content' ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>AI Generator</button>
+              <button onClick={() => setActiveTab('study')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'study' ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>Study Library</button>
+              <button onClick={() => setActiveTab('performance')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'performance' ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>Performance</button>
             </div>
 
             <div className="flex-1">
@@ -190,10 +190,10 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
               )}
               {activeTab === 'performance' && (
                 <div className="h-full flex flex-col">
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-6 flex-1 min-h-[400px]">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6 flex-1 min-h-[400px]">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-slate-800 text-lg">Chapter Performance</h3>
-                            <div className="text-xs text-slate-500">Based on Quiz Results</div>
+                            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg">Chapter Performance</h3>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">Based on Quiz Results</div>
                         </div>
                         {performanceData.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-slate-400">
@@ -204,11 +204,11 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
                         ) : (
                             <ResponsiveContainer width="100%" height="90%">
                                 <LineChart data={performanceData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                    <XAxis dataKey="date" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} dy={10} />
-                                    <YAxis domain={[0, 100]} tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} unit="%" />
-                                    <Tooltip 
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-slate-200 dark:stroke-slate-700" />
+                                    <XAxis dataKey="date" tick={{fontSize: 12}} className="fill-slate-500 dark:fill-slate-400" tickLine={false} axisLine={false} dy={10} />
+                                    <YAxis domain={[0, 100]} tick={{fontSize: 12}} className="fill-slate-500 dark:fill-slate-400" tickLine={false} axisLine={false} unit="%" />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'var(--tooltip-bg, white)' }}
                                         formatter={(val: any) => [`${val}%`, 'Score']}
                                         labelFormatter={(label, payload) => {
                                             if (payload && payload.length > 0) {
@@ -218,29 +218,29 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
                                             return label;
                                         }}
                                     />
-                                    <Line 
-                                        type="monotone" 
-                                        dataKey="score" 
-                                        stroke="#2563eb" 
-                                        strokeWidth={3} 
-                                        dot={{ r: 5, fill: '#2563eb', strokeWidth: 2, stroke: '#fff' }} 
-                                        activeDot={{ r: 8 }} 
+                                    <Line
+                                        type="monotone"
+                                        dataKey="score"
+                                        stroke="#2563eb"
+                                        strokeWidth={3}
+                                        dot={{ r: 5, fill: '#2563eb', strokeWidth: 2, stroke: '#fff' }}
+                                        activeDot={{ r: 8 }}
                                     />
                                 </LineChart>
                             </ResponsiveContainer>
                         )}
                     </div>
-                    
+
                     {performanceData.length > 0 && (
-                        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                           <div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-xs text-slate-500 uppercase">Recent History</div>
+                        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                           <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase">Recent History</div>
                            {performanceData.slice().reverse().slice(0, 5).map((d, i) => (
-                               <div key={i} className="flex justify-between items-center p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors">
+                               <div key={i} className="flex justify-between items-center p-4 border-b border-slate-50 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                    <div>
-                                       <div className="font-bold text-slate-800 text-sm">{d.label}</div>
-                                       <div className="text-xs text-slate-500">{d.material}</div>
+                                       <div className="font-bold text-slate-800 dark:text-slate-100 text-sm">{d.label}</div>
+                                       <div className="text-xs text-slate-500 dark:text-slate-400">{d.material}</div>
                                    </div>
-                                   <div className={`text-lg font-bold ${d.score >= 80 ? 'text-green-600' : d.score >= 60 ? 'text-blue-600' : 'text-red-500'}`}>
+                                   <div className={`text-lg font-bold ${d.score >= 80 ? 'text-green-600 dark:text-green-400' : d.score >= 60 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500 dark:text-red-400'}`}>
                                        {d.score}%
                                    </div>
                                </div>

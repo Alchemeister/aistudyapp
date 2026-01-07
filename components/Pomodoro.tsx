@@ -53,24 +53,20 @@ export const Pomodoro = () => {
           handle=".drag-handle"
           bounds="parent" // Strictly constrained to the fixed inset-0 wrapper (Viewport)
         >
-          <div 
+          <div
             ref={nodeRef}
-            // Absolute positioning sets the initial spot to Bottom-Left
-            className="absolute bottom-6 left-6 pointer-events-auto" 
+            // Absolute positioning sets the initial spot to Bottom-Right
+            className="absolute bottom-6 right-6 pointer-events-auto"
           >
             {isMinimized ? (
-              <div className="relative group">
-                 {/* Drag Handle Overlay */}
-                 <div className="drag-handle absolute inset-0 cursor-move z-10 rounded-full" title="Drag Timer"></div>
-                <button 
-                  onClick={() => setIsMinimized(false)}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors text-white shadow-lg border-4 border-white relative z-0 ${isActive ? 'bg-amber-500 animate-pulse' : 'bg-slate-800'}`}
-                  aria-label="Expand Timer"
-                >
-                  <i className="fas fa-clock text-xl"></i>
-                  {isActive && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></div>}
-                </button>
-              </div>
+              <button
+                onClick={() => setIsMinimized(false)}
+                className={`drag-handle w-14 h-14 rounded-full flex items-center justify-center transition-colors text-white shadow-lg border-4 border-white cursor-pointer ${isActive ? 'bg-amber-500 animate-pulse' : 'bg-slate-800 hover:bg-slate-700'}`}
+                aria-label="Expand Timer"
+              >
+                <i className="fas fa-clock text-xl"></i>
+                {isActive && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></div>}
+              </button>
             ) : (
               <div className="bg-slate-900/95 backdrop-blur text-white rounded-full shadow-2xl p-2 pl-6 flex items-center gap-4 border border-slate-700 w-max">
                 <span className="font-mono font-bold text-2xl w-20 text-center tracking-widest select-none cursor-default">{fmt(timeLeft)}</span>

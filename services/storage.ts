@@ -150,9 +150,10 @@ export const clearDatabase = async (): Promise<void> => {
     await clear();
 };
 
-export const seedInitialData = async (): Promise<Course[]> => {
+export const seedInitialData = async (isDemoAccount: boolean = false): Promise<Course[]> => {
   const existing = await loadCourses();
-  if (existing.length === 0) {
+  // Only seed demo data for demo accounts with no existing courses
+  if (existing.length === 0 && isDemoAccount) {
     await saveCourses(SAMPLE_DATA);
     return SAMPLE_DATA;
   }

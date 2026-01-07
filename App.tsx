@@ -10,6 +10,7 @@ import { getInitialCardState } from './services/srs';
 import { Pomodoro } from './components/Pomodoro';
 import { QuizTaker } from './components/QuizTaker';
 import { Modal } from './components/Modal';
+import { BookSearchModal } from './components/BookSearchModal';
 import { ChapterWizard } from './components/ChapterWizard';
 import { PdfViewer } from './components/PdfViewer';
 import { ReviewSession, ReviewItem } from './components/ReviewSession';
@@ -69,7 +70,7 @@ const ToastContainer = ({ children }: { children?: ReactNode }) => {
 };
 
 // --- Mobile Navigation ---
-const MobileNav = ({ user, onLogout }: { user: any, onLogout: () => void }) => {
+const MobileNav = ({ user, onLogout, dueCount }: { user: any, onLogout: () => void, dueCount?: number }) => {
   const navigate = useNavigate();
   return (
     <div className="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
@@ -78,8 +79,13 @@ const MobileNav = ({ user, onLogout }: { user: any, onLogout: () => void }) => {
         <h1 className="text-lg font-bold text-slate-800">StudyAI</h1>
       </div>
       <div className="flex items-center gap-3">
-          <Link to="/review" className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 border border-slate-200">
+          <Link to="/review" className="relative w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 border border-slate-200">
              <i className="fas fa-layer-group text-xs"></i>
+             {(dueCount || 0) > 0 && (
+               <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                 {(dueCount || 0) > 9 ? '9+' : dueCount}
+               </span>
+             )}
           </Link>
           <Link to="/settings" className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 border border-slate-200">
              <i className="fas fa-cog text-xs"></i>
@@ -100,6 +106,19 @@ function App() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    // Persist sidebar state
+    const saved = localStorage.getItem('studyai_sidebar_collapsed');
+    return saved === 'true';
+  });
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const newVal = !prev;
+      localStorage.setItem('studyai_sidebar_collapsed', String(newVal));
+      return newVal;
+    });
+  };
 
   // Auth Listener
   useEffect(() => {
@@ -122,10 +141,12 @@ function App() {
 
   // Data Loading
   useEffect(() => {
-    if (!user) return; 
+    if (!user) return;
 
     const init = async () => {
-      const data = await seedInitialData();
+      // Only seed demo data for demo accounts (email contains 'demo' or anonymous users)
+      const isDemoAccount = !user.email || user.email.toLowerCase().includes('demo');
+      const data = await seedInitialData(isDemoAccount);
       setCourses(data);
       setLoading(false);
     };
@@ -169,32 +190,50 @@ function App() {
      }
   };
 
+  // Calculate due cards count for notification badge
+  const dueCardsCount = useMemo(() => {
+    const now = new Date();
+    let count = 0;
+    courses.forEach(c => {
+      c.materials.forEach(m => {
+        if (m.type === ContentType.FLASHCARDS) {
+          (m.content as Flashcard[]).forEach(card => {
+            if (card.front && card.back && card.dueDate && new Date(card.dueDate) <= now) {
+              count++;
+            }
+          });
+        }
+      });
+    });
+    return count;
+  }, [courses]);
+
   if (!user) {
     return (
        <Login onLoginSuccess={setUser} />
     );
   }
 
-  if (loading) return <div className="h-screen flex flex-col items-center justify-center text-primary"><i className="fas fa-circle-notch fa-spin text-4xl mb-4"></i><span className="font-bold">Loading StudyAI...</span></div>;
+  if (loading) return <div className="h-screen flex flex-col items-center justify-center text-primary bg-slate-50 dark:bg-slate-900"><i className="fas fa-circle-notch fa-spin text-4xl mb-4"></i><span className="font-bold dark:text-slate-100">Loading StudyAI...</span></div>;
 
   return (
     <ToastContainer>
       <Router>
-        <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 font-sans md:h-screen md:overflow-hidden relative">
-          <Sidebar courses={courses} onAddCourse={addCourse} onDeleteCourse={deleteCourse} user={user} onLogout={handleLogout} />
-          
+        <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-900 font-sans md:h-screen md:overflow-hidden relative transition-colors">
+          <Sidebar courses={courses} onAddCourse={addCourse} onDeleteCourse={deleteCourse} user={user} onLogout={handleLogout} dueCount={dueCardsCount} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+
           <main className="flex-1 w-full relative flex flex-col md:h-full md:overflow-hidden">
-             <MobileNav user={user} onLogout={handleLogout} />
-             <div className="flex-1 overflow-y-auto">
+             <MobileNav user={user} onLogout={handleLogout} dueCount={dueCardsCount} />
+             <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900">
                 <Routes>
-                  <Route path="/" element={<Dashboard courses={courses} onDeleteCourse={deleteCourse} />} />
+                  <Route path="/" element={<Dashboard courses={courses} onDeleteCourse={deleteCourse} onAddCourse={addCourse} />} />
                   <Route path="/review" element={<ReviewController courses={courses} onUpdateCard={handleFlashcardUpdate} />} />
                   <Route path="/settings" element={<SettingsPanel user={user} onLogout={handleLogout} />} />
                   <Route path="/course/:courseId" element={<CourseView courses={courses} onUpdate={updateCourse} onUpdateFlashcard={handleFlashcardUpdate} />} />
                 </Routes>
              </div>
           </main>
-          
+
           {/* Pomodoro at Root Level for correct Z-Index and Boundary calculation */}
           <Pomodoro />
         </div>
@@ -241,7 +280,7 @@ const ReviewController = ({ courses, onUpdateCard }: { courses: Course[], onUpda
 };
 
 // --- Sidebar ---
-const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout }: any) => {
+const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCount, collapsed, onToggleCollapse }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCourse, setNewCourse] = useState({ title: '', code: '', subtitle: '', description: '', semester: 'Fall 2024' });
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
@@ -260,49 +299,93 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout }: any) 
 
   return (
     <>
-      <aside className="w-full md:w-64 bg-white border-r border-slate-200 flex-shrink-0 flex-col h-full z-20 hidden md:flex">
-        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white"><i className="fas fa-graduation-cap"></i></div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">StudyAI</h1>
-        </div>
-        
-        {/* User Profile Snippet */}
-        <div className="px-6 py-4 flex items-center gap-3 border-b border-slate-100">
-           <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center overflow-hidden">
-              {user.photoURL ? <img src={user.photoURL} alt="user" className="w-full h-full object-cover" /> : <i className="fas fa-user text-slate-400"></i>}
-           </div>
-           <div className="flex-1 min-w-0">
-              <div className="text-sm font-bold text-slate-700 truncate">{user.displayName || "Student"}</div>
-              <Link to="/settings" className="text-xs text-slate-400 hover:text-primary">Settings</Link>
-           </div>
+      <aside className={`${collapsed ? 'w-16' : 'w-64'} bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex-shrink-0 flex-col h-full z-20 hidden md:flex transition-all duration-300`}>
+        {/* Header with collapse toggle */}
+        <div className={`p-4 border-b border-slate-100 dark:border-slate-700 flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
+          <div className={`flex items-center gap-3 ${collapsed ? '' : ''}`}>
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white flex-shrink-0"><i className="fas fa-graduation-cap"></i></div>
+            {!collapsed && <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">StudyAI</h1>}
+          </div>
+          {!collapsed && (
+            <button
+              onClick={onToggleCollapse}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+              title="Collapse sidebar"
+            >
+              <i className="fas fa-chevron-left text-sm font-bold"></i>
+            </button>
+          )}
         </div>
 
-        <nav className="p-4 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
-          <Link to="/" className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-primary font-medium transition-colors">
-            <i className="fas fa-th-large w-5"></i> Dashboard
-          </Link>
-          <Link to="/review" className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-primary font-medium transition-colors">
-            <i className="fas fa-layer-group w-5"></i> Review
-          </Link>
-          <Link to="/settings" className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 hover:text-primary font-medium transition-colors">
-            <i className="fas fa-cog w-5"></i> Settings
-          </Link>
-
-          <div className="mt-6 mb-2 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">My Courses</div>
-          {courses.map((course: Course) => (
-            <div key={course.id} className="group flex items-center justify-between px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors">
-              <Link to={`/course/${course.id}`} className="flex-1 flex items-center gap-3 min-w-0">
-                <span className="font-mono text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">{course.code}</span>
-                <span className="text-sm font-medium text-slate-700 truncate">{course.title}</span>
-              </Link>
-              <button onClick={() => setCourseToDelete(course)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
-                <i className="fas fa-trash-alt text-xs"></i>
-              </button>
-            </div>
-          ))}
-          <button onClick={() => setIsModalOpen(true)} className="w-full mt-6 flex items-center justify-center px-4 py-3 border border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-primary hover:text-primary transition-all text-sm font-bold bg-slate-50 hover:bg-white">
-            <i className="fas fa-plus mr-2"></i> Add Course
+        {/* Expand button when collapsed */}
+        {collapsed && (
+          <button
+            onClick={onToggleCollapse}
+            className="mx-auto mt-2 w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+            title="Expand sidebar"
+          >
+            <i className="fas fa-chevron-right text-sm font-bold"></i>
           </button>
+        )}
+
+        {/* User Profile Snippet */}
+        {!collapsed && (
+          <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100 dark:border-slate-700">
+             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+                {user.photoURL ? <img src={user.photoURL} alt="user" className="w-full h-full object-cover" /> : <i className="fas fa-user text-slate-400"></i>}
+             </div>
+             <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{user.displayName || "Student"}</div>
+             </div>
+          </div>
+        )}
+
+        <nav className={`${collapsed ? 'p-2' : 'p-4'} space-y-1 flex-1 overflow-y-auto custom-scrollbar`}>
+          <Link to="/" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Dashboard">
+            <i className="fas fa-th-large w-5 text-center"></i>
+            {!collapsed && <span>Dashboard</span>}
+          </Link>
+          <Link to="/review" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors relative`} title="Review">
+            <i className="fas fa-layer-group w-5 text-center"></i>
+            {!collapsed && <span>Review</span>}
+            {dueCount > 0 && (
+              <span className={`${collapsed ? 'absolute -top-1 -right-1' : 'absolute right-3 top-1/2 -translate-y-1/2'} min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1`}>
+                {dueCount > 9 ? '9+' : dueCount}
+              </span>
+            )}
+          </Link>
+          <Link to="/settings" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Settings">
+            <i className="fas fa-cog w-5 text-center"></i>
+            {!collapsed && <span>Settings</span>}
+          </Link>
+
+          {!collapsed && (
+            <>
+              <div className="mt-6 mb-2 px-3 text-xs font-bold text-slate-400 uppercase tracking-wider">My Courses</div>
+              {courses.map((course: Course) => (
+                <div key={course.id} className="group flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                  <Link to={`/course/${course.id}`} className="flex-1 flex items-center gap-3 min-w-0">
+                    <span className="font-mono text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600">{course.code}</span>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{course.title}</span>
+                  </Link>
+                  <button onClick={() => setCourseToDelete(course)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
+                    <i className="fas fa-trash-alt text-xs"></i>
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Collapsed: show add button as icon */}
+          {collapsed ? (
+            <button onClick={() => setIsModalOpen(true)} className="w-full mt-4 flex items-center justify-center p-3 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary transition-colors" title="Add Course">
+              <i className="fas fa-plus"></i>
+            </button>
+          ) : (
+            <button onClick={() => setIsModalOpen(true)} className="w-full mt-4 flex items-center justify-center px-4 py-3 border border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-all text-sm font-bold bg-slate-50 dark:bg-slate-700/50 hover:bg-white dark:hover:bg-slate-700">
+              <i className="fas fa-plus mr-2"></i> Add Course
+            </button>
+          )}
         </nav>
       </aside>
 
@@ -348,21 +431,34 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout }: any) 
       </Modal>
 
       {/* Delete Confirmation */}
-      <CourseDeleteModal 
-        course={courseToDelete} 
-        onClose={() => setCourseToDelete(null)} 
-        onConfirm={() => { if(courseToDelete) onDeleteCourse(courseToDelete.id); setCourseToDelete(null); }} 
+      <CourseDeleteModal
+        course={courseToDelete}
+        onClose={() => setCourseToDelete(null)}
+        onConfirm={() => { if(courseToDelete) onDeleteCourse(courseToDelete.id); setCourseToDelete(null); }}
       />
     </>
   );
 };
 
-// ... (Dashboard remains unchanged except for potentially more props if needed, but keeping as is for brevity) ...
 // --- Dashboard ---
-const Dashboard = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCourse: (id: string) => void }) => {
+const Dashboard = ({ courses, onDeleteCourse, onAddCourse }: { courses: Course[], onDeleteCourse: (id: string) => void, onAddCourse: (course: Course) => void }) => {
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [semesterFilter, setSemesterFilter] = useState("All Semesters");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newCourse, setNewCourse] = useState({ title: '', code: '', subtitle: '', description: '', semester: 'Fall 2024' });
   const navigate = useNavigate();
+
+  const handleCreate = () => {
+    if (!newCourse.title || !newCourse.code) return;
+    const course: Course = {
+      id: uuid(),
+      ...newCourse,
+      chapters: [], lectures: [], materials: [], quizHistory: []
+    };
+    onAddCourse(course);
+    setShowAddModal(false);
+    setNewCourse({ title: '', code: '', subtitle: '', description: '', semester: 'Fall 2024' });
+  };
 
   // Get unique semesters
   const semesters = ["All Semesters", ...Array.from(new Set(courses.map(c => c.semester)))];
@@ -411,34 +507,29 @@ const Dashboard = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCou
     <div className="p-4 md:p-8 max-w-7xl mx-auto h-full overflow-y-auto">
       <header className="mb-6 md:mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-           <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Dashboard</h2>
-           <p className="text-slate-500 mt-1">Overview of your academic progress.</p>
+           <h2 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Dashboard</h2>
+           <p className="text-slate-500 dark:text-slate-400 mt-1">Overview of your academic progress.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-bold text-slate-500">Semester:</label>
-          <select 
-            className="p-2 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 bg-white shadow-sm focus:ring-primary focus:border-primary outline-none"
-            value={semesterFilter}
-            onChange={(e) => setSemesterFilter(e.target.value)}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-4 py-2.5 bg-primary text-white rounded-lg font-bold shadow-md hover:bg-blue-600 transition-colors flex items-center gap-2"
           >
-            {semesters.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
+            <i className="fas fa-plus"></i>
+            <span className="hidden sm:inline">Add Course</span>
+          </button>
+          <div className="hidden md:flex items-center gap-2 ml-2">
+            <label className="text-sm font-bold text-slate-500 dark:text-slate-400">Semester:</label>
+            <select
+              className="p-2 border border-slate-200 dark:border-slate-600 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 shadow-sm focus:ring-primary focus:border-primary outline-none"
+              value={semesterFilter}
+              onChange={(e) => setSemesterFilter(e.target.value)}
+            >
+              {semesters.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
         </div>
       </header>
-
-      {/* Hero Review Card */}
-      <div className="mb-8 bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="text-center md:text-left">
-              <h3 className="text-2xl font-bold mb-1">Ready to Review?</h3>
-              <p className="text-slate-300">You have <span className="font-bold text-white">{dueCount}</span> cards due for review today.</p>
-          </div>
-          <button 
-            onClick={() => navigate('/review')}
-            className="w-full md:w-auto px-6 py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2"
-          >
-              <i className="fas fa-play"></i> Start Session
-          </button>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <StatCard label="Active Courses" value={filteredCourses.length} icon="fa-book" color="text-blue-600" bg="bg-blue-50" />
@@ -533,16 +624,56 @@ const Dashboard = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCou
         )}
       </div>
 
-      <CourseDeleteModal 
-        course={courseToDelete} 
-        onClose={() => setCourseToDelete(null)} 
-        onConfirm={() => { if(courseToDelete) onDeleteCourse(courseToDelete.id); setCourseToDelete(null); }} 
+      <CourseDeleteModal
+        course={courseToDelete}
+        onClose={() => setCourseToDelete(null)}
+        onConfirm={() => { if(courseToDelete) onDeleteCourse(courseToDelete.id); setCourseToDelete(null); }}
       />
+
+      {/* Add Course Modal */}
+      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Create New Course">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Code</label>
+            <input
+              className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary outline-none bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+              placeholder="BIO101"
+              value={newCourse.code}
+              onChange={e => setNewCourse({...newCourse, code: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Title</label>
+            <input
+              className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary outline-none bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+              placeholder="Intro to Biology"
+              value={newCourse.title}
+              onChange={e => setNewCourse({...newCourse, title: e.target.value})}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">Semester</label>
+            <select
+              className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary outline-none bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+              value={newCourse.semester}
+              onChange={e => setNewCourse({...newCourse, semester: e.target.value})}
+            >
+              <option value="Fall 2024">Fall 2024</option>
+              <option value="Spring 2025">Spring 2025</option>
+              <option value="Fall 2025">Fall 2025</option>
+              <option value="Spring 2026">Spring 2026</option>
+            </select>
+          </div>
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={() => setShowAddModal(false)} className="px-6 py-3 text-slate-500 dark:text-slate-400 font-bold">Cancel</button>
+          <button onClick={handleCreate} disabled={!newCourse.title || !newCourse.code} className="px-6 py-3 bg-primary text-white rounded-lg font-bold shadow-md disabled:opacity-50">Create</button>
+        </div>
+      </Modal>
+
     </div>
   );
 };
-
-// ... (CourseDeleteModal, MaterialDeleteModal, StatCard, VisualDifficulty) ...
 
 const CourseDeleteModal = ({ course, onClose, onConfirm }: { course: Course | null, onClose: () => void, onConfirm: () => void }) => {
   const [confirmName, setConfirmName] = useState("");
@@ -915,7 +1046,7 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
   };
 
   const renderMaterialCard = (mat: StudyMaterial) => (
-    <div key={mat.id} className={`group bg-white p-5 rounded-xl border flex flex-col justify-between hover:shadow-lg transition-all relative overflow-hidden ${selectedIds.includes(mat.id) ? 'border-primary ring-2 ring-primary bg-blue-50/50' : 'border-slate-200 hover:border-blue-300'}`}>
+    <div key={mat.id} className={`group bg-white dark:bg-slate-800 p-5 rounded-xl border flex flex-col justify-between hover:shadow-lg transition-all relative overflow-hidden ${selectedIds.includes(mat.id) ? 'border-primary ring-2 ring-primary bg-blue-50/50 dark:bg-blue-900/30' : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600'}`}>
        
        <div className="flex justify-between items-start mb-3">
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg shrink-0 shadow-sm ${
@@ -940,40 +1071,40 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
        </div>
 
        <div className="mb-4">
-          <h4 className="font-bold text-slate-800 text-sm mb-1 leading-snug line-clamp-2 pr-6" title={mat.title}>{mat.title}</h4>
+          <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm mb-1 leading-snug line-clamp-2 pr-6" title={mat.title}>{mat.title}</h4>
           <div className="flex items-center gap-2 text-xs text-slate-400">
              <span>{formatDate(mat.createdAt)}</span>
              <span>•</span>
-             <span className="font-bold text-slate-500 bg-slate-100 px-1.5 rounded">{getSourceDisplay(mat)}</span>
+             <span className="font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 rounded">{getSourceDisplay(mat)}</span>
           </div>
        </div>
 
-       <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50">
+       <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-50 dark:border-slate-700">
           <div className="flex flex-col items-start mr-auto">
              <VisualDifficulty level={mat.difficulty || Difficulty.MEDIUM} />
              <span className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">{getDifficultyLabel(mat.difficulty || Difficulty.MEDIUM)}</span>
           </div>
-          
+
           <div className="flex gap-2 items-center">
-            <button 
+            <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMaterialToRename(mat); }}
-              className="p-2 text-slate-300 hover:text-blue-500 transition-colors z-20"
+              className="p-2 text-slate-300 dark:text-slate-500 hover:text-blue-500 transition-colors z-20"
               title="Rename"
               type="button"
             >
               <i className="fas fa-edit"></i>
             </button>
-            <button 
+            <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMaterialToDelete(mat); }}
-              className="p-2 text-slate-300 hover:text-red-500 transition-colors z-20"
+              className="p-2 text-slate-300 dark:text-slate-500 hover:text-red-500 transition-colors z-20"
               title="Delete"
               type="button"
             >
               <i className="fas fa-trash-alt"></i>
             </button>
-            <button 
-              onClick={() => setSelectedMaterial(mat)} 
-              className="px-3 py-1.5 bg-slate-100 hover:bg-primary hover:text-white text-slate-600 text-xs font-bold rounded transition-colors shadow-sm"
+            <button
+              onClick={() => setSelectedMaterial(mat)}
+              className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-primary hover:text-white text-slate-600 dark:text-slate-300 text-xs font-bold rounded transition-colors shadow-sm"
               type="button"
             >
               Open
@@ -985,41 +1116,41 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
 
   if (selectedMaterial) {
     return (
-        <div className="flex flex-col h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-fade-in">
-           <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:justify-between md:items-center bg-slate-50 gap-4">
+        <div className="flex flex-col h-full bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden animate-fade-in">
+           <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:justify-between md:items-center bg-slate-50 dark:bg-slate-800/50 gap-4">
              <div className="flex items-center gap-3">
-               <button onClick={() => setSelectedMaterial(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 transition-colors"><i className="fas fa-arrow-left"></i></button>
+               <button onClick={() => setSelectedMaterial(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"><i className="fas fa-arrow-left"></i></button>
                <div>
-                  <h3 className="font-bold text-slate-800 line-clamp-1">{selectedMaterial.title}</h3>
-                  <div className="text-xs text-slate-500 font-medium">{(selectedMaterial.type || 'UNKNOWN').replace('_', ' ')} • {(selectedMaterial.content as any[]).length || 0} items</div>
+                  <h3 className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1">{selectedMaterial.title}</h3>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">{(selectedMaterial.type || 'UNKNOWN').replace('_', ' ')} • {(selectedMaterial.content as any[]).length || 0} items</div>
                </div>
              </div>
              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-                <button 
+                <button
                     onClick={handleShuffleMaterial}
-                    className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
+                    className="px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
                 >
                     <i className="fas fa-random"></i> Shuffle
                 </button>
-                <button 
+                <button
                     onClick={() => handleExport(selectedMaterial)}
-                    className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
+                    className="px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
                 >
                     <i className="fas fa-download"></i> Export
                 </button>
-                <button 
+                <button
                     onClick={() => setMaterialToDelete(selectedMaterial)}
-                    className="px-3 py-1.5 bg-white border border-red-200 hover:bg-red-50 text-red-500 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
+                    className="px-3 py-1.5 bg-white dark:bg-slate-700 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-500 dark:text-red-400 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
                 >
                     <i className="fas fa-trash-alt"></i> Delete
                 </button>
-                <div className="bg-slate-50 px-3 py-1 rounded border border-slate-100 flex flex-col items-end whitespace-nowrap hidden sm:flex">
+                <div className="bg-slate-50 dark:bg-slate-700 px-3 py-1 rounded border border-slate-100 dark:border-slate-600 flex flex-col items-end whitespace-nowrap hidden sm:flex">
                     <VisualDifficulty level={selectedMaterial.difficulty || Difficulty.MEDIUM} />
                     <span className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{getDifficultyLabel(selectedMaterial.difficulty || Difficulty.MEDIUM)}</span>
                 </div>
              </div>
            </div>
-           <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50">
+           <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 dark:bg-slate-900/50">
               {selectedMaterial.type === ContentType.FLASHCARDS && (
                  <div className="h-full flex flex-col items-center justify-center">
                     <FlashcardViewer cards={selectedMaterial.content as unknown as Flashcard[]} />
@@ -1034,30 +1165,30 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
                  />
               )}
               {(selectedMaterial.type === ContentType.NOTES || selectedMaterial.type === ContentType.MINDMAP || selectedMaterial.type === ContentType.ACTIVE_RECALL) && (
-                 <div className="prose prose-slate max-w-none bg-white p-8 rounded-xl shadow-sm border border-slate-100 mx-auto">
-                    <pre className="whitespace-pre-wrap font-sans text-slate-700 leading-relaxed">{(selectedMaterial.content as unknown as string)}</pre>
+                 <div className="prose prose-slate dark:prose-invert max-w-none bg-white dark:bg-slate-800 p-8 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 mx-auto">
+                    <pre className="whitespace-pre-wrap font-sans text-slate-700 dark:text-slate-300 leading-relaxed">{(selectedMaterial.content as unknown as string)}</pre>
                  </div>
               )}
               {selectedMaterial.type === ContentType.CONCEPT_CONNECTIONS && (
                 <div className="space-y-6 max-w-2xl mx-auto">
                   {(selectedMaterial.content as unknown as ConceptConnection[]).map((conn, idx) => (
-                    <div key={conn.id || idx} className="p-6 border border-slate-200 rounded-xl bg-white shadow-sm">
+                    <div key={conn.id || idx} className="p-6 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-800 shadow-sm">
                       <div className="flex items-start justify-between mb-3">
-                        <h4 className="text-lg font-bold text-slate-800">{conn.concept}</h4>
-                        <span className="text-xs font-bold uppercase px-2 py-1 rounded bg-cyan-100 text-cyan-700 tracking-wide">
+                        <h4 className="text-lg font-bold text-slate-800 dark:text-slate-100">{conn.concept}</h4>
+                        <span className="text-xs font-bold uppercase px-2 py-1 rounded bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 tracking-wide">
                           {conn.relationship}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2 mb-4">
                         {conn.relatedConcepts.map((rel, rIdx) => (
-                          <div key={rIdx} className="px-3 py-1.5 bg-cyan-50 text-cyan-700 rounded-lg text-sm font-medium border border-cyan-200">
+                          <div key={rIdx} className="px-3 py-1.5 bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded-lg text-sm font-medium border border-cyan-200 dark:border-cyan-800">
                             {rel}
                           </div>
                         ))}
                       </div>
-                      <p className="text-slate-600 leading-relaxed mb-3">{conn.explanation}</p>
+                      <p className="text-slate-600 dark:text-slate-400 leading-relaxed mb-3">{conn.explanation}</p>
                       {conn.source && (
-                        <p className="text-xs text-slate-400 font-bold uppercase flex items-center gap-1 mt-4 pt-4 border-t border-slate-100">
+                        <p className="text-xs text-slate-400 font-bold uppercase flex items-center gap-1 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
                           <i className="fas fa-book"></i> {conn.source}
                         </p>
                       )}
@@ -1092,28 +1223,28 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
 
        <div className="flex-1 overflow-y-auto space-y-6 pb-20 p-1">
          {course.materials.length === 0 && (
-             <div className="text-center py-16 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-               <i className="fas fa-inbox text-5xl mb-4 text-slate-300"></i>
-               <p className="font-bold text-slate-500">Library is empty.</p>
+             <div className="text-center py-16 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50">
+               <i className="fas fa-inbox text-5xl mb-4 text-slate-300 dark:text-slate-600"></i>
+               <p className="font-bold text-slate-500 dark:text-slate-400">Library is empty.</p>
                <p className="text-sm mt-1">Use the Generator tab to create study materials.</p>
              </div>
          )}
-         
+
          {/* Chapter Sections */}
          {course.chapters.map((ch, idx) => {
              const mats = groupedMaterials.groups[ch.id];
              if (mats.length === 0) return null;
-             
+
              return (
-                 <details key={ch.id} open className="group bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden" >
-                    <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 hover:bg-slate-100 transition-colors border-b border-slate-100">
-                        <div className="w-6 h-6 rounded bg-white border border-slate-200 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
+                 <details key={ch.id} open className="group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden" >
+                    <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-b border-slate-100 dark:border-slate-700">
+                        <div className="w-6 h-6 rounded bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
                             <i className="fas fa-chevron-right transform group-open:rotate-90 transition-transform"></i>
                         </div>
-                        <span className="text-sm font-bold text-slate-700 uppercase tracking-wide">Chapter {idx + 1}: {ch.title}</span>
-                        <div className="ml-auto text-xs font-bold text-slate-400 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">{mats.length} Items</div>
+                        <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Chapter {idx + 1}: {ch.title}</span>
+                        <div className="ml-auto text-xs font-bold text-slate-400 bg-white dark:bg-slate-600 px-2 py-1 rounded border border-slate-200 dark:border-slate-500 shadow-sm">{mats.length} Items</div>
                     </summary>
-                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30">
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30 dark:bg-slate-800/50">
                         {mats.map(renderMaterialCard)}
                     </div>
                  </details>
@@ -1122,15 +1253,15 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
 
          {/* Mixed Section */}
          {groupedMaterials.mixed.length > 0 && (
-            <details open className="group bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 hover:bg-slate-100 transition-colors border-b border-slate-100">
-                    <div className="w-6 h-6 rounded bg-white border border-slate-200 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
+            <details open className="group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-b border-slate-100 dark:border-slate-700">
+                    <div className="w-6 h-6 rounded bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
                         <i className="fas fa-chevron-right transform group-open:rotate-90 transition-transform"></i>
                     </div>
-                    <span className="text-sm font-bold text-slate-700 uppercase tracking-wide"><i className="fas fa-layer-group mr-2 text-slate-400"></i>Combined / Mixed</span>
-                    <div className="ml-auto text-xs font-bold text-slate-400 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">{groupedMaterials.mixed.length} Items</div>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide"><i className="fas fa-layer-group mr-2 text-slate-400"></i>Combined / Mixed</span>
+                    <div className="ml-auto text-xs font-bold text-slate-400 bg-white dark:bg-slate-600 px-2 py-1 rounded border border-slate-200 dark:border-slate-500 shadow-sm">{groupedMaterials.mixed.length} Items</div>
                 </summary>
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30">
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30 dark:bg-slate-800/50">
                     {groupedMaterials.mixed.map(renderMaterialCard)}
                 </div>
             </details>
@@ -1138,15 +1269,15 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
 
          {/* General Section */}
          {groupedMaterials.general.length > 0 && (
-            <details open className="group bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 hover:bg-slate-100 transition-colors border-b border-slate-100">
-                    <div className="w-6 h-6 rounded bg-white border border-slate-200 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
+            <details open className="group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-b border-slate-100 dark:border-slate-700">
+                    <div className="w-6 h-6 rounded bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
                         <i className="fas fa-chevron-right transform group-open:rotate-90 transition-transform"></i>
                     </div>
-                    <span className="text-sm font-bold text-slate-700 uppercase tracking-wide"><i className="fas fa-file-alt mr-2 text-slate-400"></i>General Notes</span>
-                    <div className="ml-auto text-xs font-bold text-slate-400 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">{groupedMaterials.general.length} Items</div>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide"><i className="fas fa-file-alt mr-2 text-slate-400"></i>General Notes</span>
+                    <div className="ml-auto text-xs font-bold text-slate-400 bg-white dark:bg-slate-600 px-2 py-1 rounded border border-slate-200 dark:border-slate-500 shadow-sm">{groupedMaterials.general.length} Items</div>
                 </summary>
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30">
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30 dark:bg-slate-800/50">
                     {groupedMaterials.general.map(renderMaterialCard)}
                 </div>
             </details>

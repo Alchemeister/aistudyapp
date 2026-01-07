@@ -4,6 +4,7 @@ import { Course, Chapter, Subchapter } from '../types';
 import { PdfViewer } from './PdfViewer';
 import { loadPdfDocument, extractTOCText } from '../services/pdfUtils';
 import { parseTableOfContents } from '../services/geminiService';
+import { BookSearchModal } from './BookSearchModal';
 
 interface Props {
   course: Course;
@@ -13,11 +14,13 @@ interface Props {
 }
 
 const OPENSTAX_BOOKS = [
-  { title: "Biology 2e", id: "bio2e", url: "https://assets.openstax.org/oscms-cprod/media/documents/Biology2e-WEB_3iX053o.pdf" },
-  { title: "Chemistry 2e", id: "chem2e", url: "https://assets.openstax.org/oscms-cprod/media/documents/Chemistry2e-WEB_1.pdf" },
-  { title: "Psychology 2e", id: "psych2e", url: "https://assets.openstax.org/oscms-cprod/media/documents/Psychology2e-WEB.pdf" },
-  { title: "U.S. History", id: "ushist", url: "https://assets.openstax.org/oscms-cprod/media/documents/USHistory-WEB.pdf" },
-  { title: "Calculus Vol 1", id: "calc1", url: "https://assets.openstax.org/oscms-cprod/media/documents/CalculusVolume1-WEB_9sX1XjV.pdf" }
+  { title: "Biology 2e", id: "biology-2e" },
+  { title: "Chemistry 2e", id: "chemistry-2e" },
+  { title: "Psychology 2e", id: "psychology-2e" },
+  { title: "U.S. History", id: "us-history" },
+  { title: "Calculus Vol 1", id: "calculus-volume-1" },
+  { title: "College Physics", id: "college-physics-2e" },
+  { title: "Anatomy & Physiology", id: "anatomy-and-physiology-2e" }
 ];
 
 const uuid = () => Math.random().toString(36).substring(2, 9);
@@ -28,30 +31,29 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
   const [pdfUrl, setPdfUrl] = useState<string>(course.pdfUrl || '');
   const [pdfName, setPdfName] = useState(course.pdfName || '');
   const [chapters, setChapters] = useState<Chapter[]>(course.chapters);
-  const [isLoading, setIsLoading] = useState(false);
   const [tocDetecting, setTocDetecting] = useState(false);
   const [tocStatus, setTocStatus] = useState('');
+  const [tocStartPage, setTocStartPage] = useState<number>(1);
+  const [tocEndPage, setTocEndPage] = useState<number>(30);
+  const [showTocOptions, setShowTocOptions] = useState(false);
+  const [showBookSearch, setShowBookSearch] = useState(false);
 
   // Helper: Deep copy to avoid mutation issues
   const updateChapters = (fn: (prev: Chapter[]) => Chapter[]) => {
     setChapters(prev => fn(JSON.parse(JSON.stringify(prev))));
   };
 
-  const handleOpenStaxSelect = async (book: typeof OPENSTAX_BOOKS[0]) => {
-    if(!confirm(`Download ${book.title}? This may take 10-20 seconds depending on connection.`)) return;
-    setIsLoading(true);
-    try {
-      const resp = await fetch(book.url);
-      if (!resp.ok) throw new Error("Network response was not ok");
-      const blob = await resp.blob();
-      setPdfFile(blob);
-      setPdfName(`${book.title} (OpenStax)`);
-      setPdfUrl(URL.createObjectURL(blob));
-      setStep(2);
-    } catch (e) {
-      alert("Failed to download PDF. Browser security might block this request. Please download the PDF manually from OpenStax.org and upload it here.");
-    } finally {
-      setIsLoading(false);
+  const handleOpenStaxSelect = (book: typeof OPENSTAX_BOOKS[0]) => {
+    // OpenStax blocks direct downloads due to CORS - open in new tab for manual download
+    const confirmed = confirm(
+      `Opening "${book.title}" on OpenStax.org\n\n` +
+      `1. Click "Download" on their page\n` +
+      `2. Save the PDF to your device\n` +
+      `3. Come back here and upload it\n\n` +
+      `Continue?`
+    );
+    if (confirmed) {
+      window.open(`https://openstax.org/details/books/${book.id}`, '_blank');
     }
   };
 
@@ -118,14 +120,17 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
       // Load the PDF document
       const pdf = await loadPdfDocument(pdfUrl);
 
-      // Extract text from first 30 pages
-      setTocStatus("Reading first 30 pages...");
-      const tocText = await extractTOCText(pdf, 30, (curr, tot) => {
+      // Extract text from specified page range
+      const pageRangeText = tocStartPage === 1 && tocEndPage === 30
+        ? "first 30 pages"
+        : `pages ${tocStartPage}-${tocEndPage}`;
+      setTocStatus(`Reading ${pageRangeText}...`);
+      const tocText = await extractTOCText(pdf, tocStartPage, tocEndPage, (curr, tot) => {
         setTocStatus(`Reading page ${curr} of ${tot}...`);
       });
 
       if (tocText.length < 200) {
-        if (onToast) onToast("Not enough text found in first 30 pages", "error");
+        if (onToast) onToast(`Not enough text found in pages ${tocStartPage}-${tocEndPage}`, "error");
         setTocDetecting(false);
         setTocStatus('');
         return;
@@ -208,31 +213,37 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                   <p className="text-slate-500 mt-2">Drag & drop or click to browse local files</p>
                </div>
 
+               {/* Search Free Books */}
+               <div>
+                 <h4 className="font-bold text-slate-700 mb-4 flex items-center"><i className="fas fa-search mr-2 text-slate-400"></i>Search Free Textbooks</h4>
+                 <button
+                   onClick={() => setShowBookSearch(true)}
+                   className="w-full p-6 border border-slate-200 rounded-xl hover:border-primary hover:shadow-md transition-all bg-gradient-to-r from-blue-50 to-purple-50 text-center group"
+                 >
+                   <i className="fas fa-book-open text-3xl text-primary mb-3"></i>
+                   <p className="font-bold text-slate-700">Search by Title or ISBN</p>
+                   <p className="text-xs text-slate-500 mt-1">Find free textbooks from Open Library & Internet Archive</p>
+                 </button>
+               </div>
+
                {/* OpenStax Grid */}
                <div>
                  <h4 className="font-bold text-slate-700 mb-4 flex items-center"><i className="fas fa-globe-americas mr-2 text-slate-400"></i>OpenStax Library (Free)</h4>
-                 {isLoading ? (
-                   <div className="text-center py-12 bg-slate-50 rounded-xl border border-slate-100">
-                     <i className="fas fa-circle-notch fa-spin text-3xl text-primary mb-3"></i>
-                     <p className="text-slate-600 font-medium">Downloading Textbook...</p>
-                     <p className="text-xs text-slate-400 mt-1">This happens once. We'll save it locally.</p>
-                   </div>
-                 ) : (
-                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                     {OPENSTAX_BOOKS.map(book => (
-                       <button key={book.id} onClick={() => handleOpenStaxSelect(book)} className="p-4 border border-slate-200 rounded-xl hover:border-primary hover:shadow-md transition-all text-left group bg-white flex flex-col items-center text-center h-full">
-                         <div className="w-full aspect-[3/4] bg-slate-100 rounded mb-3 flex items-center justify-center group-hover:bg-blue-50 relative overflow-hidden">
-                            <i className="fas fa-book text-slate-300 group-hover:text-blue-300 text-4xl"></i>
-                            <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <i className="fas fa-download text-slate-600"></i>
-                            </div>
-                         </div>
-                         <div className="font-bold text-sm text-slate-800 line-clamp-2">{book.title}</div>
-                         <div className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">OpenStax</div>
-                       </button>
-                     ))}
-                   </div>
-                 )}
+                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                   {OPENSTAX_BOOKS.map(book => (
+                     <button key={book.id} onClick={() => handleOpenStaxSelect(book)} className="p-4 border border-slate-200 rounded-xl hover:border-primary hover:shadow-md transition-all text-left group bg-white flex flex-col items-center text-center h-full">
+                       <div className="w-full aspect-[3/4] bg-slate-100 rounded mb-3 flex items-center justify-center group-hover:bg-blue-50 relative overflow-hidden">
+                          <i className="fas fa-book text-slate-300 group-hover:text-blue-300 text-4xl"></i>
+                          <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <i className="fas fa-external-link-alt text-slate-600"></i>
+                          </div>
+                       </div>
+                       <div className="font-bold text-sm text-slate-800 line-clamp-2">{book.title}</div>
+                       <div className="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">OpenStax</div>
+                     </button>
+                   ))}
+                 </div>
+                 <p className="text-xs text-slate-400 text-center mt-3">Click to open on OpenStax.org, then download and upload here</p>
                </div>
              </div>
           </div>
@@ -247,35 +258,75 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
 
             {/* Right: Chapter Form */}
             <div className="w-full md:w-1/2 h-1/2 md:h-full flex flex-col bg-white">
-               <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shadow-sm z-10">
-                 <div>
-                   <h3 className="font-bold text-slate-800">Map Chapters</h3>
-                   <p className="text-xs text-slate-500">Break down large chapters into sections for faster AI generation.</p>
+               <div className="p-4 bg-slate-50 border-b border-slate-200 shadow-sm z-10">
+                 <div className="flex justify-between items-center">
+                   <div>
+                     <h3 className="font-bold text-slate-800">Map Chapters</h3>
+                     <p className="text-xs text-slate-500">Break down large chapters into sections for faster AI generation.</p>
+                   </div>
+                   <div className="flex gap-2">
+                     <button
+                        onClick={handleAutoDetect}
+                        disabled={tocDetecting}
+                        className={`text-xs px-3 py-2 rounded font-bold flex items-center shadow-sm transition-all ${
+                          tocDetecting
+                            ? 'bg-purple-100 text-purple-600 border border-purple-200 cursor-wait'
+                            : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600'
+                        }`}
+                      >
+                         {tocDetecting ? (
+                           <>
+                             <i className="fas fa-circle-notch fa-spin mr-2"></i>
+                             {tocStatus || 'Detecting...'}
+                           </>
+                         ) : (
+                           <>
+                             <i className="fas fa-magic mr-2"></i> Auto-Detect
+                           </>
+                         )}
+                     </button>
+                     <button onClick={() => updateChapters(p => [...p, { id: uuid(), title: '', startPage: 0, endPage: 0 }])} className="text-xs bg-primary text-white px-3 py-2 rounded hover:bg-blue-600 shadow-sm font-bold">
+                       <i className="fas fa-plus mr-1"></i> Add Chapter
+                     </button>
+                   </div>
                  </div>
-                 <div className="flex gap-2">
+
+                 {/* TOC Page Range Options */}
+                 <div className="mt-3 pt-3 border-t border-slate-200">
                    <button
-                      onClick={handleAutoDetect}
-                      disabled={tocDetecting}
-                      className={`text-xs px-3 py-2 rounded font-bold flex items-center shadow-sm transition-all ${
-                        tocDetecting
-                          ? 'bg-purple-100 text-purple-600 border border-purple-200 cursor-wait'
-                          : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600'
-                      }`}
-                    >
-                       {tocDetecting ? (
-                         <>
-                           <i className="fas fa-circle-notch fa-spin mr-2"></i>
-                           {tocStatus || 'Detecting...'}
-                         </>
-                       ) : (
-                         <>
-                           <i className="fas fa-magic mr-2"></i> Auto-Detect
-                         </>
-                       )}
+                     onClick={() => setShowTocOptions(!showTocOptions)}
+                     className="text-xs text-slate-500 hover:text-slate-700 font-medium flex items-center gap-1"
+                     type="button"
+                   >
+                     <i className={`fas fa-chevron-${showTocOptions ? 'up' : 'down'} text-[10px]`}></i>
+                     TOC Page Range
+                     <span className="text-slate-400 ml-1">(pages {tocStartPage}-{tocEndPage})</span>
                    </button>
-                   <button onClick={() => updateChapters(p => [...p, { id: uuid(), title: '', startPage: 0, endPage: 0 }])} className="text-xs bg-primary text-white px-3 py-2 rounded hover:bg-blue-600 shadow-sm font-bold">
-                     <i className="fas fa-plus mr-1"></i> Add Chapter
-                   </button>
+                   {showTocOptions && (
+                     <div className="mt-2 flex items-center gap-3 animate-fade-in">
+                       <div className="flex items-center gap-2">
+                         <label className="text-[10px] font-bold text-slate-400 uppercase">From Page</label>
+                         <input
+                           type="number"
+                           min={1}
+                           value={tocStartPage}
+                           onChange={(e) => setTocStartPage(Math.max(1, parseInt(e.target.value) || 1))}
+                           className="w-16 p-1.5 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary outline-none"
+                         />
+                       </div>
+                       <div className="flex items-center gap-2">
+                         <label className="text-[10px] font-bold text-slate-400 uppercase">To Page</label>
+                         <input
+                           type="number"
+                           min={tocStartPage}
+                           value={tocEndPage}
+                           onChange={(e) => setTocEndPage(Math.max(tocStartPage, parseInt(e.target.value) || tocStartPage))}
+                           className="w-16 p-1.5 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-primary outline-none"
+                         />
+                       </div>
+                       <p className="text-[10px] text-slate-400 italic">Specify where the Table of Contents is located</p>
+                     </div>
+                   )}
                  </div>
                </div>
                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
@@ -381,8 +432,8 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
          <button onClick={onCancel} className="text-slate-500 font-medium hover:text-slate-800">Cancel</button>
          <div className="flex gap-3">
            {step === 2 && <button onClick={() => setStep(1)} className="px-4 py-2 border border-slate-300 rounded text-slate-600 font-medium">Back</button>}
-           <button 
-             onClick={() => onSave({ ...course, pdfName, chapters }, pdfFile || undefined)} 
+           <button
+             onClick={() => onSave({ ...course, pdfName, chapters }, pdfFile || undefined)}
              disabled={step === 1 && !pdfFile}
              className="px-6 py-2 bg-primary text-white rounded-lg font-bold disabled:opacity-50 shadow-md hover:shadow-lg hover:bg-blue-600 transition-all transform active:scale-95"
            >
@@ -390,6 +441,16 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
            </button>
          </div>
       </div>
+
+      {/* Book Search Modal */}
+      <BookSearchModal
+        isOpen={showBookSearch}
+        onClose={() => setShowBookSearch(false)}
+        onSelect={(url, title) => {
+          window.open(url, '_blank');
+          setShowBookSearch(false);
+        }}
+      />
     </div>
   );
 };

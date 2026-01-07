@@ -13,6 +13,7 @@
 
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
@@ -43,12 +44,22 @@
         }
       }
     </script>
+
+    <!-- Dark mode detection - runs before page renders to prevent flash -->
+    <script>
+      (function() {
+        const theme = localStorage.getItem('studyai_theme');
+        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
 
-    <script type="module" crossorigin src="/assets/index-CPL-6Dy2.js"></script>
+    <script type="module" crossorigin src="/assets/index-BNbdlb7w.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-veSwvyDa.css">
   </head>
 
-  <body class="bg-background text-slate-900 antialiased min-h-screen">
+  <body class="bg-background dark:bg-slate-900 text-slate-900 dark:text-slate-100 antialiased min-h-screen transition-colors">
     <div id="root" class="h-full"></div>
 
     <!-- IMPORTANT: React is now bundled by Vite, not loaded from CDN -->
