@@ -9,17 +9,19 @@ import { ChapterWizard } from './ChapterWizard';
 import { ImportNotesModal } from './ImportNotesModal';
 import { LectureRecorder } from './LectureRecorder';
 import { LecturePlayer } from './LecturePlayer';
+import { ShareCourseModal } from './ShareCourseModal';
 import { savePdfBlob, saveMediaBlob } from '../services/storage';
 import { loadPdfDocument, generatePdfThumbnail } from '../services/pdfUtils';
 import { ToastContext } from '../App';
 import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
-export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: Course[], onUpdate: (c: Course) => void, onUpdateFlashcard: (cid: string, mid: string, c: Flashcard) => void }) => {
+export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { courses: Course[], onUpdate: (c: Course) => void, onUpdateFlashcard: (cid: string, mid: string, c: Flashcard) => void, user?: any }) => {
   const [activeTab, setActiveTab] = useState<'content' | 'study' | 'performance'>('content');
   const [showWizard, setShowWizard] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showRecorder, setShowRecorder] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [activeLecture, setActiveLecture] = useState<Lecture | null>(null);
 
   const { showToast } = useContext(ToastContext);
@@ -82,6 +84,42 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
   const handleImportSave = (note: Partial<Lecture>) => {
     const newLecture = note as Lecture;
     onUpdate({ ...course, lectures: [newLecture, ...course.lectures] });
+  };
+
+  const handleSaveToChapter = (chapterId: string, subchapterId: string | null, notes: string, title: string) => {
+    const updatedChapters = course.chapters.map(ch => {
+      if (ch.id === chapterId) {
+        if (subchapterId && ch.subchapters) {
+          // Add notes to subchapter
+          return {
+            ...ch,
+            subchapters: ch.subchapters.map(sub =>
+              sub.id === subchapterId
+                ? { ...sub, notes: sub.notes ? `${sub.notes}\n\n--- ${title || 'Additional Notes'} ---\n${notes}` : notes }
+                : sub
+            )
+          };
+        } else {
+          // Add notes to chapter level
+          return {
+            ...ch,
+            notes: ch.notes ? `${ch.notes}\n\n--- ${title || 'Additional Notes'} ---\n${notes}` : notes
+          };
+        }
+      }
+      return ch;
+    });
+    onUpdate({ ...course, chapters: updatedChapters });
+  };
+
+  const handleCreateNotesChapter = (title: string, notes: string) => {
+    const newChapter = {
+      id: Math.random().toString(36).substring(2, 9),
+      title,
+      isNotesOnly: true,
+      notes
+    };
+    onUpdate({ ...course, chapters: [...course.chapters, newChapter] });
   };
 
   const handleRecordingSave = async (lecture: Partial<Lecture>, blob?: Blob) => {
@@ -147,6 +185,16 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
           <button onClick={() => setShowWizard(true)} className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors border border-slate-200 dark:border-slate-600 whitespace-nowrap">
             <i className="fas fa-edit mr-2"></i>Edit Book/Ch
           </button>
+
+          {user && (
+            <button
+              onClick={() => setShowShare(true)}
+              className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-lg transition-colors shadow-sm whitespace-nowrap flex items-center justify-center gap-2"
+            >
+              <i className="fas fa-share-alt"></i>
+              <span className="hidden md:inline">Share</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -162,9 +210,9 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
                    <PdfViewer url={course.pdfUrl || ''} />
                    {!course.pdfUrl && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-800 z-10 p-4 text-center">
-                        <i className="fas fa-file-pdf text-4xl mb-4 opacity-50"></i>
-                        <p>No Textbook Uploaded</p>
-                        <button onClick={() => setShowWizard(true)} className="mt-4 text-blue-400 hover:underline">Upload PDF to use Generator</button>
+                        <i className="fas fa-book-open text-4xl mb-4 opacity-50"></i>
+                        <p>No Content Yet</p>
+                        <button onClick={() => setShowWizard(true)} className="mt-4 text-blue-400 hover:underline">Add PDF or Notes to use Generator</button>
                     </div>
                    )}
                  </>
@@ -257,19 +305,31 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard }: { courses: 
         <ChapterWizard course={course} onCancel={() => setShowWizard(false)} onSave={handleSaveWizard} onToast={showToast} />
       </Modal>
 
-      <ImportNotesModal 
-        isOpen={showImport} 
-        onClose={() => setShowImport(false)} 
-        onSave={handleImportSave} 
-        onToast={showToast} 
+      <ImportNotesModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onSave={handleImportSave}
+        onSaveToChapter={handleSaveToChapter}
+        onCreateNotesChapter={handleCreateNotesChapter}
+        onToast={showToast}
+        course={course}
       />
 
       {showRecorder && (
-          <LectureRecorder 
-              onSave={handleRecordingSave} 
-              onCancel={() => setShowRecorder(false)} 
+          <LectureRecorder
+              onSave={handleRecordingSave}
+              onCancel={() => setShowRecorder(false)}
               onToast={showToast}
           />
+      )}
+
+      {showShare && user && (
+        <ShareCourseModal
+          isOpen={showShare}
+          onClose={() => setShowShare(false)}
+          course={course}
+          user={user}
+        />
       )}
     </div>
   );

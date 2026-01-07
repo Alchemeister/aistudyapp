@@ -189,6 +189,11 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
   // Generation config modal state
   const [genConfigModal, setGenConfigModal] = useState<ContentType | null>(null);
 
+  // Move lecture modal state
+  const [movingLecture, setMovingLecture] = useState<Lecture | null>(null);
+  const [moveTargetChapter, setMoveTargetChapter] = useState<string>('');
+  const [moveTargetSubchapter, setMoveTargetSubchapter] = useState<string>('');
+
   // Chat state (Pro feature)
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -251,21 +256,51 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
       let context = "";
       let totalChars = 0;
       
-      // 1. Process PDF Content
-      const selectedPdfItems: {title: string, start: number, end: number}[] = [];
+      // 1. Process PDF Content AND Notes
+      const selectedPdfItems: {title: string, start?: number, end?: number}[] = [];
+      const selectedNotesItems: {title: string, notes: string}[] = [];
 
       course.chapters.forEach(ch => {
         if (selectedIds.includes(ch.id)) {
-            selectedPdfItems.push({ title: ch.title, start: ch.startPage, end: ch.endPage });
-        } else if (ch.subchapters) {
+            // Check if it's a notes-only chapter
+            if (ch.isNotesOnly && ch.notes) {
+                selectedNotesItems.push({ title: ch.title, notes: ch.notes });
+            } else if (ch.startPage && ch.endPage) {
+                selectedPdfItems.push({ title: ch.title, start: ch.startPage, end: ch.endPage });
+            }
+            // Also include chapter-level notes even if it has PDF pages
+            if (!ch.isNotesOnly && ch.notes) {
+                selectedNotesItems.push({ title: `${ch.title} (Notes)`, notes: ch.notes });
+            }
+        }
+
+        // Process subchapters
+        if (ch.subchapters) {
             ch.subchapters.forEach(sub => {
                 if (selectedIds.includes(sub.id)) {
-                    selectedPdfItems.push({ title: sub.title, start: sub.startPage, end: sub.endPage });
+                    if (sub.isNotesOnly && sub.notes) {
+                        selectedNotesItems.push({ title: sub.title, notes: sub.notes });
+                    } else if (sub.startPage && sub.endPage) {
+                        selectedPdfItems.push({ title: sub.title, start: sub.startPage, end: sub.endPage });
+                    }
+                    // Also include subchapter notes even if it has PDF pages
+                    if (!sub.isNotesOnly && sub.notes) {
+                        selectedNotesItems.push({ title: `${sub.title} (Notes)`, notes: sub.notes });
+                    }
                 }
             });
         }
       });
 
+      // Add notes content first
+      if (selectedNotesItems.length > 0) {
+          setStatus("Processing notes...");
+          selectedNotesItems.forEach(item => {
+              context += `\nSection: ${item.title}\n${item.notes}\n`;
+          });
+      }
+
+      // Then add PDF content
       if (selectedPdfItems.length > 0) {
           if (course.pdfBlobId) {
             setStatus("Loading PDF...");
@@ -274,7 +309,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
               const blobUrl = URL.createObjectURL(blob);
               setStatus("Parsing PDF...");
               const doc = await loadPdfDocument(blobUrl);
-              
+
               for (const item of selectedPdfItems) {
                 if (item.start && item.end) {
                   const text = await extractTextFromRange(doc, item.start, item.end, (curr, tot) => {
@@ -464,21 +499,43 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
     try {
       let context = "";
 
-      // Build context from selected items
-      const selectedPdfItems: {title: string, start: number, end: number}[] = [];
+      // Build context from selected items (PDF + Notes)
+      const selectedPdfItems: {title: string, start?: number, end?: number}[] = [];
+      const selectedNotesItems: {title: string, notes: string}[] = [];
 
       course.chapters.forEach(ch => {
         if (selectedIds.includes(ch.id)) {
-          selectedPdfItems.push({ title: ch.title, start: ch.startPage, end: ch.endPage });
-        } else if (ch.subchapters) {
+          if (ch.isNotesOnly && ch.notes) {
+            selectedNotesItems.push({ title: ch.title, notes: ch.notes });
+          } else if (ch.startPage && ch.endPage) {
+            selectedPdfItems.push({ title: ch.title, start: ch.startPage, end: ch.endPage });
+          }
+          if (!ch.isNotesOnly && ch.notes) {
+            selectedNotesItems.push({ title: `${ch.title} (Notes)`, notes: ch.notes });
+          }
+        }
+        if (ch.subchapters) {
           ch.subchapters.forEach(sub => {
             if (selectedIds.includes(sub.id)) {
-              selectedPdfItems.push({ title: sub.title, start: sub.startPage, end: sub.endPage });
+              if (sub.isNotesOnly && sub.notes) {
+                selectedNotesItems.push({ title: sub.title, notes: sub.notes });
+              } else if (sub.startPage && sub.endPage) {
+                selectedPdfItems.push({ title: sub.title, start: sub.startPage, end: sub.endPage });
+              }
+              if (!sub.isNotesOnly && sub.notes) {
+                selectedNotesItems.push({ title: `${sub.title} (Notes)`, notes: sub.notes });
+              }
             }
           });
         }
       });
 
+      // Add notes to context
+      selectedNotesItems.forEach(item => {
+        context += `\nSection: ${item.title}\n${item.notes}\n`;
+      });
+
+      // Add PDF content
       if (selectedPdfItems.length > 0 && course.pdfBlobId) {
         const blob = await getPdfBlob(course.pdfBlobId);
         if (blob) {
@@ -553,6 +610,46 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
     onUpdate({ ...course, chatHistory: [] });
   };
 
+  const handleMoveLecture = () => {
+    if (!movingLecture || !moveTargetChapter) return;
+
+    const lectureContent = movingLecture.transcript;
+    const lectureTitle = movingLecture.title;
+
+    // Update chapters to add notes
+    const updatedChapters = course.chapters.map(ch => {
+      if (ch.id === moveTargetChapter) {
+        if (moveTargetSubchapter && ch.subchapters) {
+          return {
+            ...ch,
+            subchapters: ch.subchapters.map(sub =>
+              sub.id === moveTargetSubchapter
+                ? { ...sub, notes: sub.notes ? `${sub.notes}\n\n--- ${lectureTitle} ---\n${lectureContent}` : lectureContent }
+                : sub
+            )
+          };
+        } else {
+          return {
+            ...ch,
+            notes: ch.notes ? `${ch.notes}\n\n--- ${lectureTitle} ---\n${lectureContent}` : lectureContent
+          };
+        }
+      }
+      return ch;
+    });
+
+    // Remove from lectures
+    const updatedLectures = course.lectures.filter(l => l.id !== movingLecture.id);
+
+    onUpdate({ ...course, chapters: updatedChapters, lectures: updatedLectures });
+    showToast(`Moved "${lectureTitle}" to chapter!`, 'success');
+    setMovingLecture(null);
+    setMoveTargetChapter('');
+    setMoveTargetSubchapter('');
+  };
+
+  const selectedMoveChapter = course.chapters.find(c => c.id === moveTargetChapter);
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-8">
@@ -566,23 +663,101 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
             {/* Chapters Section */}
             {course.chapters.length > 0 && (
               <div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2 mb-1 mt-1">Textbook Chapters</div>
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2 mb-1 mt-1">Chapters & Notes</div>
                 {course.chapters.map((ch, idx) => (
                   <div key={ch.id}>
                     {/* Parent Chapter */}
-                    <label className="flex items-center gap-3 p-2 hover:bg-white dark:hover:bg-slate-600 rounded cursor-pointer transition-colors">
-                      <input type="checkbox" checked={selectedIds.includes(ch.id)} onChange={() => toggleSelection(ch.id)} className="rounded text-primary focus:ring-primary" />
+                    <label className={`flex items-center gap-3 p-2 hover:bg-white dark:hover:bg-slate-600 rounded cursor-pointer transition-colors ${ch.isNotesOnly ? 'bg-amber-50/50 dark:bg-amber-900/20' : ''}`}>
+                      <input type="checkbox" checked={selectedIds.includes(ch.id)} onChange={() => toggleSelection(ch.id)} className={`rounded focus:ring-primary ${ch.isNotesOnly ? 'text-amber-500' : 'text-primary'}`} />
+                      {ch.isNotesOnly ? (
+                        <i className="fas fa-sticky-note text-amber-500 w-4"></i>
+                      ) : (
+                        <i className="fas fa-file-pdf text-blue-400 w-4"></i>
+                      )}
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-200"><span className="text-slate-400 mr-1">Ch.{idx + 1}</span> {ch.title}</span>
-                      <span className="text-xs text-slate-400 ml-auto bg-slate-100 dark:bg-slate-600 px-2 py-0.5 rounded">pp. {ch.startPage}-{ch.endPage}</span>
+                      {ch.isNotesOnly ? (
+                        <span className="text-[10px] text-amber-600 ml-auto bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded font-bold">
+                          <i className="fas fa-sticky-note mr-1"></i>{ch.notes ? `${ch.notes.split(/\s+/).length}w` : 'Notes'}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-600 px-2 py-0.5 rounded ml-auto">pp. {ch.startPage}-{ch.endPage}</span>
+                      )}
                     </label>
+
+                    {/* Attached Notes (shown under chapter) */}
+                    {ch.notes && !ch.isNotesOnly && (
+                      <div className="ml-6 pl-3 border-l-2 border-green-200 dark:border-green-800 py-1.5 flex items-center gap-2 text-xs bg-green-50/50 dark:bg-green-900/20 rounded-r">
+                        <i className="fas fa-sticky-note text-green-500"></i>
+                        <span className="text-green-700 dark:text-green-400 font-medium truncate flex-1">
+                          Attached Notes ({ch.notes.split(/\s+/).length} words)
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (confirm(`Remove notes from "${ch.title}"?`)) {
+                              onUpdate({
+                                ...course,
+                                chapters: course.chapters.map(c => c.id === ch.id ? { ...c, notes: undefined } : c)
+                              });
+                            }
+                          }}
+                          className="text-green-500 hover:text-red-500 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                          title="Remove notes"
+                        >
+                          <i className="fas fa-times text-[10px]"></i>
+                        </button>
+                      </div>
+                    )}
 
                     {/* Subchapters */}
                     {ch.subchapters && ch.subchapters.map((sub, sIdx) => (
-                        <label key={sub.id} className="flex items-center gap-3 p-2 pl-8 hover:bg-white dark:hover:bg-slate-600 rounded cursor-pointer transition-colors border-l-2 border-slate-100 dark:border-slate-600 ml-2">
-                           <input type="checkbox" checked={selectedIds.includes(sub.id)} onChange={() => toggleSelection(sub.id)} className="rounded text-blue-400 focus:ring-blue-400" />
+                        <React.Fragment key={sub.id}>
+                        <label className={`flex items-center gap-3 p-2 pl-8 hover:bg-white dark:hover:bg-slate-600 rounded cursor-pointer transition-colors border-l-2 ml-2 ${sub.isNotesOnly ? 'border-amber-300 dark:border-amber-700 bg-amber-50/30 dark:bg-amber-900/10' : 'border-slate-100 dark:border-slate-600'}`}>
+                           <input type="checkbox" checked={selectedIds.includes(sub.id)} onChange={() => toggleSelection(sub.id)} className={`rounded focus:ring-blue-400 ${sub.isNotesOnly ? 'text-amber-500' : 'text-blue-400'}`} />
+                           {sub.isNotesOnly ? (
+                             <i className="fas fa-sticky-note text-amber-500 w-3 text-xs"></i>
+                           ) : (
+                             <i className="fas fa-file-alt text-slate-400 w-3 text-xs"></i>
+                           )}
                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300 text-xs"><span className="text-slate-300 dark:text-slate-500 mr-1">{idx+1}.{sIdx+1}</span> {sub.title}</span>
-                           <span className="text-[10px] text-slate-400 ml-auto border border-slate-200 dark:border-slate-500 px-1 rounded">{sub.startPage}-{sub.endPage}</span>
+                           {sub.isNotesOnly ? (
+                             <span className="text-[10px] text-amber-600 ml-auto bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded font-bold">
+                               <i className="fas fa-sticky-note mr-1"></i>{sub.notes ? `${sub.notes.split(/\s+/).length}w` : 'Notes'}
+                             </span>
+                           ) : (
+                             <span className="text-[10px] text-slate-400 border border-slate-200 dark:border-slate-500 px-1 rounded ml-auto">{sub.startPage}-{sub.endPage}</span>
+                           )}
                         </label>
+                        {/* Attached Notes (shown under subchapter) */}
+                        {sub.notes && !sub.isNotesOnly && (
+                          <div className="ml-12 pl-3 border-l-2 border-green-200 dark:border-green-800 py-1 flex items-center gap-2 text-[11px] bg-green-50/50 dark:bg-green-900/20 rounded-r">
+                            <i className="fas fa-sticky-note text-green-500 text-[10px]"></i>
+                            <span className="text-green-700 dark:text-green-400 font-medium truncate flex-1">
+                              Notes ({sub.notes.split(/\s+/).length}w)
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (confirm(`Remove notes from "${sub.title}"?`)) {
+                                  onUpdate({
+                                    ...course,
+                                    chapters: course.chapters.map(c => c.id === ch.id ? {
+                                      ...c,
+                                      subchapters: c.subchapters?.map(s => s.id === sub.id ? { ...s, notes: undefined } : s)
+                                    } : c)
+                                  });
+                                }
+                              }}
+                              className="text-green-500 hover:text-red-500 p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                              title="Remove notes"
+                            >
+                              <i className="fas fa-times text-[9px]"></i>
+                            </button>
+                          </div>
+                        )}
+                        </React.Fragment>
                     ))}
                   </div>
                 ))}
@@ -609,6 +784,32 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
                        title="View/Play"
                     >
                         <i className="fas fa-eye"></i>
+                    </button>
+                    {course.chapters.length > 0 && (
+                      <button
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           setMovingLecture(lec);
+                           setMoveTargetChapter('');
+                           setMoveTargetSubchapter('');
+                         }}
+                         className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded opacity-0 group-hover:opacity-100 transition-all"
+                         title="Move to chapter"
+                      >
+                          <i className="fas fa-arrow-right"></i>
+                      </button>
+                    )}
+                    <button
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         if (confirm(`Delete "${lec.title}"?`)) {
+                           onUpdate({ ...course, lectures: course.lectures.filter(l => l.id !== lec.id) });
+                         }
+                       }}
+                       className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover:opacity-100 transition-all"
+                       title="Delete"
+                    >
+                        <i className="fas fa-trash-alt"></i>
                     </button>
                   </div>
                 ))}
@@ -908,6 +1109,78 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
             <button onClick={() => setPreview(null)} className="px-4 py-2 text-slate-500 font-medium">Discard</button>
             <button onClick={saveMaterial} className="px-6 py-2 bg-primary text-white rounded font-bold hover:bg-blue-600 shadow-sm whitespace-nowrap">
                 Save to Library
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Move Lecture Modal */}
+      <Modal isOpen={!!movingLecture} onClose={() => setMovingLecture(null)} title="Move Notes to Chapter" maxWidth="max-w-md">
+        <div className="space-y-4">
+          {/* What we're moving */}
+          <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+            <div className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase mb-1">Moving</div>
+            <div className="font-bold text-slate-800 dark:text-slate-200">{movingLecture?.title}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              {movingLecture?.transcript ? `${movingLecture.transcript.split(/\s+/).length} words` : ''}
+            </div>
+          </div>
+
+          {/* Target selection */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Move to Chapter</label>
+            <select
+              value={moveTargetChapter}
+              onChange={(e) => { setMoveTargetChapter(e.target.value); setMoveTargetSubchapter(''); }}
+              className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+            >
+              <option value="">-- Select Chapter --</option>
+              {course.chapters.map((ch, idx) => (
+                <option key={ch.id} value={ch.id}>
+                  Ch.{idx + 1}: {ch.title}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedMoveChapter?.subchapters && selectedMoveChapter.subchapters.length > 0 && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Section (optional)</label>
+              <select
+                value={moveTargetSubchapter}
+                onChange={(e) => setMoveTargetSubchapter(e.target.value)}
+                className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200"
+              >
+                <option value="">-- Add to chapter level --</option>
+                {selectedMoveChapter.subchapters.map((sub, sIdx) => (
+                  <option key={sub.id} value={sub.id}>
+                    {course.chapters.indexOf(selectedMoveChapter) + 1}.{sIdx + 1}: {sub.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {moveTargetChapter && (
+            <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg">
+              <i className="fas fa-info-circle mr-1"></i>
+              Notes will be attached to the chapter and combined with PDF content when generating.
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={() => setMovingLecture(null)}
+              className="flex-1 px-4 py-3 text-slate-500 font-medium border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleMoveLecture}
+              disabled={!moveTargetChapter}
+              className="flex-1 px-4 py-3 bg-primary text-white rounded-lg font-bold disabled:opacity-50 hover:bg-blue-600 transition-colors"
+            >
+              <i className="fas fa-arrow-right mr-2"></i>Move
             </button>
           </div>
         </div>

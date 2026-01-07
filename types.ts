@@ -73,18 +73,22 @@ export interface StudyMaterial {
 export interface Subchapter {
   id: string;
   title: string;
-  startPage: number;
-  endPage: number;
+  startPage?: number;  // Optional - not needed if using notes only
+  endPage?: number;    // Optional - not needed if using notes only
+  notes?: string;      // User's lecture notes for this section
+  isNotesOnly?: boolean; // True if this section has no PDF pages, just notes
 }
 
 export interface Chapter {
   id: string;
   title: string;
-  startPage: number;
-  endPage: number;
+  startPage?: number;   // Optional - not needed if using notes only
+  endPage?: number;     // Optional - not needed if using notes only
   extractedText?: string;
+  notes?: string;       // User's notes for this chapter
+  isNotesOnly?: boolean; // True if chapter has no PDF, just notes
   isSuggested?: boolean;
-  subchapters?: Subchapter[]; // New field for nesting
+  subchapters?: Subchapter[]; // Nested sections
 }
 
 export interface Lecture {
@@ -126,4 +130,37 @@ export interface Course {
 export interface AppState {
   courses: Course[];
   user: { name: string; email: string } | null;
+}
+
+// Friends & Sharing Types
+
+export interface UserProfile {
+  userId: string;
+  displayName: string;
+  email: string;
+  photoURL?: string;
+  createdAt: string;
+}
+
+export interface Friend {
+  odId: string;
+  status: 'pending' | 'accepted';
+  direction: 'sent' | 'received';
+  friendEmail: string;
+  friendName: string;
+  friendPhoto?: string;
+  createdAt: string;
+  acceptedAt?: string;
+}
+
+export interface SharedCourse {
+  shareId: string;
+  courseId: string;
+  courseTitle: string;
+  courseSubtitle?: string;
+  ownerUserId: string;
+  ownerName: string;
+  ownerEmail: string;
+  permission: 'view' | 'copy';
+  sharedAt: string;
 }

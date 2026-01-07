@@ -4,6 +4,7 @@ import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useL
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection } from './types';
 import { saveCourses, loadCourses, savePdfBlob, getPdfBlob, deleteCourseData, seedInitialData } from './services/storage';
+import { loadCloudCourses, debouncedCloudSync, immediateCloudSync, mergeCourses, deleteCloudCourse, isCloudSyncAvailable } from './services/cloudSync';
 import { generateContent, fixFlashcardContent } from './services/geminiService';
 import { loadPdfDocument, extractTextFromRange } from './services/pdfUtils';
 import { getInitialCardState } from './services/srs';
@@ -19,6 +20,9 @@ import { CourseView } from './components/CourseView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { auth, signOut as firebaseSignOut } from './services/firebase';
 import { GeneratorPanel, FlashcardViewer } from './components/GeneratorPanel';
+import { FriendsPanel } from './components/FriendsPanel';
+import { createOrUpdateProfile, getSharedWithMe, isFriendsAvailable } from './services/friendsService';
+import { SharedCourse } from './types';
 
 // --- Utils ---
 const uuid = () => Math.random().toString(36).substring(2, 9);
@@ -72,14 +76,30 @@ const ToastContainer = ({ children }: { children?: ReactNode }) => {
 // --- Mobile Navigation ---
 const MobileNav = ({ user, onLogout, dueCount }: { user: any, onLogout: () => void, dueCount?: number }) => {
   const navigate = useNavigate();
+  const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    document.documentElement.classList.toggle('dark', newMode);
+    localStorage.setItem('theme', newMode ? 'dark' : 'light');
+  };
+
   return (
-    <div className="md:hidden bg-white border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+    <div className="md:hidden bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
       <div className="flex items-center gap-2" onClick={() => navigate('/')}>
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white"><i className="fas fa-graduation-cap"></i></div>
-        <h1 className="text-lg font-bold text-slate-800">StudyAI</h1>
+        <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">StudyAI</h1>
       </div>
-      <div className="flex items-center gap-3">
-          <Link to="/review" className="relative w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 border border-slate-200">
+      <div className="flex items-center gap-2">
+          <button
+            onClick={toggleDarkMode}
+            className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600"
+            title={darkMode ? 'Light Mode' : 'Dark Mode'}
+          >
+             <i className={`fas ${darkMode ? 'fa-sun text-amber-500' : 'fa-moon text-indigo-500'} text-xs`}></i>
+          </button>
+          <Link to="/review" className="relative w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
              <i className="fas fa-layer-group text-xs"></i>
              {(dueCount || 0) > 0 && (
                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
@@ -87,12 +107,15 @@ const MobileNav = ({ user, onLogout, dueCount }: { user: any, onLogout: () => vo
                </span>
              )}
           </Link>
-          <Link to="/settings" className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-slate-100 border border-slate-200">
+          <Link to="/friends" className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
+             <i className="fas fa-user-friends text-xs"></i>
+          </Link>
+          <Link to="/settings" className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
              <i className="fas fa-cog text-xs"></i>
           </Link>
           <button
             onClick={onLogout}
-            className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-600 hover:bg-red-50 hover:text-red-500 border border-slate-200"
+            className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 border border-slate-200 dark:border-slate-600"
             title="Logout"
           >
              <i className="fas fa-sign-out-alt text-xs"></i>
@@ -131,6 +154,8 @@ function App() {
     const unsubscribe = auth.onAuthStateChanged((u) => {
       if (u) {
         setUser(u);
+        // Create/update user profile for friends feature
+        createOrUpdateProfile(u);
       } else {
         // Keep user null, will show Login
       }
@@ -139,22 +164,47 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Data Loading
+  // Data Loading - Merge Local + Cloud
   useEffect(() => {
     if (!user) return;
 
     const init = async () => {
       // Only seed demo data for demo accounts (email contains 'demo' or anonymous users)
       const isDemoAccount = !user.email || user.email.toLowerCase().includes('demo');
-      const data = await seedInitialData(isDemoAccount);
-      setCourses(data);
+      const localData = await seedInitialData(isDemoAccount);
+
+      // Try to load and merge cloud data
+      if (isCloudSyncAvailable() && user.uid) {
+        try {
+          console.log('☁️ Fetching cloud data...');
+          const cloudData = await loadCloudCourses(user.uid);
+          const merged = mergeCourses(localData, cloudData);
+          setCourses(merged);
+
+          // Save merged data back to local
+          await saveCourses(merged);
+          console.log('☁️ Cloud sync complete');
+        } catch (error) {
+          console.warn('Cloud sync failed, using local data:', error);
+          setCourses(localData);
+        }
+      } else {
+        setCourses(localData);
+      }
+
       setLoading(false);
     };
     init();
   }, [user]);
 
   useEffect(() => {
-    if (!loading && user) saveCourses(courses);
+    if (!loading && user) {
+      saveCourses(courses);
+      // Debounced cloud sync (2 second delay to batch updates)
+      if (isCloudSyncAvailable() && user.uid) {
+        debouncedCloudSync(user.uid, courses);
+      }
+    }
   }, [courses, loading, user]);
 
   const addCourse = (course: Course) => setCourses([...courses, course]);
@@ -165,6 +215,10 @@ function App() {
     const course = courses.find(c => c.id === id);
     if (course) {
       await deleteCourseData(course);
+      // Delete from cloud immediately
+      if (isCloudSyncAvailable() && user?.uid) {
+        deleteCloudCourse(user.uid, id).catch(console.error);
+      }
       setCourses(courses.filter(c => c.id !== id));
     }
   };
@@ -226,10 +280,11 @@ function App() {
              <MobileNav user={user} onLogout={handleLogout} dueCount={dueCardsCount} />
              <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900">
                 <Routes>
-                  <Route path="/" element={<Dashboard courses={courses} onDeleteCourse={deleteCourse} onAddCourse={addCourse} />} />
+                  <Route path="/" element={<Dashboard courses={courses} onDeleteCourse={deleteCourse} onAddCourse={addCourse} user={user} />} />
                   <Route path="/review" element={<ReviewController courses={courses} onUpdateCard={handleFlashcardUpdate} />} />
                   <Route path="/settings" element={<SettingsPanel user={user} onLogout={handleLogout} />} />
-                  <Route path="/course/:courseId" element={<CourseView courses={courses} onUpdate={updateCourse} onUpdateFlashcard={handleFlashcardUpdate} />} />
+                  <Route path="/friends" element={<FriendsPanel user={user} />} />
+                  <Route path="/course/:courseId" element={<CourseView courses={courses} onUpdate={updateCourse} onUpdateFlashcard={handleFlashcardUpdate} user={user} />} />
                 </Routes>
              </div>
           </main>
@@ -284,6 +339,14 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCourse, setNewCourse] = useState({ title: '', code: '', subtitle: '', description: '', semester: 'Fall 2024' });
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+  const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    document.documentElement.classList.toggle('dark', newMode);
+    localStorage.setItem('theme', newMode ? 'dark' : 'light');
+  };
 
   const handleCreate = () => {
     if (!newCourse.title || !newCourse.code) return;
@@ -302,10 +365,10 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
       <aside className={`${collapsed ? 'w-16' : 'w-64'} bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex-shrink-0 flex-col h-full z-20 hidden md:flex transition-all duration-300`}>
         {/* Header with collapse toggle */}
         <div className={`p-4 border-b border-slate-100 dark:border-slate-700 flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
-          <div className={`flex items-center gap-3 ${collapsed ? '' : ''}`}>
+          <Link to="/" className={`flex items-center gap-3 hover:opacity-80 transition-opacity`}>
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white flex-shrink-0"><i className="fas fa-graduation-cap"></i></div>
             {!collapsed && <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">StudyAI</h1>}
-          </div>
+          </Link>
           {!collapsed && (
             <button
               onClick={onToggleCollapse}
@@ -358,6 +421,20 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
             <i className="fas fa-cog w-5 text-center"></i>
             {!collapsed && <span>Settings</span>}
           </Link>
+          <Link to="/friends" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Friends">
+            <i className="fas fa-user-friends w-5 text-center"></i>
+            {!collapsed && <span>Friends</span>}
+          </Link>
+
+          {/* Dark Mode Toggle */}
+          <button
+            onClick={toggleDarkMode}
+            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 font-medium transition-colors w-full`}
+            title={darkMode ? 'Light Mode' : 'Dark Mode'}
+          >
+            <i className={`fas ${darkMode ? 'fa-sun text-amber-500' : 'fa-moon text-indigo-500'} w-5 text-center`}></i>
+            {!collapsed && <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
+          </button>
 
           {!collapsed && (
             <>
@@ -441,12 +518,24 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
 };
 
 // --- Dashboard ---
-const Dashboard = ({ courses, onDeleteCourse, onAddCourse }: { courses: Course[], onDeleteCourse: (id: string) => void, onAddCourse: (course: Course) => void }) => {
+const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Course[], onDeleteCourse: (id: string) => void, onAddCourse: (course: Course) => void, user?: any }) => {
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [semesterFilter, setSemesterFilter] = useState("All Semesters");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCourse, setNewCourse] = useState({ title: '', code: '', subtitle: '', description: '', semester: 'Fall 2024' });
+  const [sharedCourses, setSharedCourses] = useState<SharedCourse[]>([]);
   const navigate = useNavigate();
+
+  // Load shared courses
+  useEffect(() => {
+    if (!user?.uid || !isFriendsAvailable()) return;
+
+    const loadShared = async () => {
+      const shared = await getSharedWithMe(user.uid);
+      setSharedCourses(shared);
+    };
+    loadShared();
+  }, [user?.uid]);
 
   const handleCreate = () => {
     if (!newCourse.title || !newCourse.code) return;
@@ -623,6 +712,45 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse }: { courses: Course[]
           </div>
         )}
       </div>
+
+      {/* Shared with Me Section */}
+      {sharedCourses.length > 0 && (
+        <div className="mb-10">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
+            <i className="fas fa-share-alt text-green-500"></i>
+            Shared with Me
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sharedCourses.map((shared) => (
+              <div
+                key={shared.shareId}
+                className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-green-200 dark:border-green-800 hover:shadow-md transition-all p-4"
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
+                    <i className="fas fa-book text-green-600 dark:text-green-400"></i>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-slate-800 dark:text-slate-200 truncate">{shared.courseTitle}</h4>
+                    {shared.courseSubtitle && (
+                      <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{shared.courseSubtitle}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                    <i className="fas fa-user"></i>
+                    <span>From: {shared.ownerName}</span>
+                  </div>
+                  <span className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-2 py-0.5 rounded font-medium">
+                    {shared.permission === 'copy' ? 'Can Copy' : 'View Only'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <CourseDeleteModal
         course={courseToDelete}

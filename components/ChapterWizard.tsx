@@ -75,15 +75,17 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
     });
   };
 
-  const addSubchapter = (chapterIndex: number) => {
+  const addSubchapter = (chapterIndex: number, notesOnly: boolean = false) => {
     updateChapters(prev => {
       const parent = prev[chapterIndex];
       if (!parent.subchapters) parent.subchapters = [];
       parent.subchapters.push({
         id: uuid(),
         title: '',
-        startPage: parent.startPage || 0,
-        endPage: parent.endPage || 0
+        startPage: notesOnly ? undefined : (parent.startPage || 0),
+        endPage: notesOnly ? undefined : (parent.endPage || 0),
+        isNotesOnly: notesOnly,
+        notes: notesOnly ? '' : undefined
       });
       return prev;
     });
@@ -210,7 +212,15 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                     <i className="fas fa-cloud-upload-alt text-4xl text-primary"></i>
                   </div>
                   <h3 className="text-xl font-bold text-slate-700">Upload Textbook PDF</h3>
-                  <p className="text-slate-500 mt-2">Drag & drop or click to browse local files</p>
+                  <p className="text-slate-500 mt-2">Drag & drop or click to browse</p>
+               </div>
+
+               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                 <i className="fas fa-lightbulb text-amber-500 mt-0.5"></i>
+                 <div>
+                   <p className="text-sm font-medium text-amber-800">No PDF? Use Import Notes instead!</p>
+                   <p className="text-xs text-amber-600 mt-1">Close this and click "Import" to add your lecture notes directly.</p>
+                 </div>
                </div>
 
                {/* Search Free Books */}
@@ -337,7 +347,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                    </div>
                  )}
                  {chapters.map((ch, idx) => (
-                   <div key={ch.id} className="p-4 border border-slate-200 rounded-lg bg-white shadow-sm hover:border-blue-300 transition-all group relative">
+                   <div key={ch.id} className={`p-4 border rounded-lg shadow-sm transition-all group relative ${ch.isNotesOnly ? 'border-amber-300 bg-amber-50/30 hover:border-amber-400' : 'border-slate-200 bg-white hover:border-blue-300'}`}>
                       {ch.isSuggested && (
                           <div className="absolute top-0 right-0 transform translate-x-1/3 -translate-y-1/3 z-10">
                               <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
@@ -345,20 +355,28 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                               </span>
                           </div>
                       )}
+                      {ch.isNotesOnly && !ch.isSuggested && (
+                          <div className="absolute top-0 right-0 transform translate-x-1/3 -translate-y-1/3 z-10">
+                              <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                                  <i className="fas fa-sticky-note text-[8px]"></i> Notes Only
+                              </span>
+                          </div>
+                      )}
 
                       {/* Parent Chapter Row */}
                       <div className="flex justify-between mb-3 items-center">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                          <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">{idx + 1}</span>
-                          Chapter
+                        <span className={`text-xs font-bold uppercase tracking-wider flex items-center gap-1 ${ch.isNotesOnly ? 'text-amber-600' : 'text-slate-400'}`}>
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center ${ch.isNotesOnly ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'}`}>{idx + 1}</span>
+                          {ch.isNotesOnly ? 'Notes Chapter' : 'Chapter'}
                         </span>
                         <div className="flex gap-2">
-                            <button 
-                                onClick={() => addSubchapter(idx)}
+                            <button
+                                onClick={() => addSubchapter(idx, false)}
                                 className="text-[10px] font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded hover:bg-blue-100 transition-colors"
                                 type="button"
+                                title="Add section with PDF page range"
                             >
-                                <i className="fas fa-indent mr-1"></i> Add Topic / Section
+                                <i className="fas fa-plus mr-1"></i> Add Section
                             </button>
                             <button 
                               onClick={() => setChapters(chapters.filter((_, i) => i !== idx))} 
@@ -370,51 +388,177 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-12 gap-3 mb-3">
-                        <div className="col-span-8">
-                          <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Title</label>
-                          <input 
-                            className="w-full p-2 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none bg-white text-slate-900" 
-                            placeholder="Chapter Title" 
-                            value={ch.title}
-                            onChange={(e) => updateChapter(idx, 'title', e.target.value)}
-                          />
+                      {ch.isNotesOnly ? (
+                        <div className="space-y-3 mb-3">
+                          <div>
+                            <label className="text-[10px] uppercase font-bold text-amber-600 mb-1 block">Chapter Title</label>
+                            <input
+                              className="w-full p-2 border border-amber-300 rounded text-sm focus:ring-1 focus:ring-amber-400 outline-none bg-white text-slate-900"
+                              placeholder="e.g. Unit 3: Cellular Respiration"
+                              value={ch.title}
+                              onChange={(e) => updateChapter(idx, 'title', e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] uppercase font-bold text-amber-600 mb-1 block">Chapter Notes (optional - or add sections below)</label>
+                            <div className="flex gap-2 mb-2">
+                              <label className="flex-1 flex items-center justify-center gap-2 p-3 border border-dashed border-amber-300 rounded bg-amber-50/50 hover:bg-amber-100 cursor-pointer transition-colors text-sm font-bold text-amber-600">
+                                <i className="fas fa-upload"></i>
+                                <span>Upload .txt / .md file</span>
+                                <input
+                                  type="file"
+                                  accept=".txt,.md,.text"
+                                  className="hidden"
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      const text = await file.text();
+                                      updateChapter(idx, 'notes', text);
+                                      if (!ch.title) {
+                                        updateChapter(idx, 'title', file.name.replace(/\.(txt|md|text)$/i, ''));
+                                      }
+                                    }
+                                  }}
+                                />
+                              </label>
+                              {ch.notes && (
+                                <div className="flex items-center gap-2 px-4 py-3 bg-green-50 border border-green-200 rounded text-sm font-bold text-green-600">
+                                  <i className="fas fa-check-circle"></i>
+                                  {ch.notes.split(/\s+/).length} words
+                                </div>
+                              )}
+                            </div>
+                            {ch.notes && (
+                              <details className="group">
+                                <summary className="text-xs text-amber-600 cursor-pointer hover:text-amber-700 font-medium">
+                                  <i className="fas fa-eye mr-1"></i> Preview / Edit notes
+                                </summary>
+                                <textarea
+                                  className="w-full p-2 border border-amber-300 rounded text-sm focus:ring-1 focus:ring-amber-400 outline-none bg-white text-slate-900 resize-none mt-2"
+                                  rows={5}
+                                  value={ch.notes || ''}
+                                  onChange={(e) => updateChapter(idx, 'notes', e.target.value)}
+                                />
+                              </details>
+                            )}
+                          </div>
                         </div>
-                        <div className="col-span-2">
-                            <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Start</label>
-                            <input type="number" className="w-full p-2 border border-slate-300 rounded text-sm outline-none bg-white text-slate-900" value={ch.startPage || ''} onChange={(e) => updateChapter(idx, 'startPage', parseInt(e.target.value))} />
+                      ) : (
+                        <div className="grid grid-cols-12 gap-3 mb-3">
+                          <div className="col-span-8">
+                            <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Title</label>
+                            <input
+                              className="w-full p-2 border border-slate-300 rounded text-sm focus:ring-1 focus:ring-primary outline-none bg-white text-slate-900"
+                              placeholder="Chapter Title"
+                              value={ch.title}
+                              onChange={(e) => updateChapter(idx, 'title', e.target.value)}
+                            />
+                          </div>
+                          <div className="col-span-2">
+                              <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">Start</label>
+                              <input type="number" className="w-full p-2 border border-slate-300 rounded text-sm outline-none bg-white text-slate-900" value={ch.startPage || ''} onChange={(e) => updateChapter(idx, 'startPage', parseInt(e.target.value))} />
+                          </div>
+                          <div className="col-span-2">
+                              <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">End</label>
+                              <input type="number" className="w-full p-2 border border-slate-300 rounded text-sm outline-none bg-white text-slate-900" value={ch.endPage || ''} onChange={(e) => updateChapter(idx, 'endPage', parseInt(e.target.value))} />
+                          </div>
                         </div>
-                        <div className="col-span-2">
-                            <label className="text-[10px] uppercase font-bold text-slate-400 mb-1 block">End</label>
-                            <input type="number" className="w-full p-2 border border-slate-300 rounded text-sm outline-none bg-white text-slate-900" value={ch.endPage || ''} onChange={(e) => updateChapter(idx, 'endPage', parseInt(e.target.value))} />
-                        </div>
-                      </div>
+                      )}
 
                       {/* Subchapters List */}
                       {ch.subchapters && ch.subchapters.length > 0 && (
                           <div className="pl-4 border-l-2 border-slate-200 space-y-3 mt-4">
                               {ch.subchapters.map((sub, sIdx) => (
-                                  <div key={sub.id} className="relative">
-                                      <div className="flex items-center gap-2 mb-1">
-                                          <span className="text-[10px] font-bold text-slate-400 uppercase">Section {idx+1}.{sIdx+1}</span>
+                                  <div key={sub.id} className={`relative p-3 rounded-lg ${sub.isNotesOnly ? 'bg-amber-50/50 border border-amber-200' : 'bg-slate-50'}`}>
+                                      <div className="flex items-center gap-2 mb-2">
+                                          <span className={`text-[10px] font-bold uppercase flex items-center gap-1 ${sub.isNotesOnly ? 'text-amber-600' : 'text-slate-400'}`}>
+                                            {sub.isNotesOnly ? <i className="fas fa-sticky-note"></i> : <i className="fas fa-file-pdf"></i>}
+                                            Section {idx+1}.{sIdx+1}
+                                            {sub.isNotesOnly && <span className="bg-amber-200 text-amber-700 px-1.5 rounded text-[8px] ml-1">NOTES</span>}
+                                          </span>
                                           <button onClick={() => deleteSubchapter(idx, sIdx)} className="text-slate-300 hover:text-red-400 text-xs ml-auto" type="button"><i className="fas fa-times"></i></button>
                                       </div>
-                                      <div className="grid grid-cols-12 gap-2">
-                                          <div className="col-span-6">
-                                              <input 
-                                                className="w-full p-1.5 border border-slate-200 rounded text-xs bg-white text-slate-900 focus:ring-1 focus:ring-blue-200 outline-none"
-                                                placeholder="Section Topic (e.g. Mitochondria)"
-                                                value={sub.title}
-                                                onChange={(e) => updateSubchapter(idx, sIdx, 'title', e.target.value)}
+
+                                      {sub.isNotesOnly ? (
+                                        <>
+                                          <input
+                                            className="w-full p-2 border border-amber-200 rounded text-sm bg-white text-slate-900 focus:ring-1 focus:ring-amber-300 outline-none mb-2"
+                                            placeholder="Section Title (e.g. Monday - Glycolysis)"
+                                            value={sub.title}
+                                            onChange={(e) => updateSubchapter(idx, sIdx, 'title', e.target.value)}
+                                          />
+                                          <div className="flex gap-2 mb-2">
+                                            <label className="flex-1 flex items-center justify-center gap-2 p-2 border border-dashed border-amber-300 rounded bg-amber-50/50 hover:bg-amber-100 cursor-pointer transition-colors text-xs font-bold text-amber-600">
+                                              <i className="fas fa-upload"></i>
+                                              <span>Upload .txt / .md</span>
+                                              <input
+                                                type="file"
+                                                accept=".txt,.md,.text"
+                                                className="hidden"
+                                                onChange={async (e) => {
+                                                  const file = e.target.files?.[0];
+                                                  if (file) {
+                                                    const text = await file.text();
+                                                    updateSubchapter(idx, sIdx, 'notes', text);
+                                                    if (!sub.title) {
+                                                      updateSubchapter(idx, sIdx, 'title', file.name.replace(/\.(txt|md|text)$/i, ''));
+                                                    }
+                                                  }
+                                                }}
                                               />
+                                            </label>
+                                            {sub.notes && (
+                                              <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded text-xs font-bold text-green-600">
+                                                <i className="fas fa-check-circle"></i>
+                                                {sub.notes.split(/\s+/).length} words
+                                              </div>
+                                            )}
                                           </div>
-                                          <div className="col-span-3">
-                                              <input type="number" className="w-full p-1.5 border border-slate-200 rounded text-xs bg-white text-slate-900 outline-none" placeholder="Start" value={sub.startPage || ''} onChange={(e) => updateSubchapter(idx, sIdx, 'startPage', parseInt(e.target.value))} />
-                                          </div>
-                                          <div className="col-span-3">
-                                              <input type="number" className="w-full p-1.5 border border-slate-200 rounded text-xs bg-white text-slate-900 outline-none" placeholder="End" value={sub.endPage || ''} onChange={(e) => updateSubchapter(idx, sIdx, 'endPage', parseInt(e.target.value))} />
-                                          </div>
-                                      </div>
+                                          {sub.notes && (
+                                            <details className="group">
+                                              <summary className="text-[10px] text-amber-600 cursor-pointer hover:text-amber-700 font-medium">
+                                                <i className="fas fa-eye mr-1"></i> Preview / Edit notes
+                                              </summary>
+                                              <textarea
+                                                className="w-full p-2 border border-amber-200 rounded text-xs bg-white text-slate-900 focus:ring-1 focus:ring-amber-300 outline-none resize-none mt-2"
+                                                placeholder="Notes content..."
+                                                rows={4}
+                                                value={sub.notes || ''}
+                                                onChange={(e) => updateSubchapter(idx, sIdx, 'notes', e.target.value)}
+                                              />
+                                            </details>
+                                          )}
+                                          {!sub.notes && (
+                                            <p className="text-[10px] text-slate-400 italic">Or paste notes below:</p>
+                                          )}
+                                          {!sub.notes && (
+                                            <textarea
+                                              className="w-full p-2 border border-amber-200 rounded text-xs bg-white text-slate-900 focus:ring-1 focus:ring-amber-300 outline-none resize-none"
+                                              placeholder="Paste your lecture notes here..."
+                                              rows={3}
+                                              value={sub.notes || ''}
+                                              onChange={(e) => updateSubchapter(idx, sIdx, 'notes', e.target.value)}
+                                            />
+                                          )}
+                                        </>
+                                      ) : (
+                                        <div className="grid grid-cols-12 gap-2">
+                                            <div className="col-span-6">
+                                                <input
+                                                  className="w-full p-1.5 border border-slate-200 rounded text-xs bg-white text-slate-900 focus:ring-1 focus:ring-blue-200 outline-none"
+                                                  placeholder="Section Topic (e.g. Mitochondria)"
+                                                  value={sub.title}
+                                                  onChange={(e) => updateSubchapter(idx, sIdx, 'title', e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="col-span-3">
+                                                <input type="number" className="w-full p-1.5 border border-slate-200 rounded text-xs bg-white text-slate-900 outline-none" placeholder="Start" value={sub.startPage || ''} onChange={(e) => updateSubchapter(idx, sIdx, 'startPage', parseInt(e.target.value))} />
+                                            </div>
+                                            <div className="col-span-3">
+                                                <input type="number" className="w-full p-1.5 border border-slate-200 rounded text-xs bg-white text-slate-900 outline-none" placeholder="End" value={sub.endPage || ''} onChange={(e) => updateSubchapter(idx, sIdx, 'endPage', parseInt(e.target.value))} />
+                                            </div>
+                                        </div>
+                                      )}
                                   </div>
                               ))}
                           </div>
@@ -433,9 +577,8 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
          <div className="flex gap-3">
            {step === 2 && <button onClick={() => setStep(1)} className="px-4 py-2 border border-slate-300 rounded text-slate-600 font-medium">Back</button>}
            <button
-             onClick={() => onSave({ ...course, pdfName, chapters }, pdfFile || undefined)}
-             disabled={step === 1 && !pdfFile}
-             className="px-6 py-2 bg-primary text-white rounded-lg font-bold disabled:opacity-50 shadow-md hover:shadow-lg hover:bg-blue-600 transition-all transform active:scale-95"
+             onClick={() => step === 1 ? setStep(2) : onSave({ ...course, pdfName, chapters }, pdfFile || undefined)}
+             className="px-6 py-2 bg-primary text-white rounded-lg font-bold shadow-md hover:shadow-lg hover:bg-blue-600 transition-all transform active:scale-95"
            >
              {step === 1 ? 'Next: Map Chapters' : 'Save & Close'}
            </button>

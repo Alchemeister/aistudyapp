@@ -1,14 +1,29 @@
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  signOut as firebaseSignOut, 
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut as firebaseSignOut,
   Auth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword
 } from 'firebase/auth';
+import {
+  getFirestore,
+  Firestore,
+  enableIndexedDbPersistence,
+  doc,
+  setDoc,
+  getDoc,
+  collection,
+  collectionGroup,
+  query,
+  where,
+  getDocs,
+  deleteDoc,
+  writeBatch
+} from 'firebase/firestore';
 
 // Helper to sanitize env vars
 const clean = (val: string | undefined) => val ? val.replace(/["']/g, "").trim() : undefined;
@@ -66,6 +81,7 @@ if (missingCount > 0) {
 
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
+let db: Firestore | undefined;
 let googleProvider: GoogleAuthProvider | undefined;
 let isConfigured = false;
 
@@ -74,8 +90,20 @@ if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
+    db = getFirestore(app);
     googleProvider = new GoogleAuthProvider();
     isConfigured = true;
+
+    // Enable offline persistence (data available without internet)
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn('Firestore persistence failed: multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        console.warn('Firestore persistence not available in this browser');
+      }
+    });
+
+    console.log("✅ Firestore initialized with offline persistence");
   } catch (e) {
     console.error("Firebase Initialization Error:", e);
   }
@@ -83,7 +111,7 @@ if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
   console.log("Firebase running in offline/demo mode (Missing Config)");
 }
 
-export { auth };
+export { auth, db, isConfigured };
 
 export const signInWithGoogle = async () => {
   if (!isConfigured || !auth || !googleProvider) {
@@ -117,3 +145,6 @@ export const signOut = async () => {
     await firebaseSignOut(auth);
   }
 };
+
+// Re-export Firestore utilities for use in other services
+export { doc, setDoc, getDoc, collection, collectionGroup, query, where, getDocs, deleteDoc, writeBatch };
