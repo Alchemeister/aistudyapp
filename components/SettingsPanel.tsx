@@ -2,6 +2,9 @@ import React, { useState, useEffect, type FC } from 'react';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { clearDatabase, loadCourses } from '../services/storage';
+import { getCreditsInfo } from '../services/subscriptionService';
+import { PricingModal } from './PricingModal';
+import { STRIPE_CONFIG } from '../services/stripeConfig';
 
 interface Props {
   user: any;
@@ -17,6 +20,46 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
     return document.documentElement.classList.contains('dark');
   });
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  // Subscription state
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [creditsInfo, setCreditsInfo] = useState<{
+    status: 'free' | 'pro';
+    monthlyRemaining: number;
+    monthlyLimit: number;
+    purchased: number;
+    total: number;
+    plan?: string;
+    expiresAt?: string;
+  } | null>(null);
+
+  // Check URL for payment status
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    const paymentStatus = params.get('payment');
+    if (paymentStatus === 'success') {
+      setMessage({ type: 'success', text: 'Payment successful! Your account has been upgraded.' });
+      // Remove the query param
+      window.history.replaceState({}, '', window.location.pathname + '#/settings');
+      // Refresh credits info
+      loadCreditsInfo();
+    } else if (paymentStatus === 'cancelled') {
+      setMessage({ type: 'error', text: 'Payment was cancelled.' });
+      window.history.replaceState({}, '', window.location.pathname + '#/settings');
+    }
+  }, []);
+
+  // Load subscription info
+  const loadCreditsInfo = async () => {
+    if (user?.uid) {
+      const info = await getCreditsInfo(user.uid);
+      setCreditsInfo(info);
+    }
+  };
+
+  useEffect(() => {
+    loadCreditsInfo();
+  }, [user?.uid]);
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
@@ -147,6 +190,85 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
          </div>
       </section>
 
+      {/* Subscription & Billing */}
+      <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+             <h3 className="font-bold text-slate-800 dark:text-slate-100"><i className="fas fa-crown mr-2 text-amber-500"></i>Subscription & Billing</h3>
+          </div>
+          <div className="p-4 md:p-6 space-y-6">
+              {/* Current Plan */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                      <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
+                        creditsInfo?.status === 'pro'
+                          ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white'
+                          : 'bg-slate-100 dark:bg-slate-700 text-slate-400'
+                      }`}>
+                          <i className={`fas ${creditsInfo?.status === 'pro' ? 'fa-crown' : 'fa-user'}`}></i>
+                      </div>
+                      <div>
+                          <h4 className="font-bold text-slate-800 dark:text-slate-100">
+                              {creditsInfo?.status === 'pro' ? 'Pro Plan' : 'Free Plan'}
+                          </h4>
+                          {creditsInfo?.status === 'pro' && creditsInfo?.plan && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                              {creditsInfo.plan.charAt(0).toUpperCase() + creditsInfo.plan.slice(1)} billing
+                              {creditsInfo.expiresAt && ` • Renews ${new Date(creditsInfo.expiresAt).toLocaleDateString()}`}
+                            </p>
+                          )}
+                          {creditsInfo?.status === 'free' && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                              Upgrade to unlock all features
+                            </p>
+                          )}
+                      </div>
+                  </div>
+                  <button
+                    onClick={() => setShowPricingModal(true)}
+                    className={`px-5 py-2.5 font-bold rounded-lg transition-colors shadow-sm whitespace-nowrap ${
+                      creditsInfo?.status === 'pro'
+                        ? 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600'
+                        : 'bg-gradient-to-r from-amber-400 to-orange-500 text-white hover:from-amber-500 hover:to-orange-600'
+                    }`}
+                  >
+                      {creditsInfo?.status === 'pro' ? 'Manage Plan' : 'Upgrade to Pro'}
+                  </button>
+              </div>
+
+              {/* Credits Display */}
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+                  <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-bold text-slate-700 dark:text-slate-200 text-sm">AI Generation Credits</h4>
+                      <span className="text-xs font-bold text-slate-400">Resets monthly</span>
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                      <div className="flex items-end gap-2 mb-3">
+                          <span className="text-3xl font-bold text-primary">{creditsInfo?.total ?? '...'}</span>
+                          <span className="text-slate-400 mb-1">credits available</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden mb-3">
+                          <div
+                            className="h-full bg-gradient-to-r from-primary to-blue-400 rounded-full transition-all duration-500"
+                            style={{ width: `${creditsInfo ? Math.min(100, (creditsInfo.total / creditsInfo.monthlyLimit) * 100) : 0}%` }}
+                          />
+                      </div>
+                      <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                          <span>{creditsInfo?.monthlyRemaining ?? 0} / {creditsInfo?.monthlyLimit ?? 0} monthly</span>
+                          {(creditsInfo?.purchased ?? 0) > 0 && (
+                            <span className="text-green-600 dark:text-green-400">+{creditsInfo?.purchased} purchased</span>
+                          )}
+                      </div>
+                  </div>
+                  <button
+                    onClick={() => setShowPricingModal(true)}
+                    className="mt-3 w-full py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm font-bold rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors border border-green-200 dark:border-green-800"
+                  >
+                      <i className="fas fa-coins mr-2"></i>Buy More Credits
+                  </button>
+              </div>
+          </div>
+      </section>
+
       {/* Appearance */}
       <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="p-6 border-b border-slate-100 dark:border-slate-700">
@@ -252,6 +374,19 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
           <p className="mb-2">StudyAI v2.2.0 (Beta)</p>
           <button onClick={onLogout} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 underline">Log Out</button>
       </div>
+
+      {/* Pricing Modal */}
+      <PricingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        userId={user.uid}
+        userEmail={user.email || ''}
+        currentStatus={creditsInfo?.status || 'free'}
+        currentPlan={creditsInfo?.plan}
+        expiresAt={creditsInfo?.expiresAt}
+        creditsRemaining={creditsInfo?.total || 0}
+        onToast={(msg, type) => setMessage({ type, text: msg })}
+      />
     </div>
   );
 };

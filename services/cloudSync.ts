@@ -171,9 +171,35 @@ export const mergeCourses = (local: Course[], cloud: Course[]): Course[] => {
   return Array.from(merged.values());
 };
 
+// Sync status types
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error';
+type SyncStatusCallback = (status: SyncStatus) => void;
+
 // Debounced sync helper
 let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 let pendingCourses: Course[] | null = null;
+let statusCallback: SyncStatusCallback | null = null;
+let syncedResetTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// Set the status callback
+export const setSyncStatusCallback = (callback: SyncStatusCallback | null): void => {
+  statusCallback = callback;
+};
+
+// Notify status change
+const notifyStatus = (status: SyncStatus) => {
+  if (statusCallback) {
+    statusCallback(status);
+  }
+
+  // Auto-reset "synced" to "idle" after 3 seconds
+  if (status === 'synced') {
+    if (syncedResetTimeout) clearTimeout(syncedResetTimeout);
+    syncedResetTimeout = setTimeout(() => {
+      if (statusCallback) statusCallback('idle');
+    }, 3000);
+  }
+};
 
 export const debouncedCloudSync = (userId: string, courses: Course[], delay: number = 2000): void => {
   pendingCourses = courses;
@@ -182,12 +208,16 @@ export const debouncedCloudSync = (userId: string, courses: Course[], delay: num
     clearTimeout(syncTimeout);
   }
 
+  // Show syncing status after a short delay (avoid flicker for quick saves)
   syncTimeout = setTimeout(async () => {
     if (pendingCourses) {
+      notifyStatus('syncing');
       try {
         await saveAllCloudCourses(userId, pendingCourses);
+        notifyStatus('synced');
       } catch (error) {
         console.error('Debounced sync failed:', error);
+        notifyStatus('error');
       }
       pendingCourses = null;
     }
@@ -203,7 +233,15 @@ export const immediateCloudSync = async (userId: string, courses: Course[]): Pro
   }
   pendingCourses = null;
 
-  await saveAllCloudCourses(userId, courses);
+  notifyStatus('syncing');
+  try {
+    await saveAllCloudCourses(userId, courses);
+    notifyStatus('synced');
+  } catch (error) {
+    console.error('Immediate sync failed:', error);
+    notifyStatus('error');
+    throw error;
+  }
 };
 
 // Check if cloud sync is available

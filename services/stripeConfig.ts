@@ -45,7 +45,7 @@ export const STRIPE_CONFIG = {
 
   // Free tier limits
   freeTier: {
-    generations: 50,
+    generations: 25,
     aiTutorMessages: 0,
   },
 
@@ -65,6 +65,8 @@ export const FEATURES = {
     conceptMaps: false,
     mockTests: false,
     aiTutor: false,
+    srsReview: false,
+    analytics: false,
   },
   pro: {
     flashcards: true,
@@ -73,5 +75,7 @@ export const FEATURES = {
     conceptMaps: true,
     mockTests: true,
     aiTutor: true,
+    srsReview: true,
+    analytics: true,
   },
 };

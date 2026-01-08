@@ -137,7 +137,7 @@ export const canGenerate = async (userId: string): Promise<{ allowed: boolean; r
 export const deductCredit = async (userId: string): Promise<void> => {
   if (!isConfigured || !db) return;
 
-  const docRef = doc(db, 'users', odId, 'subscription', 'current');
+  const docRef = doc(db, 'users', userId, 'subscription', 'current');
   const sub = await getUserSubscription(userId);
 
   const limit = sub.status === 'pro'
@@ -176,7 +176,7 @@ export const canUseAITutor = async (userId: string): Promise<{ allowed: boolean;
 export const deductAITutorMessage = async (userId: string): Promise<void> => {
   if (!isConfigured || !db) return;
 
-  const docRef = doc(db, 'users', odId, 'subscription', 'current');
+  const docRef = doc(db, 'users', userId, 'subscription', 'current');
   const sub = await getUserSubscription(userId);
 
   await updateDoc(docRef, {
@@ -283,7 +283,7 @@ export const buyCredits = async (userId: string, email: string, pack: 'pack25' |
 // Add purchased credits (called by webhook handler)
 export const addPurchasedCredits = async (userId: string, credits: number): Promise<void> => {
   if (!db) return;
-  const docRef = doc(db, 'users', odId, 'subscription', 'current');
+  const docRef = doc(db, 'users', userId, 'subscription', 'current');
   const sub = await getUserSubscription(userId);
 
   await updateDoc(docRef, {
@@ -300,7 +300,7 @@ export const activateProSubscription = async (
   currentPeriodEnd: string
 ): Promise<void> => {
   if (!db) return;
-  const docRef = doc(db, 'users', odId, 'subscription', 'current');
+  const docRef = doc(db, 'users', userId, 'subscription', 'current');
 
   await updateDoc(docRef, {
     status: 'pro',
@@ -314,7 +314,7 @@ export const activateProSubscription = async (
 // Cancel/expire subscription (called by webhook handler)
 export const cancelSubscription = async (userId: string): Promise<void> => {
   if (!db) return;
-  const docRef = doc(db, 'users', odId, 'subscription', 'current');
+  const docRef = doc(db, 'users', userId, 'subscription', 'current');
 
   await updateDoc(docRef, {
     status: 'free',

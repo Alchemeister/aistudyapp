@@ -154,8 +154,8 @@ export const PricingModal: React.FC<Props> = ({
               </div>
 
               {/* Semester - Most Popular */}
-              <div className="border-2 border-primary rounded-xl p-4 relative bg-blue-50/50 dark:bg-blue-900/20">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full">
+              <div className="border-2 border-primary rounded-xl p-4 pt-6 relative bg-blue-50/50 dark:bg-blue-900/20">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
                   MOST POPULAR
                 </div>
                 <div className="text-center mb-4">
@@ -184,8 +184,8 @@ export const PricingModal: React.FC<Props> = ({
               </div>
 
               {/* Annual - Best Value */}
-              <div className="border border-amber-300 dark:border-amber-600 rounded-xl p-4 relative bg-amber-50/50 dark:bg-amber-900/20">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+              <div className="border border-amber-300 dark:border-amber-600 rounded-xl p-4 pt-6 relative bg-amber-50/50 dark:bg-amber-900/20">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
                   BEST VALUE
                 </div>
                 <div className="text-center mb-4">
@@ -226,7 +226,15 @@ export const PricingModal: React.FC<Props> = ({
                 </div>
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                   <i className="fas fa-check text-green-500"></i>
-                  AI Tutor (unlimited chat)
+                  Smart SRS Review
+                </div>
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                  <i className="fas fa-check text-green-500"></i>
+                  Study Analytics
+                </div>
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                  <i className="fas fa-check text-green-500"></i>
+                  AI Tutor
                 </div>
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                   <i className="fas fa-check text-green-500"></i>
@@ -235,14 +243,6 @@ export const PricingModal: React.FC<Props> = ({
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                   <i className="fas fa-check text-green-500"></i>
                   Mock Tests
-                </div>
-                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <i className="fas fa-check text-green-500"></i>
-                  Flashcards & Quizzes
-                </div>
-                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <i className="fas fa-check text-green-500"></i>
-                  Summary Notes
                 </div>
               </div>
             </div>

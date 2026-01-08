@@ -8,6 +8,8 @@ import { Modal } from './Modal';
 import { QuizTaker } from './QuizTaker';
 import { ToastContext } from '../App';
 import { getPdfBlob } from '../services/storage';
+import { canGenerate, deductCredit, hasFeatureAccess, getCreditsInfo } from '../services/subscriptionService';
+import { FEATURES } from '../services/stripeConfig';
 
 const uuid = () => Math.random().toString(36).substring(2, 9);
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -175,7 +177,7 @@ export const FlashcardViewer = ({ cards, onFixCard }: { cards: Flashcard[], onFi
   );
 };
 
-export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Course, onUpdate: (c: Course) => void, onViewLecture: (l: Lecture) => void }) => {
+export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { course: Course, onUpdate: (c: Course) => void, onViewLecture: (l: Lecture) => void, userId?: string }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.MEDIUM);
   const [itemCount, setItemCount] = useState(10);
@@ -205,6 +207,18 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
 
   // Quick import (pre-selected chapter)
   const [quickImportChapterId, setQuickImportChapterId] = useState<string | null>(null);
+
+  // Subscription status
+  const [userStatus, setUserStatus] = useState<'free' | 'pro'>('free');
+
+  // Load user subscription status
+  useEffect(() => {
+    if (userId) {
+      getCreditsInfo(userId).then(info => {
+        setUserStatus(info.status);
+      });
+    }
+  }, [userId]);
   const [quickImportFile, setQuickImportFile] = useState<File | null>(null);
   const [quickImportLoading, setQuickImportLoading] = useState(false);
   const [quickImportTitle, setQuickImportTitle] = useState('');
@@ -345,11 +359,28 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
 
   const handleGenerate = async (type: ContentType) => {
     if (selectedIds.length === 0) return alert("Please select at least one chapter, section, or lecture.");
+
+    // Check feature access for Pro-only features
+    if (userId) {
+      const isProFeature = type === ContentType.CONCEPT_CONNECTIONS || type === ContentType.MOCK_TEST;
+      if (isProFeature && userStatus !== 'pro') {
+        showToast(`${type === ContentType.CONCEPT_CONNECTIONS ? 'Concept Maps' : 'Mock Tests'} are a Pro feature. Upgrade to access.`, 'error');
+        return;
+      }
+
+      // Check if user has credits available
+      const creditCheck = await canGenerate(userId);
+      if (!creditCheck.allowed) {
+        showToast(creditCheck.reason || 'No credits available', 'error');
+        return;
+      }
+    }
+
     setGenerating(true);
     setStatus("Reading...");
     setPreview(null);
     setShowDuplicates(false); // Reset duplicate view
-    
+
     try {
       let context = "";
       let totalChars = 0;
@@ -540,6 +571,15 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
           setPreview({ type, data });
       } else {
           showToast("Generation failed.", "error");
+      }
+
+      // Deduct credit after successful generation
+      if (userId && (Array.isArray(data) ? data.length > 0 : (typeof data === 'string' && data.length > 0))) {
+        try {
+          await deductCredit(userId);
+        } catch (e) {
+          console.warn('Failed to deduct credit:', e);
+        }
       }
 
     } catch (e: any) {
@@ -1324,14 +1364,22 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
         <div className="mb-6">
           <button
             onClick={handleOpenChat}
-            disabled={generating || selectedIds.length === 0}
-            className="w-full flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-bold hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+            disabled={generating || selectedIds.length === 0 || userStatus !== 'pro'}
+            className={`w-full flex items-center justify-center gap-3 p-4 rounded-xl font-bold transition-all shadow-md ${
+              userStatus !== 'pro'
+                ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed'
+            }`}
           >
             <i className="fas fa-comments"></i>
             <span>Ask AI Tutor</span>
-            <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wide">Pro</span>
+            {userStatus !== 'pro' && (
+              <span className="text-[10px] bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full uppercase tracking-wide font-bold">Pro</span>
+            )}
           </button>
-          <p className="text-[10px] text-slate-400 text-center mt-2">Chat with AI about your selected content</p>
+          <p className="text-[10px] text-slate-400 text-center mt-2">
+            {userStatus !== 'pro' ? 'Upgrade to Pro to unlock AI Tutor' : 'Chat with AI about your selected content'}
+          </p>
         </div>
 
         {/* Divider */}
@@ -1346,7 +1394,15 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
           <GenBtn icon="fa-bolt" label="Flashcards" onClick={() => openGenConfig(ContentType.FLASHCARDS)} loading={generating} status={status} />
           <GenBtn icon="fa-question-circle" label="Quiz" onClick={() => openGenConfig(ContentType.QUIZ)} loading={generating} status={status} />
           <GenBtn icon="fa-align-left" label="Summary" onClick={() => openGenConfig(ContentType.NOTES)} loading={generating} status={status} />
-          <GenBtn icon="fa-share-nodes" label="Concepts" onClick={() => openGenConfig(ContentType.CONCEPT_CONNECTIONS)} loading={generating} status={status} />
+          <GenBtn
+            icon="fa-share-nodes"
+            label="Concepts"
+            onClick={() => openGenConfig(ContentType.CONCEPT_CONNECTIONS)}
+            loading={generating}
+            status={status}
+            badge={userStatus !== 'pro' ? 'Pro' : undefined}
+            disabled={userStatus !== 'pro'}
+          />
 
           <GenBtn
              icon="fa-file-signature"
@@ -1354,7 +1410,8 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture }: { course: Co
              onClick={() => openGenConfig(ContentType.MOCK_TEST)}
              loading={generating}
              status={status}
-             badge="Pro"
+             badge={userStatus !== 'pro' ? 'Pro' : undefined}
+             disabled={userStatus !== 'pro'}
              fullWidth
           />
         </div>

@@ -275,7 +275,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
 
             <div className="flex-1">
               {activeTab === 'content' && (
-                <GeneratorPanel course={course} onUpdate={onUpdate} onViewLecture={handleViewLecture} />
+                <GeneratorPanel course={course} onUpdate={onUpdate} onViewLecture={handleViewLecture} userId={user?.uid} />
               )}
               {activeTab === 'study' && (
                 <LibraryPanel course={course} onUpdate={onUpdate} onUpdateFlashcard={onUpdateFlashcard} />

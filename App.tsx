@@ -4,7 +4,8 @@ import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useL
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection } from './types';
 import { saveCourses, loadCourses, savePdfBlob, getPdfBlob, deleteCourseData, seedInitialData } from './services/storage';
-import { loadCloudCourses, debouncedCloudSync, immediateCloudSync, mergeCourses, deleteCloudCourse, isCloudSyncAvailable } from './services/cloudSync';
+import { loadCloudCourses, debouncedCloudSync, immediateCloudSync, mergeCourses, deleteCloudCourse, isCloudSyncAvailable, setSyncStatusCallback, SyncStatus } from './services/cloudSync';
+import { CloudSyncIndicator } from './components/CloudSyncIndicator';
 import { generateContent, fixFlashcardContent, getRemainingGenerations, getGenerationLimit, getGenerationUsage } from './services/geminiService';
 import { loadPdfDocument, extractTextFromRange } from './services/pdfUtils';
 import { getInitialCardState } from './services/srs';
@@ -23,6 +24,12 @@ import { GeneratorPanel, FlashcardViewer } from './components/GeneratorPanel';
 import { FriendsPanel } from './components/FriendsPanel';
 import { createOrUpdateProfile, getSharedWithMe, isFriendsAvailable } from './services/friendsService';
 import { SharedCourse } from './types';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
+import { TermsOfService } from './components/TermsOfService';
+import { CreditsDisplay } from './components/CreditsDisplay';
+import { PricingModal } from './components/PricingModal';
+import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import { getCreditsInfo } from './services/subscriptionService';
 
 // --- Utils ---
 const uuid = () => Math.random().toString(36).substring(2, 9);
@@ -74,7 +81,7 @@ const ToastContainer = ({ children }: { children?: ReactNode }) => {
 };
 
 // --- Mobile Navigation ---
-const MobileNav = ({ user, onLogout, dueCount }: { user: any, onLogout: () => void, dueCount?: number }) => {
+const MobileNav = ({ user, onLogout, dueCount, syncStatus, creditsInfo, onOpenPricing }: { user: any, onLogout: () => void, dueCount?: number, syncStatus: SyncStatus, creditsInfo?: { status: 'free' | 'pro', total: number, monthlyLimit: number }, onOpenPricing?: () => void }) => {
   const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
 
@@ -92,14 +99,33 @@ const MobileNav = ({ user, onLogout, dueCount }: { user: any, onLogout: () => vo
         <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">StudyAI</h1>
       </div>
       <div className="flex items-center gap-2">
-          {/* Generation Counter Badge */}
-          <div
-            className="px-2 py-1 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center gap-1"
-            title={`${getRemainingGenerations()} AI credits remaining this month`}
-          >
-            <i className="fas fa-bolt text-primary text-[10px]"></i>
-            <span className="text-xs font-bold text-primary">{getRemainingGenerations()}</span>
-          </div>
+          {/* Cloud Sync Indicator */}
+          {syncStatus !== 'idle' && <CloudSyncIndicator status={syncStatus} />}
+          {/* Credits Badge */}
+          {creditsInfo ? (
+            <button
+              onClick={onOpenPricing}
+              className={`px-2 py-1 rounded-full flex items-center gap-1 transition-all hover:scale-105 ${
+                creditsInfo.status === 'pro'
+                  ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white'
+                  : creditsInfo.total < creditsInfo.monthlyLimit * 0.2
+                  ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                  : 'bg-primary/10 dark:bg-primary/20 text-primary'
+              }`}
+              title={creditsInfo.status === 'pro' ? 'Pro Member' : `${creditsInfo.total} credits remaining`}
+            >
+              <i className={`fas ${creditsInfo.status === 'pro' ? 'fa-crown' : 'fa-bolt'} text-[10px]`}></i>
+              <span className="text-xs font-bold">{creditsInfo.status === 'pro' ? 'Pro' : creditsInfo.total}</span>
+            </button>
+          ) : (
+            <div
+              className="px-2 py-1 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center gap-1"
+              title={`${getRemainingGenerations()} AI credits remaining this month`}
+            >
+              <i className="fas fa-bolt text-primary text-[10px]"></i>
+              <span className="text-xs font-bold text-primary">{getRemainingGenerations()}</span>
+            </div>
+          )}
           <button
             onClick={toggleDarkMode}
             className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600"
@@ -137,6 +163,15 @@ function App() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [showMobilePricingModal, setShowMobilePricingModal] = useState(false);
+  const [mobileCreditsInfo, setMobileCreditsInfo] = useState<{
+    status: 'free' | 'pro';
+    total: number;
+    monthlyLimit: number;
+    plan?: string;
+    expiresAt?: string;
+  } | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     // Persist sidebar state
     const saved = localStorage.getItem('studyai_sidebar_collapsed');
@@ -215,6 +250,27 @@ function App() {
     }
   }, [courses, loading, user]);
 
+  // Set up cloud sync status callback
+  useEffect(() => {
+    setSyncStatusCallback(setSyncStatus);
+    return () => setSyncStatusCallback(null);
+  }, []);
+
+  // Load credits info for mobile nav
+  useEffect(() => {
+    if (user?.uid) {
+      getCreditsInfo(user.uid).then(info => {
+        setMobileCreditsInfo({
+          status: info.status,
+          total: info.total,
+          monthlyLimit: info.monthlyLimit,
+          plan: info.plan,
+          expiresAt: info.expiresAt,
+        });
+      });
+    }
+  }, [user?.uid]);
+
   const addCourse = (course: Course) => setCourses([...courses, course]);
   
   const updateCourse = (updated: Course) => setCourses(courses.map(c => c.id === updated.id ? updated : c));
@@ -271,6 +327,28 @@ function App() {
   }, [courses]);
 
   if (!user) {
+    // Allow access to privacy and terms pages without login
+    const hash = window.location.hash;
+    if (hash.includes('/privacy')) {
+      return (
+        <Router>
+          <Routes>
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="*" element={<Login onLoginSuccess={setUser} />} />
+          </Routes>
+        </Router>
+      );
+    }
+    if (hash.includes('/terms')) {
+      return (
+        <Router>
+          <Routes>
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="*" element={<Login onLoginSuccess={setUser} />} />
+          </Routes>
+        </Router>
+      );
+    }
     return (
        <Login onLoginSuccess={setUser} />
     );
@@ -282,23 +360,39 @@ function App() {
     <ToastContainer>
       <Router>
         <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-900 font-sans md:h-screen md:overflow-hidden relative transition-colors">
-          <Sidebar courses={courses} onAddCourse={addCourse} onDeleteCourse={deleteCourse} user={user} onLogout={handleLogout} dueCount={dueCardsCount} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} />
+          <Sidebar courses={courses} onAddCourse={addCourse} onDeleteCourse={deleteCourse} user={user} onLogout={handleLogout} dueCount={dueCardsCount} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} syncStatus={syncStatus} />
 
           <main className="flex-1 w-full relative flex flex-col md:h-full md:overflow-hidden">
-             <MobileNav user={user} onLogout={handleLogout} dueCount={dueCardsCount} />
+             <MobileNav user={user} onLogout={handleLogout} dueCount={dueCardsCount} syncStatus={syncStatus} creditsInfo={mobileCreditsInfo || undefined} onOpenPricing={() => setShowMobilePricingModal(true)} />
              <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900">
                 <Routes>
                   <Route path="/" element={<Dashboard courses={courses} onDeleteCourse={deleteCourse} onAddCourse={addCourse} user={user} />} />
-                  <Route path="/review" element={<ReviewController courses={courses} onUpdateCard={handleFlashcardUpdate} />} />
+                  <Route path="/review" element={<ReviewController courses={courses} onUpdateCard={handleFlashcardUpdate} user={user} />} />
                   <Route path="/settings" element={<SettingsPanel user={user} onLogout={handleLogout} />} />
                   <Route path="/friends" element={<FriendsPanel user={user} />} />
+                  <Route path="/analytics" element={<AnalyticsDashboard courses={courses} user={user} />} />
                   <Route path="/course/:courseId" element={<CourseView courses={courses} onUpdate={updateCourse} onUpdateFlashcard={handleFlashcardUpdate} user={user} />} />
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
+                  <Route path="/terms" element={<TermsOfService />} />
                 </Routes>
              </div>
           </main>
 
           {/* Pomodoro at Root Level for correct Z-Index and Boundary calculation */}
           <Pomodoro />
+
+          {/* Mobile Pricing Modal */}
+          <PricingModal
+            isOpen={showMobilePricingModal}
+            onClose={() => setShowMobilePricingModal(false)}
+            userId={user?.uid || ''}
+            userEmail={user?.email || ''}
+            currentStatus={mobileCreditsInfo?.status || 'free'}
+            currentPlan={mobileCreditsInfo?.plan}
+            expiresAt={mobileCreditsInfo?.expiresAt}
+            creditsRemaining={mobileCreditsInfo?.total || 0}
+            onToast={(msg, type) => console.log(msg)}
+          />
         </div>
       </Router>
     </ToastContainer>
@@ -306,13 +400,25 @@ function App() {
 }
 
 // --- Review Controller ---
-const ReviewController = ({ courses, onUpdateCard }: { courses: Course[], onUpdateCard: (cid: string, mid: string, card: Flashcard) => void }) => {
+const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], onUpdateCard: (cid: string, mid: string, card: Flashcard) => void, user: any }) => {
     const navigate = useNavigate();
-    
+    const [userStatus, setUserStatus] = useState<'free' | 'pro' | 'loading'>('loading');
+
+    // Check subscription status
+    useEffect(() => {
+      if (user?.uid) {
+        getCreditsInfo(user.uid).then(info => {
+          setUserStatus(info.status);
+        }).catch(() => setUserStatus('free'));
+      } else {
+        setUserStatus('free');
+      }
+    }, [user?.uid]);
+
     // Gather all due cards (excluding broken ones)
     const now = new Date();
     const queue: ReviewItem[] = [];
-    
+
     for (const c of courses) {
         c.materials.forEach(m => {
             if (m.type === ContentType.FLASHCARDS) {
@@ -333,21 +439,193 @@ const ReviewController = ({ courses, onUpdateCard }: { courses: Course[], onUpda
         });
     }
 
+    // Loading state
+    if (userStatus === 'loading') {
+      return (
+        <div className="h-full flex items-center justify-center bg-slate-100 dark:bg-slate-900">
+          <i className="fas fa-circle-notch fa-spin text-3xl text-primary"></i>
+        </div>
+      );
+    }
+
+    // Pro gate - show upsell for free users
+    if (userStatus !== 'pro') {
+      return (
+        <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-slate-100 dark:bg-slate-900">
+          <div className="max-w-md">
+            <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center text-4xl mb-6 mx-auto shadow-lg">
+              <i className="fas fa-crown text-white"></i>
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-3">Smart Review is a Pro Feature</h2>
+            <p className="text-slate-500 dark:text-slate-400 mb-6">
+              Unlock spaced repetition review with our scientifically-proven algorithm that helps you remember more in less time.
+            </p>
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 mb-6 text-left border border-slate-200 dark:border-slate-700">
+              <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-3 text-sm">What you get with Pro:</h3>
+              <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Smart SRS algorithm (like Anki)</li>
+                <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Cards shown at optimal intervals</li>
+                <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Track mastery over time</li>
+                <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> 1,000 generations/month</li>
+                <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> AI Tutor, Concept Maps & more</li>
+              </ul>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => navigate('/settings')}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-xl font-bold hover:from-amber-500 hover:to-orange-600 transition-all shadow-md"
+              >
+                <i className="fas fa-crown mr-2"></i> Upgrade to Pro
+              </button>
+              <button
+                onClick={() => navigate('/')}
+                className="flex-1 px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mt-4">
+              <i className="fas fa-lightbulb mr-1"></i> Tip: You can still review flashcards manually in each course
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     return (
-        <ReviewSession 
-            queue={queue} 
-            onUpdateCard={onUpdateCard} 
-            onExit={() => navigate('/')} 
+        <ReviewSession
+            queue={queue}
+            onUpdateCard={onUpdateCard}
+            onExit={() => navigate('/')}
         />
     );
 };
 
+// --- Semester Course List (collapsible by semester) ---
+const SemesterCourseList = ({ courses, onDeleteCourse }: { courses: Course[], onDeleteCourse: (course: Course) => void }) => {
+  const [expandedSemesters, setExpandedSemesters] = useState<Set<string>>(() => {
+    // Default: expand all semesters
+    const semesters = new Set(courses.map(c => c.semester || 'Uncategorized'));
+    return semesters;
+  });
+
+  // Group courses by semester
+  const coursesBySemester = useMemo(() => {
+    const grouped: Record<string, Course[]> = {};
+    courses.forEach(course => {
+      const sem = course.semester || 'Uncategorized';
+      if (!grouped[sem]) grouped[sem] = [];
+      grouped[sem].push(course);
+    });
+    // Sort semesters (most recent first)
+    const sortedKeys = Object.keys(grouped).sort((a, b) => {
+      // Extract year and season for sorting
+      const getScore = (s: string) => {
+        const match = s.match(/(Fall|Spring|Summer|Winter)?\s*(\d{4})?/i);
+        if (!match) return 0;
+        const year = match[2] ? parseInt(match[2]) : 0;
+        const seasonOrder: Record<string, number> = { 'fall': 3, 'summer': 2, 'spring': 1, 'winter': 0 };
+        const season = match[1]?.toLowerCase() || '';
+        return year * 10 + (seasonOrder[season] || 0);
+      };
+      return getScore(b) - getScore(a);
+    });
+    return { grouped, sortedKeys };
+  }, [courses]);
+
+  const toggleSemester = (semester: string) => {
+    setExpandedSemesters(prev => {
+      const next = new Set(prev);
+      if (next.has(semester)) {
+        next.delete(semester);
+      } else {
+        next.add(semester);
+      }
+      return next;
+    });
+  };
+
+  if (courses.length === 0) {
+    return (
+      <div className="mt-6 px-3 text-sm text-slate-400 dark:text-slate-500 text-center py-4">
+        No courses yet. Add one below!
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6">
+      <div className="mb-2 px-3 text-xs font-bold text-slate-400 uppercase tracking-wider">My Semesters</div>
+      {coursesBySemester.sortedKeys.map(semester => (
+        <div key={semester} className="mb-1">
+          {/* Semester Header */}
+          <button
+            onClick={() => toggleSemester(semester)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <i className={`fas fa-chevron-right text-[10px] text-slate-400 transition-transform ${expandedSemesters.has(semester) ? 'rotate-90' : ''}`}></i>
+              <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{semester}</span>
+            </div>
+            <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+              {coursesBySemester.grouped[semester].length}
+            </span>
+          </button>
+
+          {/* Courses in semester */}
+          {expandedSemesters.has(semester) && (
+            <div className="ml-4 border-l-2 border-slate-100 dark:border-slate-700">
+              {coursesBySemester.grouped[semester].map(course => (
+                <div key={course.id} className="group flex items-center justify-between pl-3 pr-2 py-1.5 rounded-r-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                  <Link to={`/course/${course.id}`} className="flex-1 flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-600 text-slate-500 dark:text-slate-400 px-1 py-0.5 rounded">{course.code}</span>
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate">{course.title}</span>
+                  </Link>
+                  <button onClick={() => onDeleteCourse(course)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
+                    <i className="fas fa-trash-alt text-[10px]"></i>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // --- Sidebar ---
-const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCount, collapsed, onToggleCollapse }: any) => {
+const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCount, collapsed, onToggleCollapse, syncStatus }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCourse, setNewCourse] = useState({ title: '', code: '', subtitle: '', description: '', semester: 'Fall 2024' });
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [creditsInfo, setCreditsInfo] = useState<{
+    status: 'free' | 'pro';
+    monthlyRemaining: number;
+    monthlyLimit: number;
+    total: number;
+    plan?: string;
+    expiresAt?: string;
+  } | null>(null);
+  const { showToast } = useContext(ToastContext);
+
+  // Load credits info
+  useEffect(() => {
+    if (user?.uid) {
+      getCreditsInfo(user.uid).then(info => {
+        setCreditsInfo({
+          status: info.status,
+          monthlyRemaining: info.monthlyRemaining,
+          monthlyLimit: info.monthlyLimit,
+          total: info.total,
+          plan: info.plan,
+          expiresAt: info.expiresAt,
+        });
+      });
+    }
+  }, [user?.uid]);
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
@@ -378,13 +656,16 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
             {!collapsed && <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">StudyAI</h1>}
           </Link>
           {!collapsed && (
-            <button
-              onClick={onToggleCollapse}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-              title="Collapse sidebar"
-            >
-              <i className="fas fa-chevron-left text-sm font-bold"></i>
-            </button>
+            <div className="flex items-center gap-2">
+              {syncStatus !== 'idle' && <CloudSyncIndicator status={syncStatus} />}
+              <button
+                onClick={onToggleCollapse}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                title="Collapse sidebar"
+              >
+                <i className="fas fa-chevron-left text-sm font-bold"></i>
+              </button>
+            </div>
           )}
         </div>
 
@@ -401,13 +682,26 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
 
         {/* User Profile Snippet */}
         {!collapsed && (
-          <div className="px-4 py-3 flex items-center gap-3 border-b border-slate-100 dark:border-slate-700">
-             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
-                {user.photoURL ? <img src={user.photoURL} alt="user" className="w-full h-full object-cover" /> : <i className="fas fa-user text-slate-400"></i>}
-             </div>
-             <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{user.displayName || "Student"}</div>
-             </div>
+          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3">
+               <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {user.photoURL ? <img src={user.photoURL} alt="user" className="w-full h-full object-cover" /> : <i className="fas fa-user text-slate-400"></i>}
+               </div>
+               <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{user.displayName || "Student"}</div>
+               </div>
+            </div>
+            {/* Credits Display */}
+            {creditsInfo && (
+              <div className="mt-3">
+                <CreditsDisplay
+                  status={creditsInfo.status}
+                  creditsRemaining={creditsInfo.total}
+                  monthlyLimit={creditsInfo.monthlyLimit}
+                  onClick={() => setShowPricingModal(true)}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -419,7 +713,10 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
           <Link to="/review" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors relative`} title="Review">
             <i className="fas fa-layer-group w-5 text-center"></i>
             {!collapsed && <span>Review</span>}
-            {dueCount > 0 && (
+            {!collapsed && creditsInfo?.status !== 'pro' && (
+              <span className="text-[9px] bg-gradient-to-r from-amber-400 to-orange-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wide font-bold">Pro</span>
+            )}
+            {dueCount > 0 && creditsInfo?.status === 'pro' && (
               <span className={`${collapsed ? 'absolute -top-1 -right-1' : 'absolute right-3 top-1/2 -translate-y-1/2'} min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1`}>
                 {dueCount > 9 ? '9+' : dueCount}
               </span>
@@ -433,6 +730,13 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
             <i className="fas fa-user-friends w-5 text-center"></i>
             {!collapsed && <span>Friends</span>}
           </Link>
+          <Link to="/analytics" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Analytics">
+            <i className="fas fa-chart-line w-5 text-center"></i>
+            {!collapsed && <span>Analytics</span>}
+            {!collapsed && creditsInfo?.status !== 'pro' && (
+              <span className="text-[9px] bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wide font-bold">Pro</span>
+            )}
+          </Link>
 
           {/* Dark Mode Toggle */}
           <button
@@ -444,57 +748,8 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
             {!collapsed && <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
           </button>
 
-          {/* Generation Counter */}
           {!collapsed && (
-            <div className="mt-4 px-3 py-3 bg-gradient-to-br from-primary/10 to-blue-500/10 dark:from-primary/20 dark:to-blue-500/20 rounded-lg border border-primary/20 dark:border-primary/30">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">AI Credits</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">This month</span>
-              </div>
-              <div className="mt-2 flex items-end gap-2">
-                <span className="text-2xl font-bold text-primary">{getRemainingGenerations()}</span>
-                <span className="text-sm text-slate-500 dark:text-slate-400 mb-0.5">/ {getGenerationLimit()}</span>
-              </div>
-              <div className="mt-2 w-full h-1.5 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-primary to-blue-500 rounded-full transition-all duration-500"
-                  style={{ width: `${(getRemainingGenerations() / getGenerationLimit()) * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
-          {collapsed && (
-            <div className="mt-2 mx-auto w-10 h-10 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center" title={`${getRemainingGenerations()} AI credits remaining`}>
-              <span className="text-xs font-bold text-primary">{getRemainingGenerations()}</span>
-            </div>
-          )}
-
-          {!collapsed && (
-            <>
-              <div className="mt-6 mb-2 px-3 text-xs font-bold text-slate-400 uppercase tracking-wider">My Courses</div>
-              {courses.map((course: Course) => (
-                <div key={course.id} className="group flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                  <Link to={`/course/${course.id}`} className="flex-1 flex items-center gap-3 min-w-0">
-                    <span className="font-mono text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600">{course.code}</span>
-                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{course.title}</span>
-                  </Link>
-                  <button onClick={() => setCourseToDelete(course)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
-                    <i className="fas fa-trash-alt text-xs"></i>
-                  </button>
-                </div>
-              ))}
-            </>
-          )}
-
-          {/* Collapsed: show add button as icon */}
-          {collapsed ? (
-            <button onClick={() => setIsModalOpen(true)} className="w-full mt-4 flex items-center justify-center p-3 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-primary transition-colors" title="Add Course">
-              <i className="fas fa-plus"></i>
-            </button>
-          ) : (
-            <button onClick={() => setIsModalOpen(true)} className="w-full mt-4 flex items-center justify-center px-4 py-3 border border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-all text-sm font-bold bg-slate-50 dark:bg-slate-700/50 hover:bg-white dark:hover:bg-slate-700">
-              <i className="fas fa-plus mr-2"></i> Add Course
-            </button>
+            <SemesterCourseList courses={courses} onDeleteCourse={setCourseToDelete} />
           )}
         </nav>
       </aside>
@@ -545,6 +800,19 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
         course={courseToDelete}
         onClose={() => setCourseToDelete(null)}
         onConfirm={() => { if(courseToDelete) onDeleteCourse(courseToDelete.id); setCourseToDelete(null); }}
+      />
+
+      {/* Pricing Modal */}
+      <PricingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        userId={user?.uid || ''}
+        userEmail={user?.email || ''}
+        currentStatus={creditsInfo?.status || 'free'}
+        currentPlan={creditsInfo?.plan}
+        expiresAt={creditsInfo?.expiresAt}
+        creditsRemaining={creditsInfo?.total || 0}
+        onToast={(msg, type) => showToast(msg, type)}
       />
     </>
   );
