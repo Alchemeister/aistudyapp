@@ -96,7 +96,7 @@ const MobileNav = ({ user, onLogout, dueCount, syncStatus, creditsInfo, onOpenPr
     <div className="md:hidden bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
       <div className="flex items-center gap-2" onClick={() => navigate('/')}>
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white"><i className="fas fa-graduation-cap"></i></div>
-        <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">StudyAI</h1>
+        <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">StudyStack</h1>
       </div>
       <div className="flex items-center gap-2">
           {/* Cloud Sync Indicator */}
@@ -174,14 +174,14 @@ function App() {
   } | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     // Persist sidebar state
-    const saved = localStorage.getItem('studyai_sidebar_collapsed');
+    const saved = localStorage.getItem('studystack_sidebar_collapsed');
     return saved === 'true';
   });
 
   const toggleSidebar = () => {
     setSidebarCollapsed(prev => {
       const newVal = !prev;
-      localStorage.setItem('studyai_sidebar_collapsed', String(newVal));
+      localStorage.setItem('studystack_sidebar_collapsed', String(newVal));
       return newVal;
     });
   };
@@ -354,7 +354,7 @@ function App() {
     );
   }
 
-  if (loading) return <div className="h-screen flex flex-col items-center justify-center text-primary bg-slate-50 dark:bg-slate-900"><i className="fas fa-circle-notch fa-spin text-4xl mb-4"></i><span className="font-bold dark:text-slate-100">Loading StudyAI...</span></div>;
+  if (loading) return <div className="h-screen flex flex-col items-center justify-center text-primary bg-slate-50 dark:bg-slate-900"><i className="fas fa-circle-notch fa-spin text-4xl mb-4"></i><span className="font-bold dark:text-slate-100">Loading StudyStack...</span></div>;
 
   return (
     <ToastContainer>
@@ -653,7 +653,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
         <div className={`p-4 border-b border-slate-100 dark:border-slate-700 flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
           <Link to="/" className={`flex items-center gap-3 hover:opacity-80 transition-opacity`}>
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white flex-shrink-0"><i className="fas fa-graduation-cap"></i></div>
-            {!collapsed && <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">StudyAI</h1>}
+            {!collapsed && <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">StudyStack</h1>}
           </Link>
           {!collapsed && (
             <div className="flex items-center gap-2">

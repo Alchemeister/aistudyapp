@@ -191,6 +191,12 @@ export const hasFeatureAccess = async (userId: string, feature: keyof typeof FEA
   return tier[feature];
 };
 
+// Check if user has cloud PDF storage access (Pro feature)
+export const hasCloudPdfAccess = async (userId: string): Promise<boolean> => {
+  const sub = await getUserSubscription(userId);
+  return sub.status === 'pro';
+};
+
 // Get remaining credits info for display
 export const getCreditsInfo = async (userId: string): Promise<{
   status: 'free' | 'pro';

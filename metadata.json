@@ -1,5 +1,5 @@
 {
-  "name": "StudyAI",
+  "name": "StudyStack",
   "description": "An AI-powered personalized study assistant for students featuring PDF analysis, lecture recording, and automated quiz generation.",
   "requestFramePermissions": [
     "microphone"

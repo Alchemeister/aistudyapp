@@ -4,7 +4,7 @@ import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
+  apiVersion: '2025-12-15.clover',
 });
 
 // Initialize Firebase Admin (for server-side Firestore access)
@@ -193,7 +193,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   }
 
   for (const doc of snapshot.docs) {
-    const newPeriodEnd = new Date(subscription.current_period_end * 1000);
+    const newPeriodEnd = new Date((subscription as any).current_period_end * 1000);
     await doc.ref.update({
       currentPeriodEnd: newPeriodEnd.toISOString(),
       status: subscription.status === 'active' ? 'pro' : 'free',

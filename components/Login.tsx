@@ -96,7 +96,7 @@ export const Login: FC<Props> = ({ onLoginSuccess }) => {
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-3xl mx-auto mb-6 shadow-lg transform rotate-3">
             <i className="fas fa-graduation-cap"></i>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">Welcome to StudyAI</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">Welcome to StudyStack</h1>
           <p className="text-slate-500 mb-8">Your AI-powered personalized study assistant.</p>
 
           <div className="space-y-4">

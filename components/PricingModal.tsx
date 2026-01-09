@@ -12,7 +12,7 @@ interface Props {
   currentPlan?: string;
   expiresAt?: string;
   creditsRemaining: number;
-  onToast: (msg: string, type: 'success' | 'error' | 'info') => void;
+  onToast: (msg: string, type: 'success' | 'error') => void;
 }
 
 export const PricingModal: React.FC<Props> = ({

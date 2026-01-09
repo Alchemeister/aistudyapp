@@ -18,7 +18,7 @@ export const PrivacyPolicy: React.FC = () => {
             <section className="mb-8">
               <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4">1. Information We Collect</h2>
               <p className="text-slate-600 dark:text-slate-300 mb-4">
-                When you use StudyAI, we collect the following types of information:
+                When you use StudyStack, we collect the following types of information:
               </p>
               <ul className="list-disc pl-6 text-slate-600 dark:text-slate-300 space-y-2">
                 <li><strong>Account Information:</strong> Email address, display name, and profile picture when you create an account using Google OAuth or email/password.</li>
@@ -90,7 +90,7 @@ export const PrivacyPolicy: React.FC = () => {
             <section className="mb-8">
               <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4">7. Children's Privacy</h2>
               <p className="text-slate-600 dark:text-slate-300">
-                StudyAI is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13.
+                StudyStack is not intended for children under 13 years of age. We do not knowingly collect personal information from children under 13.
               </p>
             </section>
 
@@ -104,7 +104,7 @@ export const PrivacyPolicy: React.FC = () => {
             <section>
               <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-4">9. Contact Us</h2>
               <p className="text-slate-600 dark:text-slate-300">
-                If you have any questions about this Privacy Policy, please contact us at support@studyai.app
+                If you have any questions about this Privacy Policy, please contact us at support@studystack.ai
               </p>
             </section>
           </div>

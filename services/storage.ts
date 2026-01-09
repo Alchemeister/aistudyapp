@@ -2,7 +2,7 @@
 import { get, set, del, clear } from 'idb-keyval';
 import { Course, ContentType, Difficulty } from '../types';
 
-const COURSES_KEY = 'studyai_courses_v3';
+const COURSES_KEY = 'studystack_courses_v3';
 const BLOB_PREFIX = 'pdf_blob_';
 const MEDIA_PREFIX = 'media_blob_';
 

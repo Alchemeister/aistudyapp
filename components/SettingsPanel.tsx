@@ -66,10 +66,10 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
     setDarkMode(newMode);
     if (newMode) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('studyai_theme', 'dark');
+      localStorage.setItem('studystack_theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('studyai_theme', 'light');
+      localStorage.setItem('studystack_theme', 'light');
     }
   };
 
@@ -129,7 +129,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `studyai-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `studystack-backup-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -371,7 +371,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
 
       {/* App Info */}
       <div className="text-center text-xs text-slate-400 pt-8">
-          <p className="mb-2">StudyAI v2.2.0 (Beta)</p>
+          <p className="mb-2">StudyStack v2.2.0 (Beta)</p>
           <button onClick={onLogout} className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 underline">Log Out</button>
       </div>
 
