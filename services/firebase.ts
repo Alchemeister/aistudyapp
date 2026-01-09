@@ -24,6 +24,14 @@ import {
   deleteDoc,
   writeBatch
 } from 'firebase/firestore';
+import {
+  getStorage,
+  FirebaseStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
+} from 'firebase/storage';
 
 // Helper to sanitize env vars
 const clean = (val: string | undefined) => val ? val.replace(/["']/g, "").trim() : undefined;
@@ -82,6 +90,7 @@ if (missingCount > 0) {
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
+let storage: FirebaseStorage | undefined;
 let googleProvider: GoogleAuthProvider | undefined;
 let isConfigured = false;
 
@@ -91,6 +100,7 @@ if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    storage = getStorage(app);
     googleProvider = new GoogleAuthProvider();
     isConfigured = true;
 
@@ -111,7 +121,7 @@ if (firebaseConfig.apiKey && firebaseConfig.authDomain) {
   console.log("Firebase running in offline/demo mode (Missing Config)");
 }
 
-export { auth, db, isConfigured };
+export { auth, db, storage, isConfigured };
 
 export const signInWithGoogle = async () => {
   if (!isConfigured || !auth || !googleProvider) {
@@ -148,3 +158,6 @@ export const signOut = async () => {
 
 // Re-export Firestore utilities for use in other services
 export { doc, setDoc, getDoc, collection, collectionGroup, query, where, getDocs, deleteDoc, writeBatch };
+
+// Re-export Storage utilities
+export { ref, uploadBytes, getDownloadURL, deleteObject };

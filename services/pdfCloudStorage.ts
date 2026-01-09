@@ -1,131 +1,147 @@
 /**
- * PDF CLOUD STORAGE SERVICE - PLACEHOLDER
- *
- * This file will handle cloud storage for PDFs.
- * Currently PDFs are stored locally in IndexedDB only.
- *
- * RECOMMENDED: Cloudflare R2 (cheaper than Firebase Storage)
- *
- * SETUP REQUIRED:
- * 1. Create Cloudflare account
- * 2. Enable R2 in dashboard
- * 3. Create bucket for PDFs
- * 4. Set up worker for signed URLs (or use Firebase Storage)
- *
- * ALTERNATIVE: Firebase Storage
- * 1. Enable Storage in Firebase Console
- * 2. Set up security rules
- * 3. Install: Already included with firebase package
- *
- * COMPRESSION:
- * Before uploading, compress PDFs to save storage:
- * - Use pdf-lib to remove metadata
- * - Target: < 10MB per PDF
- * - Reject files > 50MB
+ * PDF Cloud Storage Service
+ * Handles Firebase Storage for Pro user PDFs
  */
 
+import { storage, isConfigured, ref, uploadBytes, getDownloadURL, deleteObject } from './firebase';
 import { hasCloudPdfAccess } from './subscriptionService';
 
 // Storage limits
 export const STORAGE_LIMITS = {
   FREE: {
     enabled: false,
-    maxPdfSize: 0, // No cloud storage
+    maxPdfSize: 0,
     totalStorage: 0
   },
   PRO: {
     enabled: true,
     maxPdfSize: 50 * 1024 * 1024, // 50MB per PDF
     totalStorage: 1 * 1024 * 1024 * 1024 // 1GB total
-  },
-  STUDENT: {
-    enabled: true,
-    maxPdfSize: 50 * 1024 * 1024,
-    totalStorage: 1 * 1024 * 1024 * 1024
   }
 };
 
 /**
- * TODO: Upload PDF to cloud storage
- *
- * Flow:
- * 1. Check user has Pro subscription
- * 2. Compress PDF if needed
- * 3. Generate unique storage path: users/{userId}/pdfs/{courseId}/{filename}
- * 4. Upload to R2/Firebase Storage
- * 5. Store download URL in Firestore course document
- *
- * Example with Firebase Storage:
- *
- * import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
- *
- * export const uploadPdfToCloud = async (
- *   userId: string,
- *   courseId: string,
- *   file: File
- * ): Promise<string | null> => {
- *   if (!await hasCloudPdfAccess(userId)) {
- *     console.log('User does not have cloud PDF access');
- *     return null;
- *   }
- *
- *   const storage = getStorage();
- *   const path = `users/${userId}/pdfs/${courseId}/${file.name}`;
- *   const storageRef = ref(storage, path);
- *
- *   await uploadBytes(storageRef, file);
- *   const url = await getDownloadURL(storageRef);
- *
- *   return url;
- * };
+ * Upload a PDF to Firebase Storage
+ * Returns the storage path (not URL) for persistence
  */
+export const uploadPdfToCloud = async (
+  userId: string,
+  courseId: string,
+  file: File | Blob,
+  fileName?: string
+): Promise<string | null> => {
+  // Check if storage is configured
+  if (!isConfigured || !storage) {
+    console.log('Firebase Storage not configured');
+    return null;
+  }
 
-/**
- * TODO: Download PDF from cloud storage
- *
- * Example:
- * export const downloadPdfFromCloud = async (url: string): Promise<Blob> => {
- *   const response = await fetch(url);
- *   return response.blob();
- * };
- */
+  // Check if user has cloud access
+  try {
+    const hasAccess = await hasCloudPdfAccess(userId);
+    if (!hasAccess) {
+      console.log('User does not have cloud PDF access (Free tier)');
+      return null;
+    }
+  } catch (e) {
+    console.error('Error checking cloud access:', e);
+    return null;
+  }
 
-/**
- * TODO: Delete PDF from cloud storage
- *
- * Example:
- * export const deletePdfFromCloud = async (path: string): Promise<void> => {
- *   const storage = getStorage();
- *   const storageRef = ref(storage, path);
- *   await deleteObject(storageRef);
- * };
- */
+  // Check file size
+  if (file.size > STORAGE_LIMITS.PRO.maxPdfSize) {
+    console.error(`PDF too large: ${file.size} bytes (max: ${STORAGE_LIMITS.PRO.maxPdfSize})`);
+    throw new Error('PDF file is too large. Maximum size is 50MB.');
+  }
 
-/**
- * TODO: Sync local PDFs to cloud on subscription upgrade
- *
- * When user upgrades to Pro:
- * 1. Find all courses with local PDFs (pdfBlobId set)
- * 2. Read blob from IndexedDB
- * 3. Upload to cloud
- * 4. Update course with cloudPdfUrl
- */
+  // Generate storage path
+  const name = fileName || (file instanceof File ? file.name : `${courseId}.pdf`);
+  const safeName = name.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const path = `users/${userId}/pdfs/${courseId}/${safeName}`;
 
-/**
- * TODO: Download cloud PDFs on new device
- *
- * When user logs in on new device:
- * 1. Load courses from Firestore
- * 2. Check for cloudPdfUrl on each course
- * 3. Download and store in local IndexedDB
- * 4. Update pdfUrl for viewing
- */
-
-// Placeholder exports
-export const uploadPdfToCloud = async (userId: string, courseId: string, file: File): Promise<string | null> => {
-  console.log('PDF cloud storage not implemented yet');
-  console.log(`Would upload: ${file.name} (${file.size} bytes) for course ${courseId}`);
-  return null;
+  try {
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    console.log(`Uploaded PDF to cloud: ${path}`);
+    return path;
+  } catch (error) {
+    console.error('Failed to upload PDF to cloud:', error);
+    throw error;
+  }
 };
 
-export const PDF_CLOUD_STORAGE_VERSION = '0.1.0-placeholder';
+/**
+ * Get a download URL for a cloud PDF
+ * URLs expire, so this should be called when needed, not stored
+ */
+export const getCloudPdfUrl = async (path: string): Promise<string | null> => {
+  if (!isConfigured || !storage) {
+    console.log('Firebase Storage not configured');
+    return null;
+  }
+
+  try {
+    const storageRef = ref(storage, path);
+    const url = await getDownloadURL(storageRef);
+    return url;
+  } catch (error: any) {
+    if (error.code === 'storage/object-not-found') {
+      console.log('Cloud PDF not found:', path);
+      return null;
+    }
+    console.error('Failed to get cloud PDF URL:', error);
+    return null;
+  }
+};
+
+/**
+ * Download a PDF from cloud storage as a Blob
+ */
+export const downloadCloudPdf = async (path: string): Promise<Blob | null> => {
+  const url = await getCloudPdfUrl(path);
+  if (!url) return null;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+    return await response.blob();
+  } catch (error) {
+    console.error('Failed to download cloud PDF:', error);
+    return null;
+  }
+};
+
+/**
+ * Delete a PDF from cloud storage
+ */
+export const deleteCloudPdf = async (path: string): Promise<void> => {
+  if (!isConfigured || !storage) {
+    console.log('Firebase Storage not configured');
+    return;
+  }
+
+  try {
+    const storageRef = ref(storage, path);
+    await deleteObject(storageRef);
+    console.log(`Deleted cloud PDF: ${path}`);
+  } catch (error: any) {
+    if (error.code === 'storage/object-not-found') {
+      // Already deleted, no problem
+      return;
+    }
+    console.error('Failed to delete cloud PDF:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if a cloud PDF exists
+ */
+export const cloudPdfExists = async (path: string): Promise<boolean> => {
+  const url = await getCloudPdfUrl(path);
+  return url !== null;
+};
+
+export const PDF_CLOUD_STORAGE_VERSION = '1.0.0';

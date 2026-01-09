@@ -10,7 +10,7 @@ import { ImportNotesModal } from './ImportNotesModal';
 import { LectureRecorder } from './LectureRecorder';
 import { LecturePlayer } from './LecturePlayer';
 import { ShareCourseModal } from './ShareCourseModal';
-import { savePdfBlob, saveMediaBlob } from '../services/storage';
+import { savePdfWithCloud, saveMediaBlob } from '../services/storage';
 import { loadPdfDocument, generatePdfThumbnail } from '../services/pdfUtils';
 import { ToastContext } from '../App';
 import { useNavigate } from 'react-router-dom';
@@ -64,9 +64,23 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
   const handleSaveWizard = async (updated: Course, file?: File | Blob) => {
     let newCourse = { ...updated };
     if (file) {
-      const blobId = await savePdfBlob(newCourse.id, file);
+      // Get user ID for cloud storage (Pro users only)
+      const userId = user?.uid || user?.id || '';
+      const fileName = file instanceof File ? file.name : newCourse.pdfName;
+
+      // Save PDF locally and to cloud (for Pro users)
+      const { blobId, cloudPdfPath } = await savePdfWithCloud(
+        userId,
+        newCourse.id,
+        file,
+        fileName
+      );
+
       newCourse.pdfBlobId = blobId;
       newCourse.pdfUrl = URL.createObjectURL(file);
+      if (cloudPdfPath) {
+        newCourse.cloudPdfPath = cloudPdfPath;
+      }
 
       // Generate PDF thumbnail
       try {

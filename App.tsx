@@ -3,7 +3,7 @@ import React, { useState, useEffect, useContext, useRef, useMemo, createContext,
 import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection } from './types';
-import { saveCourses, loadCourses, savePdfBlob, getPdfBlob, deleteCourseData, seedInitialData } from './services/storage';
+import { saveCourses, loadCourses, getPdfBlob, deleteCourseData, seedInitialData } from './services/storage';
 import { loadCloudCourses, debouncedCloudSync, immediateCloudSync, mergeCourses, deleteCloudCourse, isCloudSyncAvailable, setSyncStatusCallback, SyncStatus } from './services/cloudSync';
 import { CloudSyncIndicator } from './components/CloudSyncIndicator';
 import { generateContent, fixFlashcardContent, getRemainingGenerations, getGenerationLimit, getGenerationUsage } from './services/geminiService';

@@ -122,6 +122,7 @@ export interface Course {
   pdfBlobId?: string;
   pdfUrl?: string;
   pdfThumbnail?: string; // Base64 thumbnail of first page
+  cloudPdfPath?: string; // Firebase Storage path for Pro users
   chapters: Chapter[];
   lectures: Lecture[];
   materials: StudyMaterial[];
