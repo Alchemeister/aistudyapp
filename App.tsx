@@ -16,7 +16,7 @@ import { BookSearchModal } from './components/BookSearchModal';
 import { ChapterWizard } from './components/ChapterWizard';
 import { PdfViewer } from './components/PdfViewer';
 import { ReviewSession, ReviewItem } from './components/ReviewSession';
-import { Login } from './components/Login';
+import { LandingPage } from './components/LandingPage';
 import { CourseView } from './components/CourseView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { auth, signOut as firebaseSignOut } from './services/firebase';
@@ -334,7 +334,7 @@ function App() {
         <Router>
           <Routes>
             <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="*" element={<Login onLoginSuccess={setUser} />} />
+            <Route path="*" element={<LandingPage onLoginSuccess={setUser} />} />
           </Routes>
         </Router>
       );
@@ -344,13 +344,13 @@ function App() {
         <Router>
           <Routes>
             <Route path="/terms" element={<TermsOfService />} />
-            <Route path="*" element={<Login onLoginSuccess={setUser} />} />
+            <Route path="*" element={<LandingPage onLoginSuccess={setUser} />} />
           </Routes>
         </Router>
       );
     }
     return (
-       <Login onLoginSuccess={setUser} />
+       <LandingPage onLoginSuccess={setUser} />
     );
   }
 
