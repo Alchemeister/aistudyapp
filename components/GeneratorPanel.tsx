@@ -641,7 +641,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
     if (preview.type === ContentType.FLASHCARDS) typeLabel = 'Flashcards';
     if (preview.type === ContentType.QUIZ) typeLabel = 'Quiz';
     if (preview.type === ContentType.MOCK_TEST) typeLabel = 'Mock Test';
-    if (preview.type === ContentType.CONCEPT_CONNECTIONS) typeLabel = 'Concepts';
+    if (preview.type === ContentType.CONCEPT_CONNECTIONS) typeLabel = 'Concept Connections';
 
     const title = `${typeLabel}: ${baseTitle}`;
 
@@ -1396,7 +1396,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
           <GenBtn icon="fa-align-left" label="Summary" onClick={() => openGenConfig(ContentType.NOTES)} loading={generating} status={status} />
           <GenBtn
             icon="fa-share-nodes"
-            label="Concepts"
+            label="Concept Connections"
             onClick={() => openGenConfig(ContentType.CONCEPT_CONNECTIONS)}
             loading={generating}
             status={status}
