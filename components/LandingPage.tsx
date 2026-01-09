@@ -19,7 +19,10 @@ import {
   X,
   Loader2,
   AlertCircle,
-  UserX
+  UserX,
+  Lightbulb,
+  Calculator,
+  Crown
 } from 'lucide-react';
 
 interface Props {
@@ -103,9 +106,11 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
     { icon: Brain, title: 'Smart Quizzes', description: 'Adaptive quizzes that target your weak spots' },
     { icon: FileText, title: 'Summary Notes', description: 'Get concise summaries of long documents' },
     { icon: Mic, title: 'Lecture Recording', description: 'Record and transcribe lectures automatically' },
-    { icon: CalendarCheck, title: 'Spaced Repetition', description: 'Science-backed review scheduling' },
+    { icon: CalendarCheck, title: 'Spaced Repetition', description: 'Science-backed review scheduling', pro: true },
     { icon: MessageSquare, title: 'AI Tutor Chat', description: 'Get instant answers to your questions' },
-    { icon: Share2, title: 'Concept Connections', description: 'Visualize connections between concepts' },
+    { icon: Share2, title: 'Concept Connections', description: 'Visualize connections between concepts', pro: true },
+    { icon: Lightbulb, title: 'Mnemonics', description: 'Memory aids to remember complex topics', pro: true },
+    { icon: Calculator, title: 'Practice Problems', description: 'STEM practice with step-by-step solutions', pro: true },
   ];
 
   const testimonials = [
@@ -205,18 +210,23 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {features.map((feature, i) => (
-            <div key={i} className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow hover:shadow-lg transition-shadow">
-              <div className="mb-4">
+            <div key={i} className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 p-5 rounded-2xl shadow hover:shadow-lg transition-shadow relative">
+              {(feature as any).pro && (
+                <div className="absolute top-3 right-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Crown className="w-3 h-3" /> Pro
+                </div>
+              )}
+              <div className="mb-3">
                 <feature.icon className="w-6 h-6 text-[#2563eb]" />
               </div>
-              <h3 className="font-bold text-slate-900 dark:text-white mb-2">{feature.title}</h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">{feature.description}</p>
+              <h3 className="font-bold text-slate-900 dark:text-white mb-1 text-sm">{feature.title}</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-xs">{feature.description}</p>
             </div>
           ))}
-          <div className="bg-white dark:bg-[#1e293b] border-2 border-dashed border-slate-200 dark:border-slate-700 p-6 rounded-2xl shadow flex items-center justify-center">
-            <p className="text-slate-400 font-bold text-center">+ More Coming Soon</p>
+          <div className="bg-white dark:bg-[#1e293b] border-2 border-dashed border-slate-200 dark:border-slate-700 p-5 rounded-2xl shadow flex items-center justify-center">
+            <p className="text-slate-400 font-bold text-center text-sm">+ More Coming Soon</p>
           </div>
         </div>
       </section>

@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
+import {
+  CloudOff, Users, Loader2, Search, AlertCircle, User, UserPlus, Inbox,
+  Check, X, Send, UserMinus
+} from 'lucide-react';
 import { ToastContext } from '../App';
 import { Friend, UserProfile } from '../types';
 import {
@@ -152,7 +156,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
     return (
       <div className="max-w-2xl mx-auto p-6">
         <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 rounded-xl p-6 text-center">
-          <i className="fas fa-cloud-slash text-amber-500 text-3xl mb-3"></i>
+          <CloudOff className="w-8 h-8 text-amber-500 mb-3" />
           <h3 className="text-lg font-bold text-amber-800 dark:text-amber-200 mb-2">Cloud Sync Required</h3>
           <p className="text-amber-600 dark:text-amber-300 text-sm">
             Friends feature requires Firebase to be configured. Please set up Firebase in your environment.
@@ -165,7 +169,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-        <i className="fas fa-user-friends text-primary"></i>
+        <Users className="w-5 h-5 text-primary" />
         Friends
       </h1>
 
@@ -186,14 +190,14 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
             disabled={searching || !searchEmail.trim()}
             className="px-5 py-2 bg-primary text-white rounded-lg font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors flex items-center gap-2"
           >
-            {searching ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-search"></i>}
+            {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Search
           </button>
         </div>
 
         {searchError && (
           <p className="mt-3 text-sm text-red-500 dark:text-red-400 flex items-center gap-2">
-            <i className="fas fa-exclamation-circle"></i>
+            <AlertCircle className="w-4 h-4" />
             {searchError}
           </p>
         )}
@@ -205,7 +209,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
                 {searchResult.photoURL ? (
                   <img src={searchResult.photoURL} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <i className="fas fa-user text-slate-400"></i>
+                  <User className="w-4 h-4 text-slate-400" />
                 )}
               </div>
               <div>
@@ -217,7 +221,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
               onClick={handleSendRequest}
               className="px-4 py-2 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition-colors flex items-center gap-2"
             >
-              <i className="fas fa-user-plus"></i>
+              <UserPlus className="w-4 h-4" />
               Add Friend
             </button>
           </div>
@@ -228,7 +232,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
       {pendingRequests.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
           <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <i className="fas fa-inbox text-amber-500"></i>
+            <Inbox className="w-5 h-5 text-amber-500" />
             Friend Requests ({pendingRequests.length})
           </h2>
           <div className="space-y-3">
@@ -239,7 +243,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
                     {req.friendPhoto ? (
                       <img src={req.friendPhoto} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <i className="fas fa-user text-slate-400"></i>
+                      <User className="w-4 h-4 text-slate-400" />
                     )}
                   </div>
                   <div>
@@ -252,13 +256,13 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
                     onClick={() => handleAccept(req.odId)}
                     className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm font-bold hover:bg-green-600 transition-colors"
                   >
-                    <i className="fas fa-check mr-1"></i>Accept
+                    <Check className="w-3 h-3 mr-1" />Accept
                   </button>
                   <button
                     onClick={() => handleDecline(req.odId, false)}
                     className="px-3 py-1.5 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-bold hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
                   >
-                    <i className="fas fa-times mr-1"></i>Decline
+                    <X className="w-3 h-3 mr-1" />Decline
                   </button>
                 </div>
               </div>
@@ -271,7 +275,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
       {sentRequests.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
           <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <i className="fas fa-paper-plane text-blue-500"></i>
+            <Send className="w-5 h-5 text-blue-500" />
             Pending Sent ({sentRequests.length})
           </h2>
           <div className="space-y-3">
@@ -282,7 +286,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
                     {req.friendPhoto ? (
                       <img src={req.friendPhoto} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <i className="fas fa-user text-slate-400"></i>
+                      <User className="w-4 h-4 text-slate-400" />
                     )}
                   </div>
                   <div>
@@ -294,7 +298,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
                   onClick={() => handleDecline(req.odId, true)}
                   className="px-3 py-1.5 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-bold hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
                 >
-                  <i className="fas fa-times mr-1"></i>Cancel
+                  <X className="w-3 h-3 mr-1" />Cancel
                 </button>
               </div>
             ))}
@@ -305,18 +309,18 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
       {/* Friends List */}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
         <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-          <i className="fas fa-users text-green-500"></i>
+          <Users className="w-5 h-5 text-green-500" />
           My Friends ({friends.length})
         </h2>
 
         {loading ? (
           <div className="text-center py-8 text-slate-400">
-            <i className="fas fa-circle-notch fa-spin text-2xl mb-2"></i>
+            <Loader2 className="w-6 h-6 mb-2 animate-spin" />
             <p>Loading friends...</p>
           </div>
         ) : friends.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
-            <i className="fas fa-user-friends text-3xl mb-3 opacity-50"></i>
+            <Users className="w-8 h-8 mb-3 opacity-50" />
             <p className="font-medium">No friends yet</p>
             <p className="text-sm">Search by email to add friends!</p>
           </div>
@@ -329,7 +333,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
                     {friend.friendPhoto ? (
                       <img src={friend.friendPhoto} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <i className="fas fa-user text-slate-400"></i>
+                      <User className="w-4 h-4 text-slate-400" />
                     )}
                   </div>
                   <div>
@@ -342,7 +346,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
                   className="px-3 py-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
                   title="Remove friend"
                 >
-                  <i className="fas fa-user-minus"></i>
+                  <UserMinus className="w-4 h-4" />
                 </button>
               </div>
             ))}

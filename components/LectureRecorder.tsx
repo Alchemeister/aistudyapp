@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef, type FC } from 'react';
+import { Mic, Square, RotateCcw } from 'lucide-react';
 import { Lecture } from '../types';
 
 interface Props {
@@ -288,17 +289,17 @@ export const LectureRecorder: FC<Props> = ({ onSave, onCancel, onToast }) => {
                  <div className="flex gap-2">
                      {!isRecording && !audioBlob && (
                          <button onClick={startRecording} className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg transition-transform active:scale-95" title="Start Recording">
-                             <i className="fas fa-microphone"></i>
+                             <Mic className="w-6 h-6" />
                          </button>
                      )}
                      {isRecording && (
                          <button onClick={handleStop} className="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-900 text-white flex items-center justify-center shadow-lg transition-transform active:scale-95" title="Stop Recording">
-                             <i className="fas fa-stop"></i>
+                             <Square className="w-6 h-6" />
                          </button>
                      )}
                      {!isRecording && audioBlob && (
                          <button onClick={() => { setAudioBlob(null); setTranscript(''); startRecording(); }} className="w-12 h-12 rounded-full bg-white border border-slate-300 text-slate-500 hover:text-red-500 flex items-center justify-center shadow-sm hover:shadow-md transition-all" title="Re-record">
-                             <i className="fas fa-redo"></i>
+                             <RotateCcw className="w-5 h-5" />
                          </button>
                      )}
                  </div>

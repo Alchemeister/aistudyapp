@@ -1,8 +1,15 @@
 
 import React, { useState, useEffect, useContext, useRef, useMemo, createContext, type ReactNode, type FC } from 'react';
 import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
+import {
+  CheckCircle, AlertCircle, Info, GraduationCap, Crown, Zap, Sun, Moon,
+  Layers, Users, Settings, LogOut, Loader2, Check, Lightbulb, ChevronRight,
+  ChevronLeft, Trash2, User, LayoutGrid, TrendingUp, Plus, BookOpen, FileText,
+  ArrowRight, ArrowLeft, List, Share2, AlertTriangle, HelpCircle, Network,
+  AlignLeft, Pencil, Shuffle, Download, X, Inbox, File, Combine, Calculator, Trophy
+} from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
-import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection } from './types';
+import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection, PracticeProblem, Mnemonic } from './types';
 import { saveCourses, loadCourses, getPdfBlob, deleteCourseData, seedInitialData } from './services/storage';
 import { loadCloudCourses, debouncedCloudSync, immediateCloudSync, mergeCourses, deleteCloudCourse, isCloudSyncAvailable, setSyncStatusCallback, SyncStatus } from './services/cloudSync';
 import { CloudSyncIndicator } from './components/CloudSyncIndicator';
@@ -21,14 +28,19 @@ import { CourseView } from './components/CourseView';
 import { SettingsPanel } from './components/SettingsPanel';
 import { auth, signOut as firebaseSignOut } from './services/firebase';
 import { GeneratorPanel, FlashcardViewer } from './components/GeneratorPanel';
+import { PracticeProblemsViewer } from './components/PracticeProblemsViewer';
+import { MnemonicsViewer } from './components/MnemonicsViewer';
 import { FriendsPanel } from './components/FriendsPanel';
+import { StudyGroupsPanel } from './components/StudyGroupsPanel';
 import { createOrUpdateProfile, getSharedWithMe, isFriendsAvailable } from './services/friendsService';
+import { isStudyGroupsAvailable, submitQuizScore } from './services/studyGroupsService';
 import { SharedCourse } from './types';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TermsOfService } from './components/TermsOfService';
 import { CreditsDisplay } from './components/CreditsDisplay';
 import { PricingModal } from './components/PricingModal';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import { SRSDashboard } from './components/SRSDashboard';
 import { getCreditsInfo } from './services/subscriptionService';
 
 // --- Utils ---
@@ -71,7 +83,7 @@ const ToastContainer = ({ children }: { children?: ReactNode }) => {
       <div className="fixed bottom-6 left-6 z-[60] flex flex-col gap-2">
         {toasts.map(t => (
           <div key={t.id} className={`px-4 py-3 rounded-lg shadow-lg text-white text-sm font-bold flex items-center animate-slide-up ${t.type === 'error' ? 'bg-red-500' : 'bg-slate-800'}`}>
-            <i className={`fas ${t.type === 'success' ? 'fa-check-circle' : t.type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'} mr-2`}></i>
+            {t.type === 'success' ? <CheckCircle className="w-4 h-4 mr-2" /> : t.type === 'error' ? <AlertCircle className="w-4 h-4 mr-2" /> : <Info className="w-4 h-4 mr-2" />}
             {t.msg}
           </div>
         ))}
@@ -89,13 +101,13 @@ const MobileNav = ({ user, onLogout, dueCount, syncStatus, creditsInfo, onOpenPr
     const newMode = !darkMode;
     setDarkMode(newMode);
     document.documentElement.classList.toggle('dark', newMode);
-    localStorage.setItem('theme', newMode ? 'dark' : 'light');
+    localStorage.setItem('studystack_theme', newMode ? 'dark' : 'light');
   };
 
   return (
     <div className="md:hidden bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
       <div className="flex items-center gap-2" onClick={() => navigate('/')}>
-        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white"><i className="fas fa-graduation-cap"></i></div>
+        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white"><GraduationCap className="w-5 h-5" /></div>
         <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">StudyStack</h1>
       </div>
       <div className="flex items-center gap-2">
@@ -114,7 +126,7 @@ const MobileNav = ({ user, onLogout, dueCount, syncStatus, creditsInfo, onOpenPr
               }`}
               title={creditsInfo.status === 'pro' ? 'Pro Member' : `${creditsInfo.total} credits remaining`}
             >
-              <i className={`fas ${creditsInfo.status === 'pro' ? 'fa-crown' : 'fa-bolt'} text-[10px]`}></i>
+              {creditsInfo.status === 'pro' ? <Crown className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
               <span className="text-xs font-bold">{creditsInfo.status === 'pro' ? 'Pro' : creditsInfo.total}</span>
             </button>
           ) : (
@@ -122,19 +134,19 @@ const MobileNav = ({ user, onLogout, dueCount, syncStatus, creditsInfo, onOpenPr
               className="px-2 py-1 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center gap-1"
               title={`${getRemainingGenerations()} AI credits remaining this month`}
             >
-              <i className="fas fa-bolt text-primary text-[10px]"></i>
+              <Zap className="w-3 h-3 text-primary" />
               <span className="text-xs font-bold text-primary">{getRemainingGenerations()}</span>
             </div>
           )}
           <button
             onClick={toggleDarkMode}
-            className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600"
+            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-[0.98] transition-all"
             title={darkMode ? 'Light Mode' : 'Dark Mode'}
           >
-             <i className={`fas ${darkMode ? 'fa-sun text-amber-500' : 'fa-moon text-indigo-500'} text-xs`}></i>
+             {darkMode ? <Sun className="w-5 h-5 text-slate-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
           </button>
           <Link to="/review" className="relative w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
-             <i className="fas fa-layer-group text-xs"></i>
+             <Layers className="w-4 h-4" />
              {(dueCount || 0) > 0 && (
                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
                  {(dueCount || 0) > 9 ? '9+' : dueCount}
@@ -142,17 +154,20 @@ const MobileNav = ({ user, onLogout, dueCount, syncStatus, creditsInfo, onOpenPr
              )}
           </Link>
           <Link to="/friends" className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
-             <i className="fas fa-user-friends text-xs"></i>
+             <Users className="w-4 h-4" />
+          </Link>
+          <Link to="/groups" className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
+             <Trophy className="w-4 h-4" />
           </Link>
           <Link to="/settings" className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
-             <i className="fas fa-cog text-xs"></i>
+             <Settings className="w-4 h-4" />
           </Link>
           <button
             onClick={onLogout}
             className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 border border-slate-200 dark:border-slate-600"
             title="Logout"
           >
-             <i className="fas fa-sign-out-alt text-xs"></i>
+             <LogOut className="w-4 h-4" />
           </button>
       </div>
     </div>
@@ -354,7 +369,7 @@ function App() {
     );
   }
 
-  if (loading) return <div className="h-screen flex flex-col items-center justify-center text-primary bg-slate-50 dark:bg-slate-900"><i className="fas fa-circle-notch fa-spin text-4xl mb-4"></i><span className="font-bold dark:text-slate-100">Loading StudyStack...</span></div>;
+  if (loading) return <div className="h-screen flex flex-col items-center justify-center text-primary bg-slate-50 dark:bg-slate-900"><Loader2 className="w-10 h-10 animate-spin mb-4" /><span className="font-bold dark:text-slate-100">Loading StudyStack...</span></div>;
 
   return (
     <ToastContainer>
@@ -370,6 +385,7 @@ function App() {
                   <Route path="/review" element={<ReviewController courses={courses} onUpdateCard={handleFlashcardUpdate} user={user} />} />
                   <Route path="/settings" element={<SettingsPanel user={user} onLogout={handleLogout} />} />
                   <Route path="/friends" element={<FriendsPanel user={user} />} />
+                  <Route path="/groups" element={user ? <StudyGroupsPanel userId={user.uid} /> : <div className="p-8 text-center text-slate-500">Sign in to access Study Groups</div>} />
                   <Route path="/analytics" element={<AnalyticsDashboard courses={courses} user={user} />} />
                   <Route path="/course/:courseId" element={<CourseView courses={courses} onUpdate={updateCourse} onUpdateFlashcard={handleFlashcardUpdate} user={user} />} />
                   <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -443,7 +459,7 @@ const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], 
     if (userStatus === 'loading') {
       return (
         <div className="h-full flex items-center justify-center bg-slate-100 dark:bg-slate-900">
-          <i className="fas fa-circle-notch fa-spin text-3xl text-primary"></i>
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       );
     }
@@ -454,7 +470,7 @@ const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], 
         <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-slate-100 dark:bg-slate-900">
           <div className="max-w-md">
             <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center text-4xl mb-6 mx-auto shadow-lg">
-              <i className="fas fa-crown text-white"></i>
+              <Crown className="w-6 h-6 text-white" />
             </div>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-3">Smart Review is a Pro Feature</h2>
             <p className="text-slate-500 dark:text-slate-400 mb-6">
@@ -463,11 +479,11 @@ const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], 
             <div className="bg-white dark:bg-slate-800 rounded-xl p-4 mb-6 text-left border border-slate-200 dark:border-slate-700">
               <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-3 text-sm">What you get with Pro:</h3>
               <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Smart SRS algorithm (like Anki)</li>
-                <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Cards shown at optimal intervals</li>
-                <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Track mastery over time</li>
-                <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> 1,000 generations/month</li>
-                <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> AI Tutor, Concept Maps & more</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Smart SRS algorithm (like Anki)</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Cards shown at optimal intervals</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Track mastery over time</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> 1,000 generations/month</li>
+                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> AI Tutor, Concept Maps & more</li>
               </ul>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
@@ -475,7 +491,7 @@ const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], 
                 onClick={() => navigate('/settings')}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-xl font-bold hover:from-amber-500 hover:to-orange-600 transition-all shadow-md"
               >
-                <i className="fas fa-crown mr-2"></i> Upgrade to Pro
+                <Crown className="w-4 h-4 mr-2" /> Upgrade to Pro
               </button>
               <button
                 onClick={() => navigate('/')}
@@ -485,7 +501,7 @@ const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], 
               </button>
             </div>
             <p className="text-xs text-slate-400 mt-4">
-              <i className="fas fa-lightbulb mr-1"></i> Tip: You can still review flashcards manually in each course
+              <Lightbulb className="w-4 h-4 mr-1" /> Tip: You can still review flashcards manually in each course
             </p>
           </div>
         </div>
@@ -493,11 +509,20 @@ const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], 
     }
 
     return (
-        <ReviewSession
+      <div className="h-full flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden">
+        {/* Compact SRS Dashboard Header */}
+        <div className="flex-shrink-0 px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+          <SRSDashboard courses={courses} />
+        </div>
+        {/* Review Session */}
+        <div className="flex-1 overflow-hidden">
+          <ReviewSession
             queue={queue}
             onUpdateCard={onUpdateCard}
             onExit={() => navigate('/')}
-        />
+          />
+        </div>
+      </div>
     );
 };
 
@@ -564,7 +589,7 @@ const SemesterCourseList = ({ courses, onDeleteCourse }: { courses: Course[], on
             className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <i className={`fas fa-chevron-right text-[10px] text-slate-400 transition-transform ${expandedSemesters.has(semester) ? 'rotate-90' : ''}`}></i>
+              <ChevronRight className={`w-3 h-3 text-slate-400 transition-transform ${expandedSemesters.has(semester) ? 'rotate-90' : ''}`} />
               <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{semester}</span>
             </div>
             <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
@@ -582,7 +607,7 @@ const SemesterCourseList = ({ courses, onDeleteCourse }: { courses: Course[], on
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate">{course.title}</span>
                   </Link>
                   <button onClick={() => onDeleteCourse(course)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1">
-                    <i className="fas fa-trash-alt text-[10px]"></i>
+                    <Trash2 className="w-3 h-3" />
                   </button>
                 </div>
               ))}
@@ -631,7 +656,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
     const newMode = !darkMode;
     setDarkMode(newMode);
     document.documentElement.classList.toggle('dark', newMode);
-    localStorage.setItem('theme', newMode ? 'dark' : 'light');
+    localStorage.setItem('studystack_theme', newMode ? 'dark' : 'light');
   };
 
   const handleCreate = () => {
@@ -652,7 +677,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
         {/* Header with collapse toggle */}
         <div className={`p-4 border-b border-slate-100 dark:border-slate-700 flex items-center ${collapsed ? 'justify-center' : 'justify-between'}`}>
           <Link to="/" className={`flex items-center gap-3 hover:opacity-80 transition-opacity`}>
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white flex-shrink-0"><i className="fas fa-graduation-cap"></i></div>
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white flex-shrink-0"><GraduationCap className="w-5 h-5" /></div>
             {!collapsed && <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">StudyStack</h1>}
           </Link>
           {!collapsed && (
@@ -663,7 +688,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
                 title="Collapse sidebar"
               >
-                <i className="fas fa-chevron-left text-sm font-bold"></i>
+                <ChevronLeft className="w-4 h-4" />
               </button>
             </div>
           )}
@@ -676,7 +701,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
             className="mx-auto mt-2 w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
             title="Expand sidebar"
           >
-            <i className="fas fa-chevron-right text-sm font-bold"></i>
+            <ChevronRight className="w-4 h-4" />
           </button>
         )}
 
@@ -685,7 +710,7 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
           <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700">
             <div className="flex items-center gap-3">
                <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {user.photoURL ? <img src={user.photoURL} alt="user" className="w-full h-full object-cover" /> : <i className="fas fa-user text-slate-400"></i>}
+                  {user.photoURL ? <img src={user.photoURL} alt="user" className="w-full h-full object-cover" /> : <User className="w-4 h-4 text-slate-400" />}
                </div>
                <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{user.displayName || "Student"}</div>
@@ -707,12 +732,12 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
 
         <nav className={`${collapsed ? 'p-2' : 'p-4'} space-y-1 flex-1 overflow-y-auto custom-scrollbar`}>
           <Link to="/" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Dashboard">
-            <i className="fas fa-th-large w-5 text-center"></i>
+            <LayoutGrid className="w-5 h-5" />
             {!collapsed && <span>Dashboard</span>}
           </Link>
-          <Link to="/review" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors relative`} title="Review">
-            <i className="fas fa-layer-group w-5 text-center"></i>
-            {!collapsed && <span>Review</span>}
+          <Link to="/review" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors relative`} title="SRS Review">
+            <Layers className="w-5 h-5" />
+            {!collapsed && <span>SRS Review</span>}
             {!collapsed && creditsInfo?.status !== 'pro' && (
               <span className="text-[9px] bg-gradient-to-r from-amber-400 to-orange-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wide font-bold">Pro</span>
             )}
@@ -723,15 +748,19 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
             )}
           </Link>
           <Link to="/settings" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Settings">
-            <i className="fas fa-cog w-5 text-center"></i>
+            <Settings className="w-5 h-5" />
             {!collapsed && <span>Settings</span>}
           </Link>
           <Link to="/friends" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Friends">
-            <i className="fas fa-user-friends w-5 text-center"></i>
+            <Users className="w-5 h-5" />
             {!collapsed && <span>Friends</span>}
           </Link>
+          <Link to="/groups" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Study Groups">
+            <Trophy className="w-5 h-5" />
+            {!collapsed && <span>Groups</span>}
+          </Link>
           <Link to="/analytics" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Analytics">
-            <i className="fas fa-chart-line w-5 text-center"></i>
+            <TrendingUp className="w-5 h-5" />
             {!collapsed && <span>Analytics</span>}
             {!collapsed && creditsInfo?.status !== 'pro' && (
               <span className="text-[9px] bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wide font-bold">Pro</span>
@@ -741,10 +770,10 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
           {/* Dark Mode Toggle */}
           <button
             onClick={toggleDarkMode}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 font-medium transition-colors w-full`}
+            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-[0.98] font-medium transition-all w-full`}
             title={darkMode ? 'Light Mode' : 'Dark Mode'}
           >
-            <i className={`fas ${darkMode ? 'fa-sun text-amber-500' : 'fa-moon text-indigo-500'} w-5 text-center`}></i>
+            {darkMode ? <Sun className="w-5 h-5 text-slate-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
             {!collapsed && <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
           </button>
 
@@ -905,7 +934,7 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
             onClick={() => setShowAddModal(true)}
             className="px-4 py-2.5 bg-primary text-white rounded-lg font-bold shadow-md hover:bg-blue-600 transition-colors flex items-center gap-2"
           >
-            <i className="fas fa-plus"></i>
+            <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Add Course</span>
           </button>
           <div className="hidden md:flex items-center gap-2 ml-2">
@@ -922,18 +951,18 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <StatCard label="Active Courses" value={filteredCourses.length} icon="fa-book" color="text-blue-600" bg="bg-blue-50" />
-        <StatCard label="Quizzes Taken" value={filteredCourses.reduce((acc, c) => acc + c.quizHistory.length, 0)} icon="fa-check-circle" color="text-purple-600" bg="bg-purple-50" />
-        <StatCard label="Study Materials" value={filteredCourses.reduce((acc, c) => acc + c.materials.length, 0)} icon="fa-layer-group" color="text-amber-600" bg="bg-amber-50" />
+        <StatCard label="Active Courses" value={filteredCourses.length} icon={BookOpen} color="text-blue-600" bg="bg-blue-50" />
+        <StatCard label="Quizzes Taken" value={filteredCourses.reduce((acc, c) => acc + c.quizHistory.length, 0)} icon={CheckCircle} color="text-purple-600" bg="bg-purple-50" />
+        <StatCard label="Study Materials" value={filteredCourses.reduce((acc, c) => acc + c.materials.length, 0)} icon={Layers} color="text-amber-600" bg="bg-amber-50" />
       </div>
 
       {/* Progress Chart */}
       {chartData.length > 0 && (
-          <div className="mb-10 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <div className="mb-10 bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
              <div className="flex justify-between items-center mb-6">
-                <h4 className="font-bold text-slate-800 flex items-center"><i className="fas fa-chart-line text-primary mr-2"></i> Performance Trends</h4>
+                <h4 className="font-bold text-slate-800 dark:text-slate-100 flex items-center"><TrendingUp className="w-5 h-5 text-primary mr-2" /> Performance Trends</h4>
                 <div className="flex gap-2">
-                    <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">Quiz Scores %</span>
+                    <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded">Quiz Scores %</span>
                 </div>
              </div>
              <div className="h-72 w-full">
@@ -970,40 +999,50 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
         {filteredCourses.map(course => (
-          <div key={course.id} className="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all relative group flex flex-col h-auto min-h-[16rem]">
+          <div key={course.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all relative group flex flex-col h-auto min-h-[16rem]">
              <Link to={`/course/${course.id}`} className="absolute inset-0 z-0 rounded-xl" aria-label={`View ${course.title}`}></Link>
 
              <div className="p-4 flex-1 pointer-events-none flex gap-4">
                 {/* PDF Thumbnail */}
                 {course.pdfThumbnail ? (
-                  <div className="flex-shrink-0 w-20 h-28 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shadow-sm">
+                  <div className="flex-shrink-0 w-20 h-28 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 shadow-sm">
                     <img src={course.pdfThumbnail} alt="PDF preview" className="w-full h-full object-cover" />
                   </div>
                 ) : course.pdfName ? (
-                  <div className="flex-shrink-0 w-20 h-28 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center">
-                    <i className="fas fa-file-pdf text-2xl text-slate-300"></i>
+                  <div className="flex-shrink-0 w-20 h-28 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-slate-300 dark:text-slate-500" />
                   </div>
                 ) : null}
 
                 {/* Content */}
                 <div className="flex-1 flex flex-col min-w-0">
                   <div className="flex justify-between items-start mb-2 pointer-events-auto">
-                    <span className="bg-slate-100 text-slate-600 text-xs font-bold px-2 py-1 rounded border border-slate-200">{course.code}</span>
-                    <button onClick={(e) => {e.preventDefault(); e.stopPropagation(); setCourseToDelete(course)}} className="text-slate-300 hover:text-red-500 p-2 -mr-2 -mt-2 z-10 relative"><i className="fas fa-trash-alt"></i></button>
+                    <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold px-2 py-1 rounded border border-slate-200 dark:border-slate-600">{course.code}</span>
+                    <button onClick={(e) => {e.preventDefault(); e.stopPropagation(); setCourseToDelete(course)}} className="text-slate-300 hover:text-red-500 p-2 -mr-2 -mt-2 z-10 relative"><Trash2 className="w-4 h-4" /></button>
                   </div>
-                  <h4 className="text-lg font-bold text-slate-900 mb-1 line-clamp-2">{course.title}</h4>
+                  <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-1 line-clamp-2">{course.title}</h4>
                   <div className="flex items-center gap-2 mb-2">
-                     <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{course.semester}</span>
+                     <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded">{course.semester}</span>
                      <p className="text-sm text-slate-500 line-clamp-1 truncate">{course.subtitle}</p>
                   </div>
                   <div className="flex gap-4 text-xs text-slate-400 mt-auto">
-                     <span className="flex items-center gap-1"><i className="fas fa-file-pdf"></i> {course.pdfName ? 'PDF' : 'No PDF'}</span>
-                     <span className="flex items-center gap-1"><i className="fas fa-list"></i> {course.chapters.length} Ch</span>
+                     <span className="flex items-center gap-1"><FileText className="w-4 h-4" /> {course.pdfName ? 'PDF' : 'No PDF'}</span>
+                     <span className="flex items-center gap-1"><List className="w-4 h-4" /> {course.chapters.length} Ch</span>
                   </div>
                 </div>
              </div>
-             <div className="bg-slate-50 p-3 text-center text-sm font-bold text-primary border-t border-slate-100 rounded-b-xl pointer-events-none">
-               Enter Course <i className="fas fa-arrow-right ml-1 text-xs"></i>
+             <div className="bg-slate-50 dark:bg-slate-700/50 p-2 sm:p-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-700 rounded-b-xl">
+               <button
+                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate('/groups'); }}
+                 className="pointer-events-auto flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
+               >
+                 <Users className="w-3.5 h-3.5" />
+                 <span className="hidden sm:inline">Study Group</span>
+                 <span className="sm:hidden">Group</span>
+               </button>
+               <span className="text-sm font-bold text-primary pointer-events-none flex items-center">
+                 Enter Course <ArrowRight className="w-3 h-3 ml-1" />
+               </span>
              </div>
           </div>
         ))}
@@ -1018,7 +1057,7 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
       {sharedCourses.length > 0 && (
         <div className="mb-10">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
-            <i className="fas fa-share-alt text-green-500"></i>
+            <Share2 className="w-4 h-4 text-green-500" />
             Shared with Me
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1029,7 +1068,7 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
               >
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-10 h-10 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
-                    <i className="fas fa-book text-green-600 dark:text-green-400"></i>
+                    <BookOpen className="w-4 h-4 text-green-600 dark:text-green-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-bold text-slate-800 dark:text-slate-200 truncate">{shared.courseTitle}</h4>
@@ -1040,7 +1079,7 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                    <i className="fas fa-user"></i>
+                    <User className="w-3 h-3" />
                     <span>From: {shared.ownerName}</span>
                   </div>
                   <span className="bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-2 py-0.5 rounded font-medium">
@@ -1115,7 +1154,7 @@ const CourseDeleteModal = ({ course, onClose, onConfirm }: { course: Course | nu
     <Modal isOpen={!!course} onClose={onClose} title="Delete Course" maxWidth="max-w-md">
        <div className="p-4">
          <div className="bg-red-50 border border-red-100 rounded-lg p-4 mb-4 flex items-start gap-3">
-            <i className="fas fa-exclamation-triangle text-red-500 mt-1"></i>
+            <AlertTriangle className="w-5 h-5 text-red-500 mt-1" />
             <div>
               <h4 className="font-bold text-red-800 text-sm">Permanent Action</h4>
               <p className="text-xs text-red-600 mt-1 leading-relaxed">
@@ -1203,10 +1242,10 @@ const RenameMaterialModal = ({ material, onClose, onConfirm }: { material: Study
   );
 };
 
-const StatCard = ({ label, value, icon, color, bg }: any) => (
-  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
-    <div className={`w-12 h-12 rounded-full ${bg} ${color} flex items-center justify-center text-xl shadow-sm`}><i className={`fas ${icon}`}></i></div>
-    <div><div className="text-slate-500 text-xs font-bold uppercase tracking-wide">{label}</div><div className="text-2xl font-bold text-slate-900">{value}</div></div>
+const StatCard = ({ label, value, icon: Icon, color, bg }: { label: string; value: number; icon: any; color: string; bg: string }) => (
+  <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center gap-4">
+    <div className={`w-12 h-12 rounded-full ${bg} ${color} flex items-center justify-center shadow-sm`}><Icon className="w-6 h-6" /></div>
+    <div><div className="text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wide">{label}</div><div className="text-2xl font-bold text-slate-900 dark:text-white">{value}</div></div>
   </div>
 );
 
@@ -1478,16 +1517,18 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
     <div key={mat.id} className={`group bg-white dark:bg-slate-800 p-5 rounded-xl border flex flex-col justify-between hover:shadow-lg transition-all relative overflow-hidden ${selectedIds.includes(mat.id) ? 'border-primary ring-2 ring-primary bg-blue-50/50 dark:bg-blue-900/30' : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600'}`}>
        
        <div className="flex justify-between items-start mb-3">
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg shrink-0 shadow-sm ${
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 shadow-sm ${
              mat.type === ContentType.FLASHCARDS ? 'bg-amber-100 text-amber-600' :
              mat.type === ContentType.QUIZ || mat.type === ContentType.MOCK_TEST ? 'bg-purple-100 text-purple-600' :
-             mat.type === ContentType.CONCEPT_CONNECTIONS ? 'bg-cyan-100 text-cyan-600' : 'bg-blue-100 text-blue-600'
+             mat.type === ContentType.CONCEPT_CONNECTIONS ? 'bg-cyan-100 text-cyan-600' :
+             mat.type === ContentType.PRACTICE_PROBLEMS ? 'bg-emerald-100 text-emerald-600' :
+             mat.type === ContentType.MNEMONICS ? 'bg-violet-100 text-violet-600' : 'bg-blue-100 text-blue-600'
           }`}>
-             <i className={`fas ${
-                mat.type === ContentType.FLASHCARDS ? 'fa-bolt' :
-                mat.type === ContentType.QUIZ || mat.type === ContentType.MOCK_TEST ? 'fa-question-circle' :
-                mat.type === ContentType.CONCEPT_CONNECTIONS ? 'fa-share-nodes' : 'fa-align-left'
-             }`}></i>
+             {mat.type === ContentType.FLASHCARDS ? <Zap className="w-5 h-5" /> :
+              mat.type === ContentType.QUIZ || mat.type === ContentType.MOCK_TEST ? <HelpCircle className="w-5 h-5" /> :
+              mat.type === ContentType.CONCEPT_CONNECTIONS ? <Network className="w-5 h-5" /> :
+              mat.type === ContentType.PRACTICE_PROBLEMS ? <Calculator className="w-5 h-5" /> :
+              mat.type === ContentType.MNEMONICS ? <Lightbulb className="w-5 h-5" /> : <AlignLeft className="w-5 h-5" />}
           </div>
           <div className="flex gap-2 z-10">
              <input 
@@ -1521,7 +1562,7 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
               title="Rename"
               type="button"
             >
-              <i className="fas fa-edit"></i>
+              <Pencil className="w-4 h-4" />
             </button>
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMaterialToDelete(mat); }}
@@ -1529,7 +1570,7 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
               title="Delete"
               type="button"
             >
-              <i className="fas fa-trash-alt"></i>
+              <Trash2 className="w-4 h-4" />
             </button>
             <button
               onClick={() => setSelectedMaterial(mat)}
@@ -1548,7 +1589,7 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
         <div className="flex flex-col h-full bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden animate-fade-in">
            <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:justify-between md:items-center bg-slate-50 dark:bg-slate-800/50 gap-4">
              <div className="flex items-center gap-3">
-               <button onClick={() => setSelectedMaterial(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"><i className="fas fa-arrow-left"></i></button>
+               <button onClick={() => setSelectedMaterial(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"><ArrowLeft className="w-4 h-4" /></button>
                <div>
                   <h3 className="font-bold text-slate-800 dark:text-slate-100 line-clamp-1">{selectedMaterial.title}</h3>
                   <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">{(selectedMaterial.type || 'UNKNOWN').replace('_', ' ')} • {(selectedMaterial.content as any[]).length || 0} items</div>
@@ -1559,19 +1600,19 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
                     onClick={handleShuffleMaterial}
                     className="px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
                 >
-                    <i className="fas fa-random"></i> Shuffle
+                    <Shuffle className="w-4 h-4" /> Shuffle
                 </button>
                 <button
                     onClick={() => handleExport(selectedMaterial)}
                     className="px-3 py-1.5 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
                 >
-                    <i className="fas fa-download"></i> Export
+                    <Download className="w-4 h-4" /> Export
                 </button>
                 <button
                     onClick={() => setMaterialToDelete(selectedMaterial)}
                     className="px-3 py-1.5 bg-white dark:bg-slate-700 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-500 dark:text-red-400 text-xs font-bold rounded flex items-center gap-2 shadow-sm transition-colors whitespace-nowrap"
                 >
-                    <i className="fas fa-trash-alt"></i> Delete
+                    <Trash2 className="w-4 h-4" /> Delete
                 </button>
                 <div className="bg-slate-50 dark:bg-slate-700 px-3 py-1 rounded border border-slate-100 dark:border-slate-600 flex flex-col items-end whitespace-nowrap hidden sm:flex">
                     <VisualDifficulty level={selectedMaterial.difficulty || Difficulty.MEDIUM} />
@@ -1618,15 +1659,21 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
                       <p className="text-slate-600 dark:text-slate-400 leading-relaxed mb-3">{conn.explanation}</p>
                       {conn.source && (
                         <p className="text-xs text-slate-400 font-bold uppercase flex items-center gap-1 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
-                          <i className="fas fa-book"></i> {conn.source}
+                          <BookOpen className="w-3 h-3" /> {conn.source}
                         </p>
                       )}
                     </div>
                   ))}
                 </div>
               )}
+              {selectedMaterial.type === ContentType.PRACTICE_PROBLEMS && (
+                <PracticeProblemsViewer problems={selectedMaterial.content as unknown as PracticeProblem[]} />
+              )}
+              {selectedMaterial.type === ContentType.MNEMONICS && (
+                <MnemonicsViewer mnemonics={selectedMaterial.content as unknown as Mnemonic[]} />
+              )}
            </div>
-           
+
            <MaterialDeleteModal 
               material={materialToDelete} 
               onClose={() => setMaterialToDelete(null)} 
@@ -1644,16 +1691,16 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
             <span className="font-bold text-sm">{selectedIds.length} Selected</span>
             <div className="w-px h-4 bg-slate-600"></div>
             <button onClick={handleMerge} className="text-sm font-bold hover:text-blue-300 transition-colors">
-                <i className="fas fa-object-group mr-2"></i>Merge & Shuffle
+                <Combine className="w-4 h-4 mr-2" />Merge & Shuffle
             </button>
-            <button onClick={() => setSelectedIds([])} className="ml-2 text-slate-400 hover:text-white transition-colors"><i className="fas fa-times"></i></button>
+            <button onClick={() => setSelectedIds([])} className="ml-2 text-slate-400 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
          </div>
        )}
 
        <div className="flex-1 overflow-y-auto space-y-6 pb-20 p-1">
          {course.materials.length === 0 && (
              <div className="text-center py-16 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-800/50">
-               <i className="fas fa-inbox text-5xl mb-4 text-slate-300 dark:text-slate-600"></i>
+               <Inbox className="w-12 h-12 mb-4 text-slate-300 dark:text-slate-600" />
                <p className="font-bold text-slate-500 dark:text-slate-400">Library is empty.</p>
                <p className="text-sm mt-1">Use the Generator tab to create study materials.</p>
              </div>
@@ -1668,7 +1715,7 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
                  <details key={ch.id} open className="group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden" >
                     <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-b border-slate-100 dark:border-slate-700">
                         <div className="w-6 h-6 rounded bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
-                            <i className="fas fa-chevron-right transform group-open:rotate-90 transition-transform"></i>
+                            <ChevronRight className="w-3 h-3 transform group-open:rotate-90 transition-transform" />
                         </div>
                         <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Chapter {idx + 1}: {ch.title}</span>
                         <div className="ml-auto text-xs font-bold text-slate-400 bg-white dark:bg-slate-600 px-2 py-1 rounded border border-slate-200 dark:border-slate-500 shadow-sm">{mats.length} Items</div>
@@ -1685,9 +1732,9 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
             <details open className="group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
                 <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-b border-slate-100 dark:border-slate-700">
                     <div className="w-6 h-6 rounded bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
-                        <i className="fas fa-chevron-right transform group-open:rotate-90 transition-transform"></i>
+                        <ChevronRight className="w-3 h-3 transform group-open:rotate-90 transition-transform" />
                     </div>
-                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide"><i className="fas fa-layer-group mr-2 text-slate-400"></i>Combined / Mixed</span>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide"><Layers className="w-4 h-4 mr-2 inline text-slate-400" />Combined / Mixed</span>
                     <div className="ml-auto text-xs font-bold text-slate-400 bg-white dark:bg-slate-600 px-2 py-1 rounded border border-slate-200 dark:border-slate-500 shadow-sm">{groupedMaterials.mixed.length} Items</div>
                 </summary>
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30 dark:bg-slate-800/50">
@@ -1701,9 +1748,9 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
             <details open className="group bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
                 <summary className="flex items-center gap-3 cursor-pointer list-none p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors border-b border-slate-100 dark:border-slate-700">
                     <div className="w-6 h-6 rounded bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 flex items-center justify-center text-xs text-slate-400 group-open:bg-primary group-open:text-white group-open:border-primary transition-all">
-                        <i className="fas fa-chevron-right transform group-open:rotate-90 transition-transform"></i>
+                        <ChevronRight className="w-3 h-3 transform group-open:rotate-90 transition-transform" />
                     </div>
-                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide"><i className="fas fa-file-alt mr-2 text-slate-400"></i>General Notes</span>
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide"><FileText className="w-4 h-4 mr-2 inline text-slate-400" />General Notes</span>
                     <div className="ml-auto text-xs font-bold text-slate-400 bg-white dark:bg-slate-600 px-2 py-1 rounded border border-slate-200 dark:border-slate-500 shadow-sm">{groupedMaterials.general.length} Items</div>
                 </summary>
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/30 dark:bg-slate-800/50">

@@ -11,10 +11,12 @@
   "dependencies": {
     "@google/genai": "^0.2.0",
     "@stripe/stripe-js": "^8.6.1",
+    "@types/katex": "^0.16.7",
     "@vercel/node": "^5.5.16",
     "firebase": "^10.8.0",
     "firebase-admin": "^13.6.0",
     "idb-keyval": "^6.2.1",
+    "katex": "^0.16.27",
     "lucide-react": "^0.562.0",
     "pdfjs-dist": "^3.11.174",
     "react": "^18.3.1",

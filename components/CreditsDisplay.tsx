@@ -1,4 +1,5 @@
 import React from 'react';
+import { Crown, Zap } from 'lucide-react';
 
 interface Props {
   status: 'free' | 'pro';
@@ -33,12 +34,12 @@ export const CreditsDisplay: React.FC<Props> = ({
     >
       {status === 'pro' ? (
         <>
-          <i className="fas fa-crown text-xs"></i>
+          <Crown className="w-3 h-3" />
           <span>Pro</span>
         </>
       ) : (
         <>
-          <i className={`fas fa-bolt text-xs ${isEmpty ? 'text-red-500' : isLow ? 'text-amber-500' : 'text-blue-500'}`}></i>
+          <Zap className={`w-3 h-3 ${isEmpty ? 'text-red-500' : isLow ? 'text-amber-500' : 'text-blue-500'}`} />
           <span>{creditsRemaining}</span>
           <span className="text-slate-400 dark:text-slate-500">/ {monthlyLimit}</span>
         </>
@@ -72,9 +73,9 @@ export const CreditsDisplayCompact: React.FC<Props> = ({
       title={status === 'pro' ? 'Pro Member' : `${creditsRemaining} credits remaining`}
     >
       {status === 'pro' ? (
-        <i className="fas fa-crown text-xs"></i>
+        <Crown className="w-3 h-3" />
       ) : (
-        <i className="fas fa-bolt text-xs"></i>
+        <Zap className="w-3 h-3" />
       )}
     </button>
   );

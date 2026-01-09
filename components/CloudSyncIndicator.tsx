@@ -1,4 +1,5 @@
 import React from 'react';
+import { Cloud, Check, AlertTriangle } from 'lucide-react';
 
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error';
 
@@ -77,7 +78,7 @@ export const CloudSyncIndicator: React.FC<Props> = ({ status, onClick }) => {
         `}
         title={config.title}
       >
-        <i className={`fas ${config.icon} text-sm ${config.iconClass}`}></i>
+        <Cloud className={`w-4 h-4 ${config.iconClass}`} />
 
         {/* Syncing spinner overlay */}
         {status === 'syncing' && (
@@ -89,14 +90,14 @@ export const CloudSyncIndicator: React.FC<Props> = ({ status, onClick }) => {
         {/* Synced checkmark */}
         {status === 'synced' && (
           <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
-            <i className="fas fa-check text-white text-[8px]"></i>
+            <Check className="w-2 h-2 text-white" />
           </div>
         )}
 
         {/* Error indicator */}
         {status === 'error' && (
           <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 rounded-full flex items-center justify-center shadow-sm">
-            <i className="fas fa-exclamation text-white text-[8px]"></i>
+            <AlertTriangle className="w-2 h-2 text-white" />
           </div>
         )}
       </button>

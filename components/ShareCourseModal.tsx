@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
+import { Share2, X, Book, CloudOff, Loader2, Users, User, CheckCircle, Share } from 'lucide-react';
 import { ToastContext } from '../App';
 import { Friend, Course, UserProfile } from '../types';
 import { getFriends, shareCourse, getUserProfile, isFriendsAvailable } from '../services/friendsService';
@@ -82,11 +83,11 @@ export const ShareCourseModal: React.FC<Props> = ({ isOpen, onClose, course, use
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-700">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <i className="fas fa-share-alt text-primary"></i>
+            <Share2 className="w-5 h-5 text-primary" />
             Share Course
           </h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-            <i className="fas fa-times"></i>
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -96,7 +97,7 @@ export const ShareCourseModal: React.FC<Props> = ({ isOpen, onClose, course, use
           <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <i className="fas fa-book text-primary"></i>
+                <Book className="w-4 h-4 text-primary" />
               </div>
               <div>
                 <div className="font-bold text-slate-800 dark:text-slate-200">{course.title}</div>
@@ -107,17 +108,17 @@ export const ShareCourseModal: React.FC<Props> = ({ isOpen, onClose, course, use
 
           {!isFriendsAvailable() ? (
             <div className="text-center py-6 text-slate-400">
-              <i className="fas fa-cloud-slash text-3xl mb-2"></i>
+              <CloudOff className="w-8 h-8 mb-2" />
               <p>Cloud sync required for sharing</p>
             </div>
           ) : loading ? (
             <div className="text-center py-8 text-slate-400">
-              <i className="fas fa-circle-notch fa-spin text-2xl mb-2"></i>
+              <Loader2 className="w-6 h-6 mb-2 animate-spin" />
               <p>Loading friends...</p>
             </div>
           ) : friends.length === 0 ? (
             <div className="text-center py-6 text-slate-400">
-              <i className="fas fa-user-friends text-3xl mb-3 opacity-50"></i>
+              <Users className="w-8 h-8 mb-3 opacity-50" />
               <p className="font-medium">No friends yet</p>
               <p className="text-sm">Add friends first to share courses!</p>
             </div>
@@ -146,7 +147,7 @@ export const ShareCourseModal: React.FC<Props> = ({ isOpen, onClose, course, use
                       {friend.friendPhoto ? (
                         <img src={friend.friendPhoto} alt="" className="w-full h-full object-cover" />
                       ) : (
-                        <i className="fas fa-user text-slate-400 text-sm"></i>
+                        <User className="w-4 h-4 text-slate-400" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -154,7 +155,7 @@ export const ShareCourseModal: React.FC<Props> = ({ isOpen, onClose, course, use
                       <div className="text-xs text-slate-500 dark:text-slate-400 truncate">{friend.friendEmail}</div>
                     </div>
                     {selectedFriends.includes(friend.odId) && (
-                      <i className="fas fa-check-circle text-primary"></i>
+                      <CheckCircle className="w-5 h-5 text-primary" />
                     )}
                   </label>
                 ))}
@@ -182,12 +183,12 @@ export const ShareCourseModal: React.FC<Props> = ({ isOpen, onClose, course, use
             >
               {sharing ? (
                 <>
-                  <i className="fas fa-circle-notch fa-spin"></i>
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   Sharing...
                 </>
               ) : (
                 <>
-                  <i className="fas fa-share"></i>
+                  <Share className="w-4 h-4" />
                   Share
                 </>
               )}

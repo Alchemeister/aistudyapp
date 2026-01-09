@@ -1,5 +1,9 @@
 
 import React, { useState, useContext, useMemo } from 'react';
+import {
+  ArrowLeft, Book, FileText, ClipboardList, Mic, FileInput, Pencil,
+  Share2, BookOpen, TrendingUp
+} from 'lucide-react';
 import { Course, Flashcard, Lecture } from '../types';
 import { PdfViewer } from './PdfViewer';
 import { GeneratorPanel } from './GeneratorPanel';
@@ -23,6 +27,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
   const [showRecorder, setShowRecorder] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [activeLecture, setActiveLecture] = useState<Lecture | null>(null);
+  const [pdfPage, setPdfPage] = useState(1);
 
   const { showToast } = useContext(ToastContext);
   const navigate = useNavigate();
@@ -197,6 +202,16 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
       setActiveTab('content');
   };
 
+  const handleUpdateLecture = (updatedLecture: Lecture) => {
+    if (!course) return;
+    const updatedLectures = course.lectures.map(l =>
+      l.id === updatedLecture.id ? updatedLecture : l
+    );
+    onUpdate({ ...course, lectures: updatedLectures });
+    // Update the active lecture state too
+    setActiveLecture(updatedLecture);
+  };
+
   return (
     <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 transition-colors">
       {/* Header */}
@@ -207,7 +222,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
              className="md:hidden mt-1 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300"
              aria-label="Back to Dashboard"
           >
-             <i className="fas fa-arrow-left"></i>
+             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -215,9 +230,9 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
                <h2 className="text-lg md:text-xl font-bold text-slate-900 dark:text-slate-100 line-clamp-1">{course.title}</h2>
             </div>
             <div className="flex gap-4 text-xs text-slate-500 dark:text-slate-400 font-medium overflow-x-auto no-scrollbar whitespace-nowrap">
-               <span><i className="fas fa-book mr-1"></i> {course.chapters.length} Ch</span>
-               <span><i className="fas fa-file-alt mr-1"></i> {course.lectures.length} Notes</span>
-               <span><i className="fas fa-clipboard-list mr-1"></i> {course.materials.length} Items</span>
+               <span className="flex items-center"><Book className="w-3 h-3 mr-1" /> {course.chapters.length} Ch</span>
+               <span className="flex items-center"><FileText className="w-3 h-3 mr-1" /> {course.lectures.length} Notes</span>
+               <span className="flex items-center"><ClipboardList className="w-3 h-3 mr-1" /> {course.materials.length} Items</span>
             </div>
           </div>
         </div>
@@ -228,20 +243,20 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
              title="Coming soon"
              className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg cursor-not-allowed opacity-60 whitespace-nowrap flex items-center justify-center gap-2"
           >
-             <i className="fas fa-microphone"></i> Record
+             <Mic className="w-4 h-4" /> Record
           </button>
 
           <button
             onClick={() => setShowImport(true)}
             className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 rounded-lg transition-colors shadow-sm whitespace-nowrap"
           >
-             <i className="fas fa-file-import mr-2 text-slate-500 dark:text-slate-400"></i>Import Notes
+             <FileInput className="w-4 h-4 mr-2 text-slate-500 dark:text-slate-400" />Import Notes
           </button>
 
           <div className="w-px h-6 bg-slate-200 dark:bg-slate-600 mx-1 hidden md:block"></div>
 
           <button onClick={() => setShowWizard(true)} className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors border border-slate-200 dark:border-slate-600 whitespace-nowrap">
-            <i className="fas fa-edit mr-2"></i>Edit Book/Ch
+            <Pencil className="w-4 h-4 mr-2" />Edit Book/Ch
           </button>
 
           {user && (
@@ -249,7 +264,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
               onClick={() => setShowShare(true)}
               className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-lg transition-colors shadow-sm whitespace-nowrap flex items-center justify-center gap-2"
             >
-              <i className="fas fa-share-alt"></i>
+              <Share2 className="w-4 h-4" />
               <span className="hidden md:inline">Share</span>
             </button>
           )}
@@ -262,13 +277,13 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
          {activeTab === 'content' && (
            <div className="w-full md:w-1/2 h-[40vh] md:h-full bg-slate-800 border-b md:border-b-0 md:border-r border-slate-200 relative shrink-0">
              {activeLecture ? (
-                 <LecturePlayer lecture={activeLecture} onClose={() => setActiveLecture(null)} />
+                 <LecturePlayer lecture={activeLecture} onClose={() => setActiveLecture(null)} onUpdateLecture={handleUpdateLecture} />
              ) : (
                  <>
-                   <PdfViewer url={course.pdfUrl || ''} />
+                   <PdfViewer url={course.pdfUrl || ''} initialPage={pdfPage} />
                    {!course.pdfUrl && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-800 z-10 p-4 text-center">
-                        <i className="fas fa-book-open text-4xl mb-4 opacity-50"></i>
+                        <BookOpen className="w-10 h-10 mb-4 opacity-50" />
                         <p>No Content Yet</p>
                         <button onClick={() => setShowWizard(true)} className="mt-4 text-blue-400 hover:underline">Add PDF or Notes to use Generator</button>
                     </div>
@@ -289,7 +304,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
 
             <div className="flex-1">
               {activeTab === 'content' && (
-                <GeneratorPanel course={course} onUpdate={onUpdate} onViewLecture={handleViewLecture} userId={user?.uid} />
+                <GeneratorPanel course={course} onUpdate={onUpdate} onViewLecture={handleViewLecture} userId={user?.uid} onChapterFocus={setPdfPage} />
               )}
               {activeTab === 'study' && (
                 <LibraryPanel course={course} onUpdate={onUpdate} onUpdateFlashcard={onUpdateFlashcard} />
@@ -303,7 +318,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
                         </div>
                         {performanceData.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                                <i className="fas fa-chart-line text-4xl mb-4 opacity-50"></i>
+                                <TrendingUp className="w-10 h-10 mb-4 opacity-50" />
                                 <p className="font-medium">No quiz data available yet.</p>
                                 <p className="text-sm mt-1">Take a quiz in the Library tab to see your progress!</p>
                             </div>

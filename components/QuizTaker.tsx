@@ -1,5 +1,6 @@
 
 import React, { useState, type FC } from 'react';
+import { Book, PlusCircle, Layers, Check, X, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Question } from '../types';
 
 interface Props {
@@ -54,7 +55,7 @@ export const QuizTaker: FC<Props> = ({ questions, onComplete, onExit, onSaveMiss
 
             {q.source && (
                 <div className="ml-9 mt-4 text-xs text-slate-400 font-bold uppercase tracking-wide flex items-center gap-1">
-                    <i className="fas fa-book"></i> Source: {q.source}
+                    <Book className="w-3 h-3 inline" /> Source: {q.source}
                 </div>
             )}
           </div>
@@ -181,21 +182,21 @@ export const QuizTaker: FC<Props> = ({ questions, onComplete, onExit, onSaveMiss
                        onClick={() => handleCreateFlashcards('missed')}
                        className="py-3 px-2 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-300 rounded-lg font-bold text-xs hover:bg-amber-200 dark:hover:bg-amber-900/70 transition-colors"
                      >
-                       <i className="fas fa-plus-circle mr-1"></i> Missed to Flashcards
+                       <PlusCircle className="w-4 h-4 mr-1 inline" /> Missed to Flashcards
                      </button>
                  )}
                  <button
                     onClick={() => handleCreateFlashcards('all')}
                     className={`py-3 px-2 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 rounded-lg font-bold text-xs hover:bg-blue-200 dark:hover:bg-blue-900/70 transition-colors ${missedCount === 0 ? 'col-span-2' : ''}`}
                   >
-                    <i className="fas fa-layer-group mr-1"></i> All to Flashcards
+                    <Layers className="w-4 h-4 mr-1 inline" /> All to Flashcards
                   </button>
              </div>
           )}
 
           {savedMissed && (
               <div className="w-full py-3 px-4 rounded-lg font-bold shadow-sm bg-slate-100 dark:bg-slate-700 text-slate-400 cursor-default flex items-center justify-center gap-2">
-                 <i className="fas fa-check"></i> Flashcards Created
+                 <Check className="w-4 h-4 inline" /> Flashcards Created
               </div>
           )}
 
@@ -231,7 +232,7 @@ export const QuizTaker: FC<Props> = ({ questions, onComplete, onExit, onSaveMiss
               <div key={q.id} className={`p-5 rounded-xl border shadow-sm bg-white dark:bg-slate-800 ${isCorrect ? 'border-green-200 dark:border-green-800 ring-1 ring-green-100 dark:ring-green-900' : 'border-red-200 dark:border-red-800 ring-1 ring-red-100 dark:ring-red-900'}`}>
                 <div className="flex gap-3">
                   <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold mt-0.5 ${isCorrect ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400'}`}>
-                    {isCorrect ? <i className="fas fa-check"></i> : <i className="fas fa-times"></i>}
+                    {isCorrect ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
                   </span>
                   <div className="flex-1">
                      <p className="font-bold text-slate-800 dark:text-slate-100 mb-3 text-lg">{q.text}</p>
@@ -257,7 +258,7 @@ export const QuizTaker: FC<Props> = ({ questions, onComplete, onExit, onSaveMiss
 
                      {q.source && (
                         <div className="mt-3 text-xs text-slate-400 font-bold uppercase tracking-wide flex items-center gap-1">
-                            <i className="fas fa-book"></i> Source: {q.source}
+                            <Book className="w-3 h-3 inline" /> Source: {q.source}
                         </div>
                      )}
                   </div>
@@ -403,7 +404,7 @@ export const QuizTaker: FC<Props> = ({ questions, onComplete, onExit, onSaveMiss
           disabled={currentIndex === 0}
           className="px-6 py-2 text-slate-500 dark:text-slate-400 font-bold hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:hover:text-slate-500 transition-colors"
         >
-          <i className="fas fa-arrow-left mr-2"></i> Previous
+          <ArrowLeft className="w-4 h-4 mr-2 inline" /> Previous
         </button>
 
         <button
@@ -411,7 +412,7 @@ export const QuizTaker: FC<Props> = ({ questions, onComplete, onExit, onSaveMiss
           disabled={!answers[currentQ.id]}
           className="px-8 py-3 bg-primary text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-600 shadow-md hover:shadow-lg transition-all transform active:scale-[0.98]"
         >
-          {currentIndex === questions.length - 1 ? 'Finish Quiz' : 'Next'} <i className="fas fa-arrow-right ml-2"></i>
+          {currentIndex === questions.length - 1 ? 'Finish Quiz' : 'Next'} <ArrowRight className="w-4 h-4 ml-2 inline" />
         </button>
       </div>
     </div>

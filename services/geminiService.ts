@@ -180,6 +180,74 @@ const getMockData = (type: ContentType, count: number) => {
     ].slice(0, count);
   }
 
+  if (type === ContentType.PRACTICE_PROBLEMS) {
+    return [
+      {
+        id: mockId(),
+        problem: "A car accelerates uniformly from rest to 20 m/s in 5 seconds. Calculate the acceleration.",
+        givens: ["v₀ = 0 m/s (starts from rest)", "v = 20 m/s", "t = 5 s"],
+        find: "a = ?",
+        steps: [
+          { explanation: "Use the kinematic equation", math: "v = v_0 + at" },
+          { explanation: "Rearrange to solve for acceleration", math: "a = \\frac{v - v_0}{t}" },
+          { explanation: "Substitute values", math: "a = \\frac{20 - 0}{5} = 4" }
+        ],
+        answer: "a = 4 m/s²",
+        formula: "v = v₀ + at",
+        difficulty: "easy",
+        topic: "Kinematics",
+        source: "Mock Data"
+      },
+      {
+        id: mockId(),
+        problem: "Calculate the force required to accelerate a 10 kg mass at 3 m/s².",
+        givens: ["m = 10 kg", "a = 3 m/s²"],
+        find: "F = ?",
+        steps: [
+          { explanation: "Apply Newton's Second Law", math: "F = ma" },
+          { explanation: "Substitute the known values", math: "F = (10)(3) = 30" }
+        ],
+        answer: "F = 30 N",
+        formula: "F = ma",
+        difficulty: "easy",
+        topic: "Newton's Laws",
+        source: "Mock Data"
+      }
+    ].slice(0, count);
+  }
+
+  if (type === ContentType.MNEMONICS) {
+    return [
+      {
+        id: mockId(),
+        items: ["Huron", "Ontario", "Michigan", "Erie", "Superior"],
+        mnemonic: "HOMES",
+        type: "acronym",
+        explanation: "Each letter represents a Great Lake: H-Huron, O-Ontario, M-Michigan, E-Erie, S-Superior",
+        topic: "Great Lakes of North America",
+        source: "Mock Data"
+      },
+      {
+        id: mockId(),
+        items: ["Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"],
+        mnemonic: "King Philip Came Over For Good Soup",
+        type: "acrostic",
+        explanation: "Each word's first letter matches the taxonomy rank: King=Kingdom, Philip=Phylum, Came=Class, Over=Order, For=Family, Good=Genus, Soup=Species",
+        topic: "Biological Classification",
+        source: "Mock Data"
+      },
+      {
+        id: mockId(),
+        items: ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"],
+        mnemonic: "My Very Educated Mother Just Served Us Nachos",
+        type: "acrostic",
+        explanation: "Each word's first letter corresponds to a planet in order from the Sun",
+        topic: "Solar System Planets",
+        source: "Mock Data"
+      }
+    ].slice(0, count);
+  }
+
   return `[Mock Generated Content]\n\nThis is a placeholder summary because the Gemini API Key is missing.`;
 };
 
@@ -264,6 +332,50 @@ const cleanConceptConnections = (data: any[]): any[] => {
     .filter(item =>
       item.concept && item.concept.trim().length > 0 &&
       item.relatedConcepts.length >= 2
+    );
+};
+
+const cleanPracticeProblems = (data: any[]): any[] => {
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((item, index) => ({
+      id: item.id || `prob-${index}`,
+      problem: item.problem || "",
+      givens: Array.isArray(item.givens) ? item.givens : [],
+      find: item.find || "",
+      steps: Array.isArray(item.steps) ? item.steps.map((step: any) => ({
+        explanation: step.explanation || "",
+        math: step.math || ""
+      })) : [],
+      answer: item.answer || "",
+      formula: item.formula || "",
+      difficulty: item.difficulty || "medium",
+      topic: item.topic || "",
+      source: item.source || ""
+    }))
+    .filter(item =>
+      item.problem && item.problem.trim().length > 0 &&
+      item.steps.length > 0 &&
+      item.answer && item.answer.trim().length > 0
+    );
+};
+
+const cleanMnemonics = (data: any[]): any[] => {
+  if (!Array.isArray(data)) return [];
+  const validTypes = ['acronym', 'acrostic', 'rhyme', 'story', 'visual'];
+  return data
+    .map((item, index) => ({
+      id: item.id || `mnem-${index}`,
+      items: Array.isArray(item.items) ? item.items : [],
+      mnemonic: item.mnemonic || "",
+      type: validTypes.includes(item.type) ? item.type : 'acronym',
+      explanation: item.explanation || "",
+      topic: item.topic || "",
+      source: item.source || ""
+    }))
+    .filter(item =>
+      item.items.length >= 2 &&
+      item.mnemonic && item.mnemonic.trim().length > 0
     );
 };
 
@@ -559,6 +671,141 @@ ${safeText}`;
 
       const raw = cleanAndParseJson(response.text || "[]");
       const result = cleanConceptConnections(raw);
+      if (result.length > 0) recordGeneration(type);
+      return result;
+    }
+
+    // Practice Problems (STEM)
+    if (type === ContentType.PRACTICE_PROBLEMS) {
+      const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: `
+          Generate ${count} practice problems with step-by-step solutions for STEM students.
+
+          Context Source: "${contextTitle}"
+          Difficulty: ${difficultyPrompt}
+
+          IMPORTANT: These should be CALCULATION-BASED problems that require applying formulas.
+          Look for any formulas, equations, or quantitative concepts in the source material.
+
+          OUTPUT FORMAT (JSON Array):
+          [
+            {
+              "problem": "A car accelerates uniformly from rest to 25 m/s in 10 seconds. What is its acceleration?",
+              "givens": ["v₀ = 0 m/s (starts from rest)", "v = 25 m/s", "t = 10 s"],
+              "find": "a = ?",
+              "steps": [
+                {
+                  "explanation": "Identify the kinematic equation relating velocity, initial velocity, acceleration, and time",
+                  "math": "v = v_0 + at"
+                },
+                {
+                  "explanation": "Rearrange to solve for acceleration",
+                  "math": "a = \\\\frac{v - v_0}{t}"
+                },
+                {
+                  "explanation": "Substitute the known values",
+                  "math": "a = \\\\frac{25 - 0}{10} = \\\\frac{25}{10}"
+                },
+                {
+                  "explanation": "Calculate the final answer",
+                  "math": "a = 2.5 \\\\text{ m/s}^2"
+                }
+              ],
+              "answer": "a = 2.5 m/s²",
+              "formula": "v = v₀ + at",
+              "difficulty": "easy",
+              "topic": "Kinematics",
+              "source": "${contextTitle}"
+            }
+          ]
+
+          RULES:
+          1. Problems MUST require numerical calculations, not just conceptual answers
+          2. Use LaTeX notation for math in "math" fields (use double backslashes: \\\\frac, \\\\text, etc.)
+          3. "givens" should list all known values with units
+          4. "find" should clearly state what needs to be calculated
+          5. "steps" should show complete work - each step should be a logical progression
+          6. "formula" should show the key equation(s) used
+          7. "difficulty" must be "easy", "medium", or "hard"
+          8. Include units in all answers
+          9. Problems should be based on concepts from the source material
+          10. Return ONLY a JSON array, no markdown
+
+          If the source material doesn't contain STEM/quantitative content, generate problems
+          based on any numerical data, statistics, or logical/analytical concepts present.
+
+          Source Material:
+          ${safeText}
+        `,
+        config: {
+          responseMimeType: "application/json",
+        }
+      });
+
+      const raw = cleanAndParseJson(response.text || "[]");
+      const result = cleanPracticeProblems(raw);
+      if (result.length > 0) recordGeneration(type);
+      return result;
+    }
+
+    // Mnemonics
+    if (type === ContentType.MNEMONICS) {
+      const response = await ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: `
+          Analyze the source material and create ${count} memorable mnemonics for lists, sequences, steps, or categories.
+
+          Context Source: "${contextTitle}"
+
+          MNEMONIC TYPES (use the most effective type for each list):
+          - "acronym": First letters form a word (e.g., "HOMES" for Great Lakes)
+          - "acrostic": First letters form a sentence (e.g., "Every Good Boy Does Fine" for music notes)
+          - "rhyme": A catchy rhyme to remember items (e.g., "In 1492, Columbus sailed the ocean blue")
+          - "story": A short narrative connecting the items
+          - "visual": A vivid mental image description
+
+          OUTPUT FORMAT (JSON Array):
+          [
+            {
+              "items": ["Huron", "Ontario", "Michigan", "Erie", "Superior"],
+              "mnemonic": "HOMES",
+              "type": "acronym",
+              "explanation": "Each letter in HOMES represents one of the Great Lakes: H-Huron, O-Ontario, M-Michigan, E-Erie, S-Superior",
+              "topic": "Great Lakes of North America",
+              "source": "${contextTitle}"
+            },
+            {
+              "items": ["Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"],
+              "mnemonic": "King Philip Came Over For Good Soup",
+              "type": "acrostic",
+              "explanation": "Each word starts with the same letter as the taxonomic rank: King=Kingdom, Philip=Phylum, etc.",
+              "topic": "Biological Classification",
+              "source": "${contextTitle}"
+            }
+          ]
+
+          RULES:
+          1. Look for ANY enumerable content: lists, sequences, steps, categories, stages, phases
+          2. "items" must contain the EXACT terms/items to remember (minimum 3 items)
+          3. "mnemonic" must be memorable, catchy, and easy to recall
+          4. "type" must be one of: "acronym", "acrostic", "rhyme", "story", "visual"
+          5. "explanation" must clearly explain how the mnemonic maps to each item
+          6. Prefer acronyms and acrostics when items have useful first letters
+          7. Use rhymes or stories for items that don't form good acronyms
+          8. Make mnemonics fun, silly, or vivid - these are more memorable!
+          9. Return ONLY a JSON array, no markdown
+
+          Source Material:
+          ${safeText}
+        `,
+        config: {
+          responseMimeType: "application/json",
+        }
+      });
+
+      const raw = cleanAndParseJson(response.text || "[]");
+      const result = cleanMnemonics(raw);
       if (result.length > 0) recordGeneration(type);
       return result;
     }
@@ -886,5 +1133,97 @@ YOUR RESPONSE:`;
   } catch (e: any) {
     console.error("Chat Error:", e);
     return "Sorry, there was an error processing your question. Please try again.";
+  }
+};
+
+// --- Smart Lecture Notes (Auto-summarize transcripts) ---
+export interface LectureSummaryResult {
+  summary: string;
+  keyPoints: string[];
+  actionItems: string[];
+}
+
+export const generateLectureSummary = async (
+  transcript: string,
+  lectureTitle: string
+): Promise<LectureSummaryResult | null> => {
+  const ai = getAiClient();
+  if (!ai) {
+    // Return mock data if no API key
+    return {
+      summary: "[Mock] This lecture covered important concepts related to the topic. Key themes included foundational principles, practical applications, and real-world examples. The instructor emphasized understanding core concepts before moving to advanced material.",
+      keyPoints: [
+        "Key concept 1: Foundation of the topic",
+        "Key concept 2: Important relationship between ideas",
+        "Key concept 3: Practical application"
+      ],
+      actionItems: [
+        "Review chapter notes before next lecture",
+        "Complete practice problems"
+      ]
+    };
+  }
+
+  if (!transcript || transcript.trim().length < 50) {
+    return null;
+  }
+
+  try {
+    // Truncate very long transcripts
+    const safeTranscript = transcript.length > 20000
+      ? transcript.substring(0, 20000) + "...[truncated]"
+      : transcript;
+
+    const prompt = `Analyze this lecture transcript and create comprehensive study notes.
+
+LECTURE: "${lectureTitle}"
+
+TRANSCRIPT:
+${safeTranscript}
+
+Generate a JSON response with:
+1. "summary": A 2-3 paragraph comprehensive summary of the lecture content. Write it as helpful study notes that capture the main topics, explanations, and examples given.
+2. "keyPoints": An array of 5-10 key takeaways/concepts from the lecture. Each should be a complete thought, not just a topic name.
+3. "actionItems": An array of any action items, assignments, or things to remember mentioned in the lecture. If none are mentioned, provide 2-3 suggested study actions based on the content.
+
+OUTPUT FORMAT (JSON):
+{
+  "summary": "The lecture began with...",
+  "keyPoints": ["Point 1: Full explanation", "Point 2: Full explanation"],
+  "actionItems": ["Review X", "Practice Y"]
+}
+
+Return ONLY valid JSON, no markdown.`;
+
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+      }
+    });
+
+    // Parse as object (not array)
+    let result: any;
+    try {
+      result = JSON.parse(response.text || "{}");
+    } catch {
+      // Try cleanAndParseJson as fallback
+      const parsed = cleanAndParseJson(response.text || "{}");
+      result = Array.isArray(parsed) ? parsed[0] : parsed;
+    }
+
+    if (result && result.summary) {
+      return {
+        summary: result.summary || "",
+        keyPoints: Array.isArray(result.keyPoints) ? result.keyPoints : [],
+        actionItems: Array.isArray(result.actionItems) ? result.actionItems : []
+      };
+    }
+
+    return null;
+  } catch (e: any) {
+    console.error("Lecture summary error:", e);
+    return null;
   }
 };

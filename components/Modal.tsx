@@ -1,4 +1,5 @@
 import React, { type FC, type ReactNode } from 'react';
+import { X } from 'lucide-react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -25,7 +26,7 @@ export const Modal: FC<ModalProps> = ({ isOpen, onClose, title, children, action
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">{title}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-            <i className="fas fa-times"></i>
+            <X className="w-5 h-5" />
           </button>
         </div>
 

@@ -1,11 +1,22 @@
 
 import React, { useState, useContext, useMemo, useRef, useEffect } from 'react';
-import { Course, ContentType, Difficulty, Flashcard, Question, StudyMaterial, Lecture, ConceptConnection, ChatMessage } from '../types';
+import {
+  Loader2, Layers, Bot, StickyNote, FileText, Plus, Trash2, Move, X, Eye, ArrowRight,
+  MessageSquare, Zap, HelpCircle, AlignLeft, Share2, FileSignature, Brain,
+  Info, Sparkles, BookOpen, Trash, Send, RefreshCw, ArrowsUpFromLine, PlusCircle,
+  File, CloudUpload, BookMarked, Mic, Calculator, Lightbulb
+} from 'lucide-react';
+import { Course, ContentType, Difficulty, Flashcard, Question, StudyMaterial, Lecture, ConceptConnection, ChatMessage, PracticeProblem, Mnemonic } from '../types';
 import { generateContent, fixFlashcardContent, chatWithContext, generateExamFromMaterials } from '../services/geminiService';
 import { loadPdfDocument, extractTextFromRange } from '../services/pdfUtils';
 import { getInitialCardState } from '../services/srs';
+import { getSimilarity } from '../services/textSimilarity';
 import { Modal } from './Modal';
 import { QuizTaker } from './QuizTaker';
+import { GenBtn } from './GenBtn';
+import { FlashcardViewer } from './FlashcardViewer';
+import { PracticeProblemsViewer } from './PracticeProblemsViewer';
+import { MnemonicsViewer } from './MnemonicsViewer';
 import { ToastContext } from '../App';
 import { getPdfBlob } from '../services/storage';
 import { canGenerate, deductCredit, hasFeatureAccess, getCreditsInfo } from '../services/subscriptionService';
@@ -14,170 +25,10 @@ import { FEATURES } from '../services/stripeConfig';
 const uuid = () => Math.random().toString(36).substring(2, 9);
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-// --- Similarity Utils ---
-const levenshtein = (a: string, b: string): number => {
-  const matrix = [];
-  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-  return matrix[b.length][a.length];
-};
+// Re-export FlashcardViewer for backwards compatibility
+export { FlashcardViewer } from './FlashcardViewer';
 
-const getSimilarity = (s1: string, s2: string): number => {
-    const a = s1.toLowerCase().trim();
-    const b = s2.toLowerCase().trim();
-    if (!a && !b) return 1;
-    if (!a || !b) return 0;
-    const maxLen = Math.max(a.length, b.length);
-    if (maxLen === 0) return 1;
-    const dist = levenshtein(a, b);
-    return 1 - (dist / maxLen);
-};
-
-const GenBtn = ({ icon, label, onClick, loading, status, disabled, badge, fullWidth }: any) => (
-  <button
-    onClick={onClick}
-    disabled={loading || disabled}
-    className={`relative flex flex-col items-center justify-center p-4 border rounded-xl transition-all group h-24 ${fullWidth ? 'col-span-2 md:col-span-3 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800' : ''} ${
-      disabled
-        ? 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 opacity-60 cursor-not-allowed'
-        : 'border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-blue-50 dark:hover:bg-blue-900/30 cursor-pointer'
-    }`}
-  >
-    {loading && fullWidth ? (
-       <div className="flex items-center gap-3">
-          <i className="fas fa-circle-notch fa-spin text-primary"></i>
-          <span className="text-slate-600 dark:text-slate-300 font-bold">{status}</span>
-       </div>
-    ) : loading ? (
-      <>
-        <i className="fas fa-circle-notch fa-spin text-primary mb-2"></i>
-        <span className="text-[10px] text-slate-500 dark:text-slate-400 animate-pulse text-center leading-tight px-1">{status}</span>
-      </>
-    ) : (
-      <>
-        <i className={`fas ${icon} mb-2 text-xl ${disabled ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400 group-hover:text-primary'}`}></i>
-        <span className={`text-xs font-bold ${disabled ? 'text-slate-400' : 'text-slate-600 dark:text-slate-300 group-hover:text-primary'}`}>{label}</span>
-      </>
-    )}
-    {badge && (
-      <span className="absolute top-2 right-2 text-[8px] font-bold bg-slate-200 dark:bg-slate-600 text-slate-500 dark:text-slate-300 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
-        {badge}
-      </span>
-    )}
-  </button>
-);
-
-export const FlashcardViewer = ({ cards, onFixCard }: { cards: Flashcard[], onFixCard?: (card: Flashcard) => void }) => {
-  const [index, setIndex] = useState(0);
-  const [flipped, setFlipped] = useState(false);
-
-  if (!cards || cards.length === 0) return (
-    <div className="text-center py-10 px-4">
-      <div className="text-slate-300 text-5xl mb-4"><i className="fas fa-layer-group"></i></div>
-      <p className="text-slate-500 font-bold">No flashcards generated.</p>
-      <p className="text-xs text-slate-400 mt-2">Try selecting more content or different source material.</p>
-    </div>
-  );
-
-  // Safety check: if index out of bounds (e.g. after filter), reset to 0
-  const safeIndex = index >= cards.length ? 0 : index;
-  const card = cards[safeIndex];
-  const isBroken = !card || !card.front || !card.back || !card.front.trim() || !card.back.trim();
-
-  return (
-    <div className="flex flex-col w-full h-full">
-      {/* Card Area - Flex 1 ensures it fills all available space */}
-      <div 
-        className="flex-1 w-full relative cursor-pointer group perspective"
-        style={{ perspective: '1000px' }}
-        onClick={() => !isBroken && setFlipped(!flipped)}
-      >
-        <div 
-          className="relative w-full h-full transition-transform duration-500"
-          style={{ transformStyle: 'preserve-3d', transform: flipped && !isBroken ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
-        >
-          {/* Front */}
-          <div
-            className={`absolute inset-0 backface-hidden bg-white dark:bg-slate-800 border shadow-sm rounded-xl flex flex-col items-center justify-center p-8 text-center overflow-hidden ${card.isDuplicate ? 'border-amber-200 dark:border-amber-800 bg-amber-50/30 dark:bg-amber-900/20' : 'border-slate-200 dark:border-slate-700'}`}
-            style={{ backfaceVisibility: 'hidden' }}
-          >
-            {card.isDuplicate && (
-                <div className="absolute top-3 right-3 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 text-[10px] font-bold px-2 py-1 rounded-full shadow-sm flex items-center gap-1 z-10">
-                    <i className="fas fa-clone"></i> Duplicate Skipped
-                </div>
-            )}
-
-            {isBroken ? (
-               <div className="flex flex-col items-center text-amber-500">
-                  <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
-                  <h4 className="font-bold">Empty Card</h4>
-                  <p className="text-xs text-slate-400 mt-1 mb-4">Content could not be generated.</p>
-               </div>
-            ) : (
-               <>
-                 <div className="overflow-y-auto w-full max-h-full flex flex-col items-center justify-center">
-                    <h4 className={`text-2xl font-bold leading-relaxed ${card.isDuplicate ? 'text-slate-500 opacity-70' : 'text-slate-800 dark:text-slate-100'}`}>{card.front}</h4>
-                 </div>
-                 <span className="absolute bottom-6 text-sm text-slate-400 font-medium uppercase tracking-wider">Tap to Flip</span>
-               </>
-            )}
-          </div>
-
-          {/* Back */}
-          <div
-            className={`absolute inset-0 backface-hidden border shadow-sm rounded-xl flex flex-col items-center justify-center p-8 text-center ${card.isDuplicate ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'}`}
-            style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
-          >
-             <div className="overflow-y-auto w-full max-h-full">
-                <h4 className={`text-xl font-medium leading-relaxed ${card.isDuplicate ? 'text-slate-600 dark:text-slate-400 opacity-80' : 'text-blue-900 dark:text-blue-100'}`}>{card.back}</h4>
-                {card.source && (
-                    <div className="mt-6 pt-4 border-t border-blue-100 dark:border-blue-800 w-full">
-                        <p className={`text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-1 ${card.isDuplicate ? 'text-slate-400' : 'text-blue-400'}`}>
-                            <i className="fas fa-map-marker-alt"></i> {card.source}
-                        </p>
-                    </div>
-                )}
-             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Controls - Fixed height to prevent shifting */}
-      <div className="flex-none h-16 flex items-center justify-center gap-6 mt-2">
-        <button 
-          onClick={(e) => { e.stopPropagation(); setFlipped(false); setIndex(Math.max(0, safeIndex - 1)); }}
-          disabled={safeIndex === 0}
-          className="p-3 rounded-full hover:bg-slate-100 disabled:opacity-30 transition-colors"
-        >
-          <i className="fas fa-chevron-left text-slate-600 text-lg"></i>
-        </button>
-        <span className="text-base font-bold text-slate-500">{safeIndex + 1} / {cards.length}</span>
-        <button 
-          onClick={(e) => { e.stopPropagation(); setFlipped(false); setIndex(Math.min(cards.length - 1, safeIndex + 1)); }}
-          disabled={safeIndex === cards.length - 1}
-          className="p-3 rounded-full hover:bg-slate-100 disabled:opacity-30 transition-colors"
-        >
-          <i className="fas fa-chevron-right text-slate-600 text-lg"></i>
-        </button>
-      </div>
-    </div>
-  );
-};
-
-export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { course: Course, onUpdate: (c: Course) => void, onViewLecture: (l: Lecture) => void, userId?: string }) => {
+export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId, onChapterFocus }: { course: Course, onUpdate: (c: Course) => void, onViewLecture: (l: Lecture) => void, userId?: string, onChapterFocus?: (startPage: number) => void }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.MEDIUM);
   const [itemCount, setItemCount] = useState(10);
@@ -332,6 +183,8 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
       case ContentType.MOCK_TEST: return 'Mock Test Questions';
       case ContentType.NOTES: return 'Summary Notes';
       case ContentType.CONCEPT_CONNECTIONS: return 'Concept Connections';
+      case ContentType.PRACTICE_PROBLEMS: return 'Practice Problems';
+      case ContentType.MNEMONICS: return 'Mnemonics';
       default: return 'Items';
     }
   };
@@ -642,6 +495,8 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
     if (preview.type === ContentType.QUIZ) typeLabel = 'Quiz';
     if (preview.type === ContentType.MOCK_TEST) typeLabel = 'Mock Test';
     if (preview.type === ContentType.CONCEPT_CONNECTIONS) typeLabel = 'Concept Connections';
+    if (preview.type === ContentType.PRACTICE_PROBLEMS) typeLabel = 'Practice Problems';
+    if (preview.type === ContentType.MNEMONICS) typeLabel = 'Mnemonics';
 
     const title = `${typeLabel}: ${baseTitle}`;
 
@@ -1117,7 +972,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
   return (
     <div className="max-w-3xl mx-auto">
       <div className="bg-white dark:bg-slate-800 p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-8">
-        <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 mb-4 flex items-center"><i className="fas fa-robot text-primary mr-2"></i>AI Study Generator</h3>
+        <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 mb-4 flex items-center"><Bot className="w-5 h-5 text-primary mr-2" />AI Study Generator</h3>
 
         {/* Selection */}
         <div className="mb-6">
@@ -1131,18 +986,21 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                 {course.chapters.map((ch, idx) => (
                   <div key={ch.id}>
                     {/* Parent Chapter */}
-                    <div className={`flex items-center gap-1 p-2 hover:bg-white dark:hover:bg-slate-600 rounded transition-colors group ${ch.isNotesOnly ? 'bg-amber-50/50 dark:bg-amber-900/20' : ''}`}>
+                    <div
+                      className={`flex items-center gap-1 p-2 hover:bg-white dark:hover:bg-slate-600 rounded transition-colors group ${ch.isNotesOnly ? 'bg-amber-50/50 dark:bg-amber-900/20' : ''}`}
+                      onClick={() => ch.startPage && onChapterFocus?.(ch.startPage)}
+                    >
                       <label className="flex items-center gap-3 flex-1 cursor-pointer">
                         <input type="checkbox" checked={selectedIds.includes(ch.id)} onChange={() => toggleSelection(ch.id)} className={`rounded focus:ring-primary ${ch.isNotesOnly ? 'text-amber-500' : 'text-primary'}`} />
                         {ch.isNotesOnly ? (
-                          <i className="fas fa-sticky-note text-amber-500 w-4"></i>
+                          <StickyNote className="w-4 h-4 text-amber-500" />
                         ) : (
-                          <i className="fas fa-file-pdf text-blue-400 w-4"></i>
+                          <File className="w-4 h-4 text-blue-400" />
                         )}
                         <span className="text-sm font-medium text-slate-700 dark:text-slate-200"><span className="text-slate-400 mr-1">Ch.{idx + 1}</span> {ch.title}</span>
                         {ch.isNotesOnly ? (
-                          <span className="text-[10px] text-amber-600 ml-auto bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded font-bold">
-                            <i className="fas fa-sticky-note mr-1"></i>{ch.notes ? `${ch.notes.split(/\s+/).length}w` : 'Notes'}
+                          <span className="text-[10px] text-amber-600 ml-auto bg-amber-100 dark:bg-amber-900/50 px-2 py-0.5 rounded font-bold flex items-center">
+                            <StickyNote className="w-3 h-3 mr-1" />{ch.notes ? `${ch.notes.split(/\s+/).length}w` : 'Notes'}
                           </span>
                         ) : (
                           <span className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-600 px-2 py-0.5 rounded ml-auto">pp. {ch.startPage}-{ch.endPage}</span>
@@ -1156,7 +1014,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                           className="p-1.5 text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30 rounded transition-colors"
                           title="Add notes to this chapter"
                         >
-                          <i className="fas fa-plus text-xs"></i>
+                          <Plus className="w-3 h-3" />
                         </button>
                         {/* Delete chapter (notes-only) */}
                         {ch.isNotesOnly && (
@@ -1165,7 +1023,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                             className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                             title="Delete chapter"
                           >
-                            <i className="fas fa-trash text-xs"></i>
+                            <Trash2 className="w-3 h-3" />
                           </button>
                         )}
                       </div>
@@ -1180,7 +1038,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                           onChange={() => toggleSelection(`${ch.id}_notes`)}
                           className="rounded text-green-500 focus:ring-green-400 w-4 h-4"
                         />
-                        <i className="fas fa-sticky-note text-green-500 flex-shrink-0"></i>
+                        <StickyNote className="w-4 h-4 text-green-500 flex-shrink-0" />
                         <span className="text-green-700 dark:text-green-400 font-medium truncate flex-1 min-w-0">
                           {ch.notesTitle || `${ch.title} Notes`} ({ch.notes.split(/\s+/).length} words)
                         </span>
@@ -1194,7 +1052,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                             className="text-green-500 hover:text-blue-500 p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                             title="Move notes"
                           >
-                            <i className="fas fa-arrows-alt text-xs"></i>
+                            <Move className="w-3 h-3" />
                           </button>
                           <button
                             onClick={(e) => {
@@ -1205,7 +1063,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                             className="text-green-500 hover:text-red-500 p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                             title="Remove notes"
                           >
-                            <i className="fas fa-times text-xs"></i>
+                            <X className="w-3 h-3" />
                           </button>
                         </div>
                       </div>
@@ -1214,18 +1072,21 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                     {/* Subchapters */}
                     {ch.subchapters && ch.subchapters.map((sub, sIdx) => (
                         <React.Fragment key={sub.id}>
-                        <div className={`flex items-center gap-1 p-2 pl-8 hover:bg-white dark:hover:bg-slate-600 rounded transition-colors border-l-2 ml-2 group/sub ${sub.isNotesOnly ? 'border-amber-300 dark:border-amber-700 bg-amber-50/30 dark:bg-amber-900/10' : 'border-slate-100 dark:border-slate-600'}`}>
+                        <div
+                          className={`flex items-center gap-1 p-2 pl-8 hover:bg-white dark:hover:bg-slate-600 rounded transition-colors border-l-2 ml-2 group/sub ${sub.isNotesOnly ? 'border-amber-300 dark:border-amber-700 bg-amber-50/30 dark:bg-amber-900/10' : 'border-slate-100 dark:border-slate-600'}`}
+                          onClick={() => sub.startPage && onChapterFocus?.(sub.startPage)}
+                        >
                            <label className="flex items-center gap-3 flex-1 cursor-pointer min-w-0">
                              <input type="checkbox" checked={selectedIds.includes(sub.id)} onChange={() => toggleSelection(sub.id)} className={`rounded focus:ring-blue-400 ${sub.isNotesOnly ? 'text-amber-500' : 'text-blue-400'}`} />
                              {sub.isNotesOnly ? (
-                               <i className="fas fa-sticky-note text-amber-500 w-3 text-xs flex-shrink-0"></i>
+                               <StickyNote className="w-3 h-3 text-amber-500 flex-shrink-0" />
                              ) : (
-                               <i className="fas fa-file-alt text-slate-400 w-3 text-xs flex-shrink-0"></i>
+                               <FileText className="w-3 h-3 text-slate-400 flex-shrink-0" />
                              )}
                              <span className="text-sm font-medium text-slate-600 dark:text-slate-300 text-xs truncate"><span className="text-slate-300 dark:text-slate-500 mr-1">{idx+1}.{sIdx+1}</span> {sub.title}</span>
                              {sub.isNotesOnly ? (
-                               <span className="text-[10px] text-amber-600 ml-auto bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded font-bold flex-shrink-0">
-                                 <i className="fas fa-sticky-note mr-1"></i>{sub.notes ? `${sub.notes.split(/\s+/).length}w` : 'Notes'}
+                               <span className="text-[10px] text-amber-600 ml-auto bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded font-bold flex-shrink-0 flex items-center">
+                                 <StickyNote className="w-2.5 h-2.5 mr-1" />{sub.notes ? `${sub.notes.split(/\s+/).length}w` : 'Notes'}
                                </span>
                              ) : (
                                <span className="text-[10px] text-slate-400 border border-slate-200 dark:border-slate-500 px-1 rounded ml-auto flex-shrink-0">{sub.startPage}-{sub.endPage}</span>
@@ -1242,7 +1103,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                                  className="p-1 text-amber-500 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"
                                  title="Move section"
                                >
-                                 <i className="fas fa-arrows-alt text-[10px]"></i>
+                                 <Move className="w-2.5 h-2.5" />
                                </button>
                                <button
                                  onClick={(e) => {
@@ -1252,7 +1113,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                                  className="p-1 text-amber-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
                                  title="Delete section"
                                >
-                                 <i className="fas fa-trash text-[10px]"></i>
+                                 <Trash2 className="w-2.5 h-2.5" />
                                </button>
                              </div>
                            )}
@@ -1266,7 +1127,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                               onChange={() => toggleSelection(`${sub.id}_notes`)}
                               className="rounded text-green-500 focus:ring-green-400 w-3.5 h-3.5"
                             />
-                            <i className="fas fa-sticky-note text-green-500 text-[10px] flex-shrink-0"></i>
+                            <StickyNote className="w-2.5 h-2.5 text-green-500 flex-shrink-0" />
                             <span className="text-green-700 dark:text-green-400 font-medium truncate flex-1 min-w-0">
                               {sub.notesTitle || `${sub.title} Notes`} ({sub.notes.split(/\s+/).length}w)
                             </span>
@@ -1280,7 +1141,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                                 className="text-green-500 hover:text-blue-500 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                                 title="Move notes"
                               >
-                                <i className="fas fa-arrows-alt text-[10px]"></i>
+                                <Move className="w-2.5 h-2.5" />
                               </button>
                               <button
                                 onClick={(e) => {
@@ -1291,7 +1152,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                                 className="text-green-500 hover:text-red-500 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                                 title="Remove notes"
                               >
-                                <i className="fas fa-times text-[10px]"></i>
+                                <X className="w-2.5 h-2.5" />
                               </button>
                             </div>
                           </div>
@@ -1311,7 +1172,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                   <div key={lec.id} className="flex items-center gap-3 p-2 hover:bg-white dark:hover:bg-slate-600 rounded transition-colors group">
                     <label className="flex items-center gap-3 flex-1 cursor-pointer">
                         <input type="checkbox" checked={selectedIds.includes(lec.id)} onChange={() => toggleSelection(lec.id)} className="rounded text-primary focus:ring-primary" />
-                        <i className={`fas ${lec.sourceType === 'upload' ? 'fa-file-alt text-amber-500' : 'fa-microphone text-purple-500'} w-4`}></i>
+                        {lec.sourceType === 'upload' ? <FileText className="w-4 h-4 text-amber-500" /> : <Mic className="w-4 h-4 text-purple-500" />}
                         <div className="flex-1 min-w-0">
                            <div className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{lec.title}</div>
                            <div className="text-[10px] text-slate-400">{formatDate(lec.date)}</div>
@@ -1322,7 +1183,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-600 rounded opacity-0 group-hover:opacity-100 transition-all"
                        title="View/Play"
                     >
-                        <i className="fas fa-eye"></i>
+                        <Eye className="w-4 h-4" />
                     </button>
                     {course.chapters.length > 0 && (
                       <button
@@ -1335,7 +1196,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                          className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded opacity-0 group-hover:opacity-100 transition-all"
                          title="Move to chapter"
                       >
-                          <i className="fas fa-arrow-right"></i>
+                          <ArrowRight className="w-4 h-4" />
                       </button>
                     )}
                     <button
@@ -1346,7 +1207,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover:opacity-100 transition-all"
                        title="Delete"
                     >
-                        <i className="fas fa-trash-alt"></i>
+                        <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
@@ -1371,7 +1232,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                 : 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white hover:from-purple-600 hover:to-indigo-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed'
             }`}
           >
-            <i className="fas fa-comments"></i>
+            <MessageSquare className="w-5 h-5" />
             <span>Ask AI Tutor</span>
             {userStatus !== 'pro' && (
               <span className="text-[10px] bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full uppercase tracking-wide font-bold">Pro</span>
@@ -1391,11 +1252,11 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
 
         {/* Action Buttons - Now open config modal */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <GenBtn icon="fa-bolt" label="Flashcards" onClick={() => openGenConfig(ContentType.FLASHCARDS)} loading={generating} status={status} />
-          <GenBtn icon="fa-question-circle" label="Quiz" onClick={() => openGenConfig(ContentType.QUIZ)} loading={generating} status={status} />
-          <GenBtn icon="fa-align-left" label="Summary" onClick={() => openGenConfig(ContentType.NOTES)} loading={generating} status={status} />
+          <GenBtn icon={<Zap className="w-5 h-5" />} label="Flashcards" onClick={() => openGenConfig(ContentType.FLASHCARDS)} loading={generating} status={status} />
+          <GenBtn icon={<HelpCircle className="w-5 h-5" />} label="Quiz" onClick={() => openGenConfig(ContentType.QUIZ)} loading={generating} status={status} />
+          <GenBtn icon={<AlignLeft className="w-5 h-5" />} label="Summary" onClick={() => openGenConfig(ContentType.NOTES)} loading={generating} status={status} />
           <GenBtn
-            icon="fa-share-nodes"
+            icon={<Share2 className="w-5 h-5" />}
             label="Concept Connections"
             onClick={() => openGenConfig(ContentType.CONCEPT_CONNECTIONS)}
             loading={generating}
@@ -1403,9 +1264,27 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
             badge={userStatus !== 'pro' ? 'Pro' : undefined}
             disabled={userStatus !== 'pro'}
           />
+          <GenBtn
+            icon={<Calculator className="w-5 h-5" />}
+            label="Practice Problems"
+            onClick={() => openGenConfig(ContentType.PRACTICE_PROBLEMS)}
+            loading={generating}
+            status={status}
+            badge={userStatus !== 'pro' ? 'Pro' : 'STEM'}
+            disabled={userStatus !== 'pro'}
+          />
+          <GenBtn
+            icon={<Lightbulb className="w-5 h-5" />}
+            label="Mnemonics"
+            onClick={() => openGenConfig(ContentType.MNEMONICS)}
+            loading={generating}
+            status={status}
+            badge={userStatus !== 'pro' ? 'Pro' : undefined}
+            disabled={userStatus !== 'pro'}
+          />
 
           <GenBtn
-             icon="fa-file-signature"
+             icon={<FileSignature className="w-5 h-5" />}
              label="Generate Mock Test"
              onClick={() => openGenConfig(ContentType.MOCK_TEST)}
              loading={generating}
@@ -1482,7 +1361,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                 />
                 <div>
                   <div className="font-bold text-sm text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                    <i className="fas fa-brain text-purple-500"></i>
+                    <Brain className="w-4 h-4 text-purple-500" />
                     Smart Exam Mode
                     <span className="text-[10px] bg-purple-500 text-white px-1.5 py-0.5 rounded-full font-bold">NEW</span>
                   </div>
@@ -1490,8 +1369,8 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                     Generate exam from your existing flashcards and quiz questions.
                     Creates varied questions while avoiding token limits.
                   </p>
-                  <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-1">
-                    <i className="fas fa-info-circle mr-1"></i>
+                  <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-1 flex items-center">
+                    <Info className="w-3 h-3 mr-1" />
                     {course.materials.filter(m => m.type === ContentType.FLASHCARDS || m.type === ContentType.QUIZ).length > 0
                       ? `${course.materials.reduce((acc, m) => acc + (Array.isArray(m.content) && (m.type === ContentType.FLASHCARDS || m.type === ContentType.QUIZ) ? m.content.length : 0), 0)} items available`
                       : "Generate flashcards/quizzes first"
@@ -1529,7 +1408,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
             onClick={startGeneration}
             className="w-full py-4 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold text-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
           >
-            <i className="fas fa-magic"></i>
+            <Sparkles className="w-5 h-5" />
             Generate {genConfigModal && getContentTypeLabel(genConfigModal)}
           </button>
         </div>
@@ -1541,7 +1420,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
           {/* Chat Header */}
           <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
             <div className="flex items-center gap-2 text-sm text-slate-500">
-              <i className="fas fa-book-open"></i>
+              <BookOpen className="w-4 h-4" />
               <span>Context: {selectedIds.length} item(s) selected</span>
             </div>
             {(course.chatHistory?.length || 0) > 0 && (
@@ -1549,7 +1428,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                 onClick={clearChatHistory}
                 className="text-xs text-slate-400 hover:text-red-500 transition-colors"
               >
-                <i className="fas fa-trash mr-1"></i> Clear History
+                <Trash2 className="w-3 h-3 mr-1" /> Clear History
               </button>
             )}
           </div>
@@ -1558,7 +1437,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
           <div className="flex-1 overflow-y-auto space-y-4 pr-2">
             {(!course.chatHistory || course.chatHistory.length === 0) && !chatLoading && (
               <div className="text-center py-12 text-slate-400">
-                <i className="fas fa-robot text-4xl mb-3 text-slate-300"></i>
+                <Bot className="w-10 h-10 mb-3 text-slate-300" />
                 <p className="font-medium">Ask me anything about the selected material!</p>
                 <p className="text-sm mt-1">I'll only answer based on what you've selected.</p>
               </div>
@@ -1584,7 +1463,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
             {chatLoading && (
               <div className="flex justify-start">
                 <div className="bg-slate-100 p-3 rounded-2xl rounded-bl-md">
-                  <i className="fas fa-circle-notch fa-spin text-primary"></i>
+                  <Loader2 className="w-5 h-5 text-primary animate-spin" />
                 </div>
               </div>
             )}
@@ -1609,7 +1488,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                 disabled={chatLoading || !chatInput.trim() || !chatContext}
                 className="px-5 py-3 bg-primary text-white rounded-xl font-bold disabled:opacity-50 hover:bg-blue-600 transition-colors"
               >
-                <i className="fas fa-paper-plane"></i>
+                <Send className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -1658,15 +1537,21 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                   <p className="text-slate-600 text-sm leading-relaxed">{conn.explanation}</p>
                   {conn.source && (
                     <p className="text-xs text-slate-400 font-bold uppercase mt-3 pt-3 border-t border-slate-100 flex items-center gap-1">
-                      <i className="fas fa-book"></i> {conn.source}
+                      <BookMarked className="w-3 h-3" /> {conn.source}
                     </p>
                   )}
                 </div>
               ))}
             </div>
           )}
+          {preview?.type === ContentType.PRACTICE_PROBLEMS && (
+            <PracticeProblemsViewer problems={preview.data as PracticeProblem[]} />
+          )}
+          {preview?.type === ContentType.MNEMONICS && (
+            <MnemonicsViewer mnemonics={preview.data as Mnemonic[]} />
+          )}
         </div>
-        
+
         {/* Footer with Dupe Control */}
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
           <div className="flex items-center gap-4">
@@ -1675,7 +1560,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                 className="text-primary hover:text-blue-700 font-bold text-sm flex items-center"
                 disabled={generating}
               >
-                <i className={`fas fa-sync-alt mr-2 ${generating ? 'fa-spin' : ''}`}></i> Regenerate
+                <RefreshCw className={`w-4 h-4 mr-2 ${generating ? 'animate-spin' : ''}`} /> Regenerate
               </button>
               
               {duplicateCount > 0 && preview?.type === ContentType.FLASHCARDS && (
@@ -1749,7 +1634,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
 
           {moveTargetChapter && (
             <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg">
-              <i className="fas fa-info-circle mr-1"></i>
+              <Info className="w-3 h-3 mr-1 inline" />
               Notes will be attached to the chapter and combined with PDF content when generating.
             </div>
           )}
@@ -1766,7 +1651,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
               disabled={!moveTargetChapter}
               className="flex-1 px-4 py-3 bg-primary text-white rounded-lg font-bold disabled:opacity-50 hover:bg-blue-600 transition-colors"
             >
-              <i className="fas fa-arrow-right mr-2"></i>Move
+              <ArrowRight className="w-4 h-4 mr-2" />Move
             </button>
           </div>
         </div>
@@ -1777,7 +1662,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
         <div className="space-y-4">
           <div className="text-center py-4">
             <div className="w-16 h-16 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
-              <i className="fas fa-trash-alt text-2xl text-red-500"></i>
+              <Trash2 className="w-8 h-8 text-red-500" />
             </div>
             <p className="text-slate-600 dark:text-slate-300">
               Are you sure you want to delete{' '}
@@ -1801,7 +1686,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
               onClick={handleConfirmDelete}
               className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 transition-colors"
             >
-              <i className="fas fa-trash mr-2"></i>Delete
+              <Trash2 className="w-4 h-4 mr-2" />Delete
             </button>
           </div>
         </div>
@@ -1859,7 +1744,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
 
           {moveNotesTarget && (
             <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg">
-              <i className="fas fa-info-circle mr-1"></i>
+              <Info className="w-3 h-3 mr-1 inline" />
               {moveNotesSubTarget
                 ? 'Notes will be attached to the selected PDF section.'
                 : 'Notes will be moved as a new section in the selected chapter.'}
@@ -1878,7 +1763,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
               disabled={!moveNotesTarget}
               className="flex-1 px-4 py-3 bg-primary text-white rounded-lg font-bold disabled:opacity-50 hover:bg-blue-600 transition-colors"
             >
-              <i className="fas fa-arrows-alt mr-2"></i>Move
+              <Move className="w-4 h-4 mr-2" />Move
             </button>
           </div>
         </div>
@@ -1894,13 +1779,13 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                 onClick={() => setQuickImportCreateNewChapter(false)}
                 className={`flex-1 px-3 py-2 text-sm font-bold rounded-md transition-all ${!quickImportCreateNewChapter ? 'bg-white dark:bg-slate-600 text-primary shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
               >
-                <i className="fas fa-layer-group mr-2"></i>Add to Chapter
+                <Layers className="w-4 h-4 mr-2" />Add to Chapter
               </button>
               <button
                 onClick={() => setQuickImportCreateNewChapter(true)}
                 className={`flex-1 px-3 py-2 text-sm font-bold rounded-md transition-all ${quickImportCreateNewChapter ? 'bg-white dark:bg-slate-600 text-amber-600 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
               >
-                <i className="fas fa-plus-circle mr-2"></i>New Chapter
+                <PlusCircle className="w-4 h-4 mr-2" />New Chapter
               </button>
             </div>
 
@@ -1940,13 +1825,13 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                 />
                 {quickImportFile ? (
                   <div className="text-primary">
-                    <i className="fas fa-file-alt text-xl mb-1"></i>
+                    <FileText className="w-6 h-6 mx-auto mb-1" />
                     <p className="font-bold text-sm truncate px-4">{quickImportFile.name}</p>
                     <p className="text-xs text-slate-400 mt-1">Click to replace</p>
                   </div>
                 ) : (
                   <div className="text-slate-400">
-                    <i className="fas fa-cloud-upload-alt text-xl mb-1 group-hover:text-primary transition-colors"></i>
+                    <CloudUpload className="w-6 h-6 mx-auto mb-1 group-hover:text-primary transition-colors" />
                     <p className="font-bold text-sm text-slate-600 dark:text-slate-300">Click to Upload</p>
                     <p className="text-xs mt-1">PDF, DOCX, TXT, MD, RTF</p>
                   </div>
@@ -2024,7 +1909,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId }: { co
                 }
                 className="flex-1 px-4 py-3 bg-primary text-white rounded-lg font-bold disabled:opacity-50 hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
               >
-                {quickImportLoading && <i className="fas fa-circle-notch fa-spin"></i>}
+                {quickImportLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {quickImportLoading ? 'Importing...' : 'Import Notes'}
               </button>
             </div>

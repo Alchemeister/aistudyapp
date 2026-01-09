@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const TermsOfService: React.FC = () => {
@@ -6,7 +7,7 @@ export const TermsOfService: React.FC = () => {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-12 px-4">
       <div className="max-w-3xl mx-auto">
         <Link to="/" className="inline-flex items-center gap-2 text-primary hover:text-blue-600 mb-8 font-medium">
-          <i className="fas fa-arrow-left"></i>
+          <ArrowLeft className="w-4 h-4" />
           Back to App
         </Link>
 

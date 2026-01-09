@@ -1,4 +1,5 @@
 import React, { useState, type FC } from 'react';
+import { Loader2, Search, Info, Book, Check, ExternalLink } from 'lucide-react';
 import { Modal } from './Modal';
 
 interface BookResult {
@@ -103,13 +104,13 @@ export const BookSearchModal: FC<Props> = ({ isOpen, onClose, onSelect }) => {
             disabled={loading || !query.trim()}
             className="px-6 py-3 bg-primary text-white rounded-xl font-bold disabled:opacity-50 hover:bg-blue-600 transition-colors"
           >
-            {loading ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fas fa-search"></i>}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
           </button>
         </div>
 
         {/* Info */}
         <p className="text-xs text-slate-400 flex items-center gap-2">
-          <i className="fas fa-info-circle"></i>
+          <Info className="w-4 h-4" />
           Searches Open Library for legally free books. Results link to Internet Archive.
         </p>
 
@@ -117,14 +118,14 @@ export const BookSearchModal: FC<Props> = ({ isOpen, onClose, onSelect }) => {
         <div className="max-h-[50vh] overflow-y-auto space-y-3">
           {loading && (
             <div className="text-center py-8 text-slate-400">
-              <i className="fas fa-circle-notch fa-spin text-2xl mb-2"></i>
+              <Loader2 className="w-6 h-6 mb-2 animate-spin" />
               <p>Searching...</p>
             </div>
           )}
 
           {!loading && searched && results.length === 0 && (
             <div className="text-center py-8 text-slate-400">
-              <i className="fas fa-book text-3xl mb-2 text-slate-300"></i>
+              <Book className="w-8 h-8 mb-2 text-slate-300" />
               <p className="font-medium">No free books found</p>
               <p className="text-sm mt-1">Try a different search term or check OpenStax.org for textbooks</p>
             </div>
@@ -146,7 +147,7 @@ export const BookSearchModal: FC<Props> = ({ isOpen, onClose, onSelect }) => {
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-slate-400">
-                    <i className="fas fa-book text-xl"></i>
+                    <Book className="w-5 h-5" />
                   </div>
                 )}
               </div>
@@ -165,11 +166,11 @@ export const BookSearchModal: FC<Props> = ({ isOpen, onClose, onSelect }) => {
                   )}
                   {isFreeBook(book) ? (
                     <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">
-                      <i className="fas fa-check mr-1"></i>Free
+                      <Check className="w-3 h-3 mr-1" />Free
                     </span>
                   ) : (
                     <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold">
-                      <i className="fas fa-info-circle mr-1"></i>View Info
+                      <Info className="w-3 h-3 mr-1" />View Info
                     </span>
                   )}
                 </div>
@@ -177,7 +178,7 @@ export const BookSearchModal: FC<Props> = ({ isOpen, onClose, onSelect }) => {
 
               {/* Action */}
               <div className="flex-shrink-0 flex items-center">
-                <i className="fas fa-external-link-alt text-slate-400"></i>
+                <ExternalLink className="w-4 h-4 text-slate-400" />
               </div>
             </div>
           ))}
@@ -193,7 +194,7 @@ export const BookSearchModal: FC<Props> = ({ isOpen, onClose, onSelect }) => {
               rel="noopener noreferrer"
               className="text-xs bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full hover:bg-primary hover:text-white transition-colors"
             >
-              <i className="fas fa-external-link-alt mr-1"></i> OpenStax
+              <ExternalLink className="w-3 h-3 mr-1" /> OpenStax
             </a>
             <a
               href="https://www.gutenberg.org/"
@@ -201,7 +202,7 @@ export const BookSearchModal: FC<Props> = ({ isOpen, onClose, onSelect }) => {
               rel="noopener noreferrer"
               className="text-xs bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full hover:bg-primary hover:text-white transition-colors"
             >
-              <i className="fas fa-external-link-alt mr-1"></i> Project Gutenberg
+              <ExternalLink className="w-3 h-3 mr-1" /> Project Gutenberg
             </a>
             <a
               href="https://libretexts.org/"
@@ -209,7 +210,7 @@ export const BookSearchModal: FC<Props> = ({ isOpen, onClose, onSelect }) => {
               rel="noopener noreferrer"
               className="text-xs bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full hover:bg-primary hover:text-white transition-colors"
             >
-              <i className="fas fa-external-link-alt mr-1"></i> LibreTexts
+              <ExternalLink className="w-3 h-3 mr-1" /> LibreTexts
             </a>
           </div>
         </div>

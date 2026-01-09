@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Crown, User, Rocket, Coins, Loader2, Check, Info } from 'lucide-react';
 import { Modal } from './Modal';
 import { STRIPE_CONFIG, FEATURES } from '../services/stripeConfig';
 import { upgradeToPro, buyCredits } from '../services/subscriptionService';
@@ -84,12 +85,12 @@ export const PricingModal: React.FC<Props> = ({
           }`}>
             {currentStatus === 'pro' ? (
               <>
-                <i className="fas fa-crown"></i>
+                <Crown className="w-4 h-4" />
                 Pro Member
               </>
             ) : (
               <>
-                <i className="fas fa-user"></i>
+                <User className="w-4 h-4" />
                 Free Plan • {creditsRemaining} credits left
               </>
             )}
@@ -107,7 +108,7 @@ export const PricingModal: React.FC<Props> = ({
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
               }`}
             >
-              <i className="fas fa-rocket mr-2"></i>
+              <Rocket className="w-4 h-4 mr-2" />
               Subscription Plans
             </button>
             <button
@@ -118,7 +119,7 @@ export const PricingModal: React.FC<Props> = ({
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'
               }`}
             >
-              <i className="fas fa-coins mr-2"></i>
+              <Coins className="w-4 h-4 mr-2" />
               Buy Credits
             </button>
           </div>
@@ -144,7 +145,7 @@ export const PricingModal: React.FC<Props> = ({
                   className="w-full py-2.5 bg-primary text-white rounded-lg font-bold hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   {loading === 'monthly' ? (
-                    <i className="fas fa-circle-notch fa-spin"></i>
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : currentStatus === 'pro' && currentPlan === 'monthly' ? (
                     'Current Plan'
                   ) : (
@@ -174,7 +175,7 @@ export const PricingModal: React.FC<Props> = ({
                   className="w-full py-2.5 bg-primary text-white rounded-lg font-bold hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   {loading === 'semester' ? (
-                    <i className="fas fa-circle-notch fa-spin"></i>
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : currentStatus === 'pro' && currentPlan === 'semester' ? (
                     'Current Plan'
                   ) : (
@@ -204,7 +205,7 @@ export const PricingModal: React.FC<Props> = ({
                   className="w-full py-2.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-lg font-bold hover:from-amber-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   {loading === 'annual' ? (
-                    <i className="fas fa-circle-notch fa-spin"></i>
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : currentStatus === 'pro' && currentPlan === 'annual' ? (
                     'Current Plan'
                   ) : (
@@ -221,27 +222,27 @@ export const PricingModal: React.FC<Props> = ({
               </h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <i className="fas fa-check text-green-500"></i>
+                  <Check className="w-4 h-4 text-green-500" />
                   1,000 generations/month
                 </div>
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <i className="fas fa-check text-green-500"></i>
+                  <Check className="w-4 h-4 text-green-500" />
                   Smart SRS Review
                 </div>
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <i className="fas fa-check text-green-500"></i>
+                  <Check className="w-4 h-4 text-green-500" />
                   Study Analytics
                 </div>
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <i className="fas fa-check text-green-500"></i>
+                  <Check className="w-4 h-4 text-green-500" />
                   AI Tutor
                 </div>
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <i className="fas fa-check text-green-500"></i>
+                  <Check className="w-4 h-4 text-green-500" />
                   Concept Maps
                 </div>
                 <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                  <i className="fas fa-check text-green-500"></i>
+                  <Check className="w-4 h-4 text-green-500" />
                   Mock Tests
                 </div>
               </div>
@@ -261,7 +262,7 @@ export const PricingModal: React.FC<Props> = ({
               <div className="border border-slate-200 dark:border-slate-600 rounded-xl p-4 hover:border-green-400 transition-colors">
                 <div className="text-center mb-4">
                   <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <i className="fas fa-coins text-green-500 text-xl"></i>
+                    <Coins className="w-5 h-5 text-green-500" />
                   </div>
                   <h3 className="font-bold text-slate-700 dark:text-slate-200">25 Credits</h3>
                   <div className="mt-2">
@@ -275,7 +276,7 @@ export const PricingModal: React.FC<Props> = ({
                   className="w-full py-2.5 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   {loading === 'pack25' ? (
-                    <i className="fas fa-circle-notch fa-spin"></i>
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     'Buy Now'
                   )}
@@ -289,7 +290,7 @@ export const PricingModal: React.FC<Props> = ({
                 </div>
                 <div className="text-center mb-4">
                   <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <i className="fas fa-coins text-green-500 text-xl"></i>
+                    <Coins className="w-5 h-5 text-green-500" />
                   </div>
                   <h3 className="font-bold text-slate-700 dark:text-slate-200">50 Credits</h3>
                   <div className="mt-2">
@@ -303,7 +304,7 @@ export const PricingModal: React.FC<Props> = ({
                   className="w-full py-2.5 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   {loading === 'pack50' ? (
-                    <i className="fas fa-circle-notch fa-spin"></i>
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     'Buy Now'
                   )}
@@ -314,7 +315,7 @@ export const PricingModal: React.FC<Props> = ({
               <div className="border border-slate-200 dark:border-slate-600 rounded-xl p-4 hover:border-green-400 transition-colors">
                 <div className="text-center mb-4">
                   <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <i className="fas fa-coins text-green-500 text-xl"></i>
+                    <Coins className="w-5 h-5 text-green-500" />
                   </div>
                   <h3 className="font-bold text-slate-700 dark:text-slate-200">100 Credits</h3>
                   <div className="mt-2">
@@ -328,7 +329,7 @@ export const PricingModal: React.FC<Props> = ({
                   className="w-full py-2.5 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   {loading === 'pack100' ? (
-                    <i className="fas fa-circle-notch fa-spin"></i>
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     'Buy Now'
                   )}
@@ -338,7 +339,7 @@ export const PricingModal: React.FC<Props> = ({
 
             <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 text-center">
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                <i className="fas fa-info-circle mr-2"></i>
+                <Info className="w-4 h-4 mr-2" />
                 Credits are used after your monthly allowance runs out. They never expire!
               </p>
             </div>
@@ -348,7 +349,7 @@ export const PricingModal: React.FC<Props> = ({
         {/* Footer */}
         <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-600 text-center">
           <p className="text-xs text-slate-400">
-            Secure payment powered by <i className="fab fa-stripe text-indigo-500"></i> Stripe
+            Secure payment powered by Stripe
           </p>
         </div>
       </div>

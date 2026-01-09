@@ -8,7 +8,9 @@ export enum ContentType {
   NOTES = 'NOTES',
   MINDMAP = 'MINDMAP',
   ACTIVE_RECALL = 'ACTIVE_RECALL',
-  CONCEPT_CONNECTIONS = 'CONCEPT_CONNECTIONS'
+  CONCEPT_CONNECTIONS = 'CONCEPT_CONNECTIONS',
+  PRACTICE_PROBLEMS = 'PRACTICE_PROBLEMS',
+  MNEMONICS = 'MNEMONICS'
 }
 
 export enum Difficulty {
@@ -52,6 +54,32 @@ export interface ConceptConnection {
   source?: string;           // Page citation
 }
 
+export interface PracticeProblem {
+  id: string;
+  problem: string;           // The problem statement (supports LaTeX with $...$)
+  givens?: string[];         // Given values (e.g., ["m = 5 kg", "a = 9.8 m/s²"])
+  find?: string;             // What to find (e.g., "F = ?")
+  steps: {                   // Step-by-step solution
+    explanation: string;     // What we're doing in this step
+    math?: string;           // The mathematical expression (LaTeX)
+  }[];
+  answer: string;            // Final answer (e.g., "F = 49 N")
+  formula?: string;          // Key formula used (e.g., "F = ma")
+  difficulty: 'easy' | 'medium' | 'hard';
+  topic?: string;            // Topic/concept being tested
+  source?: string;           // Page citation
+}
+
+export interface Mnemonic {
+  id: string;
+  items: string[];           // The list of items to remember (e.g., ["Red", "Orange", "Yellow", "Green", "Blue", "Indigo", "Violet"])
+  mnemonic: string;          // The memory aid (e.g., "ROY G. BIV" or "Richard Of York Gave Battle In Vain")
+  type: 'acronym' | 'acrostic' | 'rhyme' | 'story' | 'visual';
+  explanation: string;       // How the mnemonic helps remember the items
+  topic?: string;            // What subject/concept this helps with
+  source?: string;           // Page citation
+}
+
 export interface QuizResult {
   date: string;
   score: number;
@@ -66,7 +94,7 @@ export interface StudyMaterial {
   title: string;
   createdAt: string;
   difficulty?: Difficulty;
-  content: Flashcard[] | Question[] | ConceptConnection[] | string; // string for Notes/Mindmap(SVG/Text)
+  content: Flashcard[] | Question[] | ConceptConnection[] | PracticeProblem[] | Mnemonic[] | string; // string for Notes/Mindmap(SVG/Text)
   sourceChapterIds?: string[];
 }
 
@@ -102,6 +130,11 @@ export interface Lecture {
   transcript: string;
   sourceType?: 'recording' | 'upload'; // New field
   fileName?: string; // New field for imports
+  // Smart Lecture Notes
+  summary?: string;             // AI-generated summary of the transcript
+  keyPoints?: string[];         // Key points extracted from the lecture
+  actionItems?: string[];       // Action items/todos mentioned
+  summaryGeneratedAt?: string;  // When the summary was generated
 }
 
 export interface ChatMessage {
@@ -166,4 +199,45 @@ export interface SharedCourse {
   ownerEmail: string;
   permission: 'view' | 'copy';
   sharedAt: string;
+}
+
+// Study Groups & Leaderboards
+
+export interface StudyGroup {
+  id: string;
+  name: string;
+  description?: string;
+  school?: string;              // e.g., "Stanford University"
+  course?: string;              // e.g., "PHYS 101"
+  professor?: string;           // e.g., "Dr. Smith"
+  inviteCode: string;           // 6-char code to join
+  createdBy: string;            // User ID of creator
+  createdAt: string;
+  memberCount: number;
+}
+
+export interface GroupMember {
+  odId: string;
+  odName: string;
+  odEmail: string;
+  odPhoto?: string;
+  joinedAt: string;
+  role: 'admin' | 'member';
+  // Leaderboard stats
+  totalScore: number;           // Sum of all quiz scores (percentage points)
+  quizzesTaken: number;
+  correctAnswers: number;
+  totalQuestions: number;
+  currentStreak: number;        // Days in a row with activity
+  lastActiveAt?: string;
+}
+
+export interface LeaderboardEntry {
+  odId: string;
+  odName: string;
+  odPhoto?: string;
+  totalScore: number;
+  quizzesTaken: number;
+  accuracy: number;             // correctAnswers / totalQuestions * 100
+  rank: number;
 }

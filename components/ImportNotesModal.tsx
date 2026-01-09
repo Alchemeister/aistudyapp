@@ -1,4 +1,5 @@
 import React, { useState, type FC, type ChangeEvent } from 'react';
+import { X, FileText, CloudUpload, PlusCircle, Layers, StickyNote, Info, Plus, Loader2 } from 'lucide-react';
 import { loadPdfDocument, extractAllText } from '../services/pdfUtils';
 import { Lecture, Course, Chapter } from '../types';
 
@@ -137,7 +138,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
       <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg animate-fade-in-up overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-700">
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Import Notes</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"><i className="fas fa-times"></i></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
@@ -153,13 +154,13 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
               />
               {file ? (
                 <div className="text-primary">
-                  <i className="fas fa-file-alt text-2xl mb-2"></i>
+                  <FileText className="w-6 h-6 mb-2" />
                   <p className="font-bold text-sm truncate px-4">{file.name}</p>
                   <p className="text-xs text-slate-400 mt-1">Click to replace</p>
                 </div>
               ) : (
                 <div className="text-slate-400">
-                  <i className="fas fa-cloud-upload-alt text-2xl mb-2 group-hover:text-primary transition-colors"></i>
+                  <CloudUpload className="w-6 h-6 mb-2 group-hover:text-primary transition-colors" />
                   <p className="font-bold text-sm text-slate-600 dark:text-slate-300">Click to Upload</p>
                   <p className="text-xs mt-1">PDF, DOCX, TXT, MD, RTF</p>
                 </div>
@@ -181,7 +182,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
                       onChange={() => setTargetType('new_chapter')}
                       className="text-amber-500"
                     />
-                    <i className="fas fa-plus-circle text-amber-500"></i>
+                    <PlusCircle className="w-5 h-5 text-amber-500" />
                     <div>
                       <div className="font-bold text-sm text-slate-700 dark:text-slate-200">Create New Notes Chapter</div>
                       <div className="text-xs text-slate-500 dark:text-slate-400">Standalone chapter with just your notes</div>
@@ -197,7 +198,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
                         onChange={() => setTargetType('existing')}
                         className="text-blue-500"
                       />
-                      <i className="fas fa-layer-group text-blue-500"></i>
+                      <Layers className="w-5 h-5 text-blue-500" />
                       <div>
                         <div className="font-bold text-sm text-slate-700 dark:text-slate-200">Add to Existing Chapter</div>
                         <div className="text-xs text-slate-500 dark:text-slate-400">Attach notes to a PDF chapter/section</div>
@@ -213,7 +214,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
                       onChange={() => setTargetType('standalone')}
                       className="text-purple-500"
                     />
-                    <i className="fas fa-sticky-note text-purple-500"></i>
+                    <StickyNote className="w-5 h-5 text-purple-500" />
                     <div>
                       <div className="font-bold text-sm text-slate-700 dark:text-slate-200">Standalone Lecture Note</div>
                       <div className="text-xs text-slate-500 dark:text-slate-400">Add to Notes & Lectures section</div>
@@ -260,7 +261,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
                         className="w-full p-2 border border-amber-300 dark:border-amber-700 rounded text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-amber-400 outline-none"
                       />
                       <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                        <i className="fas fa-info-circle mr-1"></i>
+                        <Info className="w-3 h-3 mr-1" />
                         Structure: {title || "Chapter"} → {sectionTitle || "Section"} → Your Notes
                       </p>
                     </div>
@@ -305,7 +306,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
                           onClick={() => { setCreateNewSection(true); setSelectedSubchapterId(''); }}
                           className={`flex-1 px-3 py-2 text-xs font-bold rounded transition-all ${createNewSection ? 'bg-green-500 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-500'}`}
                         >
-                          <i className="fas fa-plus mr-1"></i> Create New Section
+                          <Plus className="w-3 h-3 mr-1" /> Create New Section
                         </button>
                       </div>
 
@@ -336,7 +337,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
                             className="w-full p-2 border border-green-300 dark:border-green-700 rounded text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 focus:ring-green-400 outline-none"
                           />
                           <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                            <i className="fas fa-info-circle mr-1"></i>
+                            <Info className="w-3 h-3 mr-1" />
                             This will create a new section within the chapter
                           </p>
                         </div>
@@ -346,7 +347,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
 
                   {selectedChapterId && (
                     <div className="text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 p-2 rounded">
-                      <i className="fas fa-info-circle mr-1"></i>
+                      <Info className="w-3 h-3 mr-1" />
                       Notes will be combined with PDF content when generating.
                     </div>
                   )}
@@ -378,7 +379,7 @@ export const ImportNotesModal: FC<Props> = ({ isOpen, onClose, onSave, onSaveToC
             disabled={!file || loading || (targetType === 'existing' && !selectedChapterId) || (targetType === 'existing' && createNewSection && !newSectionTitle.trim()) || (targetType === 'new_chapter' && addAsSection && !sectionTitle.trim())}
             className="px-6 py-2 bg-primary text-white rounded-lg font-bold disabled:opacity-50 flex items-center gap-2 hover:bg-blue-600 transition-colors"
           >
-            {loading && <i className="fas fa-circle-notch fa-spin"></i>}
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {loading ? 'Importing...' : 'Import Notes'}
           </button>
         </div>

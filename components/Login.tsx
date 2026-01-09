@@ -1,4 +1,5 @@
 import React, { useState, type FC, type FormEvent } from 'react';
+import { GraduationCap, Loader2, UserRoundX, AlertCircle } from 'lucide-react';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail } from '../services/firebase';
 
 interface Props {
@@ -94,7 +95,7 @@ export const Login: FC<Props> = ({ onLoginSuccess }) => {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-fade-in-up">
         <div className="p-8 text-center">
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-3xl mx-auto mb-6 shadow-lg transform rotate-3">
-            <i className="fas fa-graduation-cap"></i>
+            <GraduationCap className="w-8 h-8" />
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-2 tracking-tight">Welcome to StudyStack</h1>
           <p className="text-slate-500 mb-8">Your AI-powered personalized study assistant.</p>
@@ -105,7 +106,7 @@ export const Login: FC<Props> = ({ onLoginSuccess }) => {
               disabled={loading}
               className="w-full py-3 px-4 bg-white border-2 border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-3 shadow-sm hover:shadow-md active:scale-[0.98]"
             >
-               {loading ? <i className="fas fa-circle-notch fa-spin"></i> : <i className="fab fa-google text-red-500"></i>}
+               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="#EA4335" d="M5.26620003,9.76452941 C6.19878754,6.93863203 8.85444915,4.90909091 12,4.90909091 C13.6909091,4.90909091 15.2181818,5.50909091 16.4181818,6.49090909 L19.9090909,3 C17.7818182,1.14545455 15.0545455,0 12,0 C7.27006974,0 3.1977497,2.69829785 1.23999023,6.65002441 L5.26620003,9.76452941 Z"/><path fill="#34A853" d="M16.0407269,18.0125889 C14.9509167,18.7163016 13.5660892,19.0909091 12,19.0909091 C8.86648613,19.0909091 6.21911939,17.076871 5.27698177,14.2678769 L1.23746264,17.3349879 C3.19279051,21.2936293 7.26500293,24 12,24 C14.9328362,24 17.7353462,22.9573905 19.834192,20.9995801 L16.0407269,18.0125889 Z"/><path fill="#4A90E2" d="M19.834192,20.9995801 C22.0291676,18.9520994 23.4545455,15.903663 23.4545455,12 C23.4545455,11.2909091 23.3454545,10.5272727 23.1818182,9.81818182 L12,9.81818182 L12,14.4545455 L18.4363636,14.4545455 C18.1187732,16.013626 17.2662994,17.2212117 16.0407269,18.0125889 L19.834192,20.9995801 Z"/><path fill="#FBBC05" d="M5.27698177,14.2678769 C5.03832634,13.556323 4.90909091,12.7937589 4.90909091,12 C4.90909091,11.2182781 5.03443647,10.4668121 5.26620003,9.76452941 L1.23999023,6.65002441 C0.43658717,8.26043162 0,10.0753848 0,12 C0,13.9195484 0.444780743,15.7## L1.23746264,17.3349879 L5.27698177,14.2678769 Z"/></svg>}
                Continue with Google
             </button>
             
@@ -140,7 +141,7 @@ export const Login: FC<Props> = ({ onLoginSuccess }) => {
                 className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:bg-blue-600 shadow-md hover:shadow-lg transition-all active:scale-[0.98] disabled:opacity-70 flex justify-center items-center gap-2" 
                 disabled={loading}
               >
-                {loading && <i className="fas fa-circle-notch fa-spin"></i>}
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 {isSignUp ? 'Create Account' : 'Sign In'}
               </button>
             </form>
@@ -154,13 +155,13 @@ export const Login: FC<Props> = ({ onLoginSuccess }) => {
             
             <div className="pt-4 border-t border-slate-100 mt-4">
               <button onClick={handleDemoLogin} className="text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors flex items-center justify-center gap-2 mx-auto px-4 py-2 hover:bg-slate-50 rounded-lg">
-                  <i className="fas fa-user-secret"></i> Use Demo Account (Skip Auth)
+                  <UserRoundX className="w-4 h-4" /> Use Demo Account (Skip Auth)
               </button>
             </div>
 
             {error && (
               <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center justify-center gap-2 animate-fade-in border border-red-100 break-words text-center">
-                <i className="fas fa-exclamation-circle flex-shrink-0"></i> 
+                <AlertCircle className="w-4 h-4 flex-shrink-0" /> 
                 <span>{error}</span>
               </div>
             )}

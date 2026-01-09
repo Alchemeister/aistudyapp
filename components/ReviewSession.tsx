@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect, useCallback, type FC } from 'react';
+import { Check, X, MapPin } from 'lucide-react';
 import { Flashcard } from '../types';
 import { calculateReview, Rating } from '../services/srs';
+import { recordReviewActivity } from './SRSDashboard';
 
 export interface ReviewItem {
   courseId: string;
@@ -32,7 +34,10 @@ export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
     // 2. Persist up
     onUpdateCard(currentItem.courseId, currentItem.materialId, updatedCard);
 
-    // 3. Move next
+    // 3. Record activity for streak/heat map
+    recordReviewActivity(1);
+
+    // 4. Move next
     setIsFlipped(false);
     
     // If 'again', strictly speaking in SRS we might re-queue it in the same session.
@@ -76,8 +81,8 @@ export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
   if (!currentItem) {
     return (
         <div className="h-full flex flex-col items-center justify-center p-8 text-center animate-fade-in bg-slate-100 dark:bg-slate-900">
-            <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center text-4xl mb-6 shadow-sm">
-                <i className="fas fa-check"></i>
+            <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mb-6 shadow-sm">
+                <Check className="w-10 h-10" />
             </div>
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">All Caught Up!</h2>
             <p className="text-slate-500 dark:text-slate-400 mb-8">No more cards due for review right now.</p>
@@ -96,7 +101,7 @@ export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
       <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center shadow-sm z-10">
          <div className="flex items-center gap-4">
             <button onClick={onExit} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 font-bold text-sm">
-                <i className="fas fa-times mr-2"></i>Exit
+                <X className="w-4 h-4 mr-2 inline" />Exit
             </button>
             <div className="h-6 w-px bg-slate-200 dark:bg-slate-600"></div>
             <div>
@@ -116,29 +121,29 @@ export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
       </div>
 
       {/* Card Area */}
-      <div className="flex-1 flex items-center justify-center p-6 overflow-hidden">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
          <div
-           className="w-full max-w-2xl bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden transition-all duration-300 min-h-[400px]"
+           className="w-full max-w-2xl bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden transition-all duration-300 min-h-[280px] sm:min-h-[350px] max-h-full"
            onClick={() => !isFlipped && setIsFlipped(true)}
          >
-            <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 md:p-12 text-center cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
-               <h3 className="text-2xl font-bold text-slate-800 dark:text-white leading-relaxed">
+            <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 text-center cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors overflow-y-auto">
+               <h3 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white leading-relaxed">
                  {currentItem.card.front}
                </h3>
                {!isFlipped && (
-                   <div className="mt-8 text-sm font-bold text-slate-400 uppercase tracking-widest animate-pulse">
+                   <div className="mt-6 sm:mt-8 text-sm font-bold text-slate-400 uppercase tracking-widest animate-pulse">
                        Tap to Show Answer
                    </div>
                )}
             </div>
 
             {isFlipped && (
-                <div className="flex-1 border-t border-slate-100 dark:border-slate-700 bg-blue-50/30 dark:bg-blue-900/20 flex flex-col items-center justify-center p-4 sm:p-8 md:p-12 text-center animate-fade-in-up w-full">
+                <div className="flex-1 border-t border-slate-100 dark:border-slate-700 bg-blue-50/30 dark:bg-blue-900/20 flex flex-col items-center justify-center p-4 sm:p-8 text-center animate-fade-in-up w-full overflow-y-auto">
                     <div className="prose prose-slate dark:prose-invert max-w-none w-full">
-                        <p className="text-xl text-slate-700 dark:text-slate-200 whitespace-pre-wrap font-medium">{currentItem.card.back}</p>
+                        <p className="text-lg sm:text-xl text-slate-700 dark:text-slate-200 whitespace-pre-wrap font-medium">{currentItem.card.back}</p>
                         {currentItem.card.source && (
-                            <p className="mt-6 text-xs text-slate-400 font-bold uppercase tracking-wide flex items-center justify-center gap-1">
-                                <i className="fas fa-map-marker-alt"></i> {currentItem.card.source}
+                            <p className="mt-4 sm:mt-6 text-xs text-slate-400 font-bold uppercase tracking-wide flex items-center justify-center gap-1">
+                                <MapPin className="w-3 h-3 inline" /> {currentItem.card.source}
                             </p>
                         )}
                     </div>
@@ -148,16 +153,16 @@ export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
       </div>
 
       {/* Controls */}
-      <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-6 z-10">
+      <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 sm:p-6 z-10 flex-shrink-0">
          {!isFlipped ? (
              <button
                onClick={() => setIsFlipped(true)}
-               className="w-full max-w-md mx-auto block py-4 bg-primary text-white rounded-xl font-bold text-lg shadow-md hover:bg-blue-600 hover:shadow-lg transition-all active:transform active:scale-[0.98]"
+               className="w-full max-w-md mx-auto block py-3 sm:py-4 bg-primary text-white rounded-xl font-bold text-base sm:text-lg shadow-md hover:bg-blue-600 hover:shadow-lg transition-all active:transform active:scale-[0.98]"
              >
-                 Show Answer <span className="text-blue-200 text-sm ml-2 font-normal">(Space)</span>
+                 Show Answer <span className="text-blue-200 text-xs sm:text-sm ml-2 font-normal hidden sm:inline">(Space)</span>
              </button>
          ) : (
-             <div className="max-w-3xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+             <div className="max-w-3xl mx-auto grid grid-cols-4 gap-2 sm:gap-4">
                  <RateBtn label="Again" sub="< 1m" color="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/60" onClick={() => handleRate('again')} shortcut="1" />
                  <RateBtn label="Hard" sub="2d" color="bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800 hover:bg-orange-200 dark:hover:bg-orange-900/60" onClick={() => handleRate('hard')} shortcut="2" />
                  <RateBtn label="Good" sub="3d" color="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/60" onClick={() => handleRate('good')} shortcut="3" />
@@ -172,9 +177,9 @@ export const ReviewSession: FC<Props> = ({ queue, onUpdateCard, onExit }) => {
 const RateBtn = ({ label, sub, color, onClick, shortcut }: any) => (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center py-3 min-h-[56px] rounded-xl border-b-4 active:border-b-0 active:translate-y-1 transition-all ${color}`}
+      className={`flex flex-col items-center justify-center py-2 sm:py-3 min-h-[48px] sm:min-h-[56px] rounded-lg sm:rounded-xl border-b-4 active:border-b-0 active:translate-y-1 transition-all touch-manipulation ${color}`}
     >
-        <span className="font-bold text-base sm:text-lg">{label}</span>
-        <span className="text-[10px] sm:text-xs opacity-75 font-medium">{sub} • {shortcut}</span>
+        <span className="font-bold text-sm sm:text-lg">{label}</span>
+        <span className="text-[9px] sm:text-xs opacity-75 font-medium">{sub}<span className="hidden sm:inline"> • {shortcut}</span></span>
     </button>
 );

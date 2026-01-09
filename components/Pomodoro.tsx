@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Clock, Play, Pause, RotateCcw, Minus, GripVertical } from 'lucide-react';
 import Draggable from 'react-draggable';
 
 export const Pomodoro = () => {
@@ -64,7 +65,7 @@ export const Pomodoro = () => {
                 className={`drag-handle w-14 h-14 rounded-full flex items-center justify-center transition-colors text-white shadow-lg border-4 border-white cursor-pointer ${isActive ? 'bg-amber-500 animate-pulse' : 'bg-slate-800 hover:bg-slate-700'}`}
                 aria-label="Expand Timer"
               >
-                <i className="fas fa-clock text-xl"></i>
+                <Clock className="w-5 h-5" />
                 {isActive && <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white"></div>}
               </button>
             ) : (
@@ -77,23 +78,23 @@ export const Pomodoro = () => {
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shadow-sm active:scale-95 ${isActive ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}
                     aria-label={isActive ? "Pause" : "Start"}
                   >
-                    <i className={`fas ${isActive ? 'fa-pause' : 'fa-play'} text-sm`}></i>
+                    {isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                   </button>
                   
                   <button onClick={() => {setIsActive(false); setTimeLeft(25*60)}} className="w-10 h-10 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-slate-300 hover:text-white active:scale-95" aria-label="Reset">
-                    <i className="fas fa-undo text-sm"></i>
+                    <RotateCcw className="w-4 h-4" />
                   </button>
 
                   <div className="w-px h-6 bg-slate-700 mx-1 self-center"></div>
 
                   <button onClick={() => setIsMinimized(true)} className="w-10 h-10 rounded-full hover:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white" aria-label="Minimize">
-                    <i className="fas fa-minus text-sm"></i>
+                    <Minus className="w-4 h-4" />
                   </button>
                 </div>
                 
                 {/* Drag Handle */}
                 <div className="drag-handle pr-3 pl-2 text-slate-500 cursor-move flex items-center justify-center h-full hover:text-slate-300 transition-colors border-l border-slate-800/50 py-2">
-                   <i className="fas fa-grip-vertical text-lg"></i>
+                   <GripVertical className="w-5 h-5" />
                 </div>
               </div>
             )}

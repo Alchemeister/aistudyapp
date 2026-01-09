@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Loader2, TrendingUp, Check, Crown, X, PieChart as PieChartIcon, BookOpen } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { Course, ContentType, Flashcard, QuizResult } from '../types';
 import { getCreditsInfo } from '../services/subscriptionService';
@@ -139,7 +140,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ courses, user }) => {
   if (userStatus === 'loading') {
     return (
       <div className="h-full flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-        <i className="fas fa-circle-notch fa-spin text-3xl text-primary"></i>
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
   }
@@ -150,7 +151,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ courses, user }) => {
       <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-slate-50 dark:bg-slate-900">
         <div className="max-w-md">
           <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center text-4xl mb-6 mx-auto shadow-lg">
-            <i className="fas fa-chart-line text-white"></i>
+            <TrendingUp className="w-6 h-6 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-3">Analytics is a Pro Feature</h2>
           <p className="text-slate-500 dark:text-slate-400 mb-6">
@@ -159,11 +160,11 @@ export const AnalyticsDashboard: React.FC<Props> = ({ courses, user }) => {
           <div className="bg-white dark:bg-slate-800 rounded-xl p-4 mb-6 text-left border border-slate-200 dark:border-slate-700">
             <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-3 text-sm">What you get with Pro:</h3>
             <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-              <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Mastery tracking over time</li>
-              <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Quiz performance trends</li>
-              <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Course-by-course breakdown</li>
-              <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Card retention insights</li>
-              <li className="flex items-center gap-2"><i className="fas fa-check text-green-500"></i> Smart Review & AI Tutor</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Mastery tracking over time</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Quiz performance trends</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Course-by-course breakdown</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Card retention insights</li>
+              <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Smart Review & AI Tutor</li>
             </ul>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
@@ -171,7 +172,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ courses, user }) => {
               onClick={() => navigate('/settings')}
               className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-bold hover:from-purple-600 hover:to-indigo-700 transition-all shadow-md"
             >
-              <i className="fas fa-crown mr-2"></i> Upgrade to Pro
+              <Crown className="w-4 h-4 mr-2" /> Upgrade to Pro
             </button>
             <button
               onClick={() => navigate('/')}
@@ -194,7 +195,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ courses, user }) => {
           <p className="text-slate-500 dark:text-slate-400 mt-1">Track your progress and optimize your learning</p>
         </div>
         <Link to="/" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-          <i className="fas fa-times text-xl"></i>
+          <X className="w-5 h-5" />
         </Link>
       </div>
 
@@ -235,7 +236,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ courses, user }) => {
         {/* Quiz Performance Chart */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
-            <i className="fas fa-chart-line text-primary mr-2"></i>
+            <TrendingUp className="w-4 h-4 text-primary mr-2" />
             Quiz Performance
           </h3>
           {stats.quizChartData.length > 0 ? (
@@ -261,7 +262,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ courses, user }) => {
         {/* Card Retention Distribution */}
         <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm">
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
-            <i className="fas fa-chart-pie text-green-500 mr-2"></i>
+            <PieChartIcon className="w-4 h-4 text-green-500 mr-2" />
             Card Retention
           </h3>
           {stats.totalCards > 0 ? (
@@ -296,7 +297,7 @@ export const AnalyticsDashboard: React.FC<Props> = ({ courses, user }) => {
       {/* Course Breakdown */}
       <div className="bg-white dark:bg-slate-800 rounded-xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm mb-8">
         <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">
-          <i className="fas fa-book-open text-amber-500 mr-2"></i>
+          <BookOpen className="w-4 h-4 text-amber-500 mr-2" />
           Course Breakdown
         </h3>
         {stats.courseStats.length > 0 ? (

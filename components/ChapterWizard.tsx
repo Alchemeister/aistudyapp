@@ -1,5 +1,10 @@
 
 import React, { useState, type FC, type ChangeEvent } from 'react';
+import {
+  CloudUpload, Lightbulb, Search, BookOpen, Globe, Book, ExternalLink, Loader2,
+  Sparkles, Plus, ChevronUp, ChevronDown, ListOrdered, Bot, StickyNote, Trash2,
+  Upload, CheckCircle, Eye, FileText, X, Check
+} from 'lucide-react';
 import { Course, Chapter, Subchapter } from '../types';
 import { PdfViewer } from './PdfViewer';
 import { loadPdfDocument, extractTOCText } from '../services/pdfUtils';
@@ -212,14 +217,14 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                <div className="border-2 border-dashed border-slate-300 rounded-xl p-10 text-center hover:bg-slate-50 transition-colors relative group">
                   <input type="file" accept=".pdf" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleFileUpload} />
                   <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-100 transition-colors">
-                    <i className="fas fa-cloud-upload-alt text-4xl text-primary"></i>
+                    <CloudUpload className="w-10 h-10 text-primary" />
                   </div>
                   <h3 className="text-xl font-bold text-slate-700">Upload Textbook PDF</h3>
                   <p className="text-slate-500 mt-2">Drag & drop or click to browse</p>
                </div>
 
                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-                 <i className="fas fa-lightbulb text-amber-500 mt-0.5"></i>
+                 <Lightbulb className="w-4 h-4 text-amber-500 mt-0.5" />
                  <div>
                    <p className="text-sm font-medium text-amber-800">No PDF? Use Import Notes instead!</p>
                    <p className="text-xs text-amber-600 mt-1">Close this and click "Import" to add your lecture notes directly.</p>
@@ -228,12 +233,12 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
 
                {/* Search Free Books */}
                <div>
-                 <h4 className="font-bold text-slate-700 mb-4 flex items-center"><i className="fas fa-search mr-2 text-slate-400"></i>Search Free Textbooks</h4>
+                 <h4 className="font-bold text-slate-700 mb-4 flex items-center"><Search className="w-4 h-4 mr-2 text-slate-400" />Search Free Textbooks</h4>
                  <button
                    onClick={() => setShowBookSearch(true)}
                    className="w-full p-6 border border-slate-200 rounded-xl hover:border-primary hover:shadow-md transition-all bg-gradient-to-r from-blue-50 to-purple-50 text-center group"
                  >
-                   <i className="fas fa-book-open text-3xl text-primary mb-3"></i>
+                   <BookOpen className="w-8 h-8 text-primary mb-3" />
                    <p className="font-bold text-slate-700">Search by Title or ISBN</p>
                    <p className="text-xs text-slate-500 mt-1">Find free textbooks from Open Library & Internet Archive</p>
                  </button>
@@ -241,14 +246,14 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
 
                {/* OpenStax Grid */}
                <div>
-                 <h4 className="font-bold text-slate-700 mb-4 flex items-center"><i className="fas fa-globe-americas mr-2 text-slate-400"></i>OpenStax Library (Free)</h4>
+                 <h4 className="font-bold text-slate-700 mb-4 flex items-center"><Globe className="w-4 h-4 mr-2 text-slate-400" />OpenStax Library (Free)</h4>
                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                    {OPENSTAX_BOOKS.map(book => (
                      <button key={book.id} onClick={() => handleOpenStaxSelect(book)} className="p-4 border border-slate-200 rounded-xl hover:border-primary hover:shadow-md transition-all text-left group bg-white flex flex-col items-center text-center h-full">
                        <div className="w-full aspect-[3/4] bg-slate-100 rounded mb-3 flex items-center justify-center group-hover:bg-blue-50 relative overflow-hidden">
-                          <i className="fas fa-book text-slate-300 group-hover:text-blue-300 text-4xl"></i>
+                          <Book className="w-10 h-10 text-slate-300 group-hover:text-blue-300" />
                           <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <i className="fas fa-external-link-alt text-slate-600"></i>
+                            <ExternalLink className="w-4 h-4 text-slate-600" />
                           </div>
                        </div>
                        <div className="font-bold text-sm text-slate-800 line-clamp-2">{book.title}</div>
@@ -289,17 +294,17 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                       >
                          {tocDetecting ? (
                            <>
-                             <i className="fas fa-circle-notch fa-spin mr-2"></i>
+                             <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                              {tocStatus || 'Detecting...'}
                            </>
                          ) : (
                            <>
-                             <i className="fas fa-magic mr-2"></i> Auto-Detect
+                             <Sparkles className="w-4 h-4 mr-2" /> Auto-Detect
                            </>
                          )}
                      </button>
                      <button onClick={() => updateChapters(p => [...p, { id: uuid(), title: '', startPage: 0, endPage: 0 }])} className="text-xs bg-primary text-white px-3 py-2 rounded hover:bg-blue-600 shadow-sm font-bold">
-                       <i className="fas fa-plus mr-1"></i> Add Chapter
+                       <Plus className="w-4 h-4 mr-1" /> Add Chapter
                      </button>
                    </div>
                  </div>
@@ -311,7 +316,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                      className="text-xs text-slate-500 hover:text-slate-700 font-medium flex items-center gap-1"
                      type="button"
                    >
-                     <i className={`fas fa-chevron-${showTocOptions ? 'up' : 'down'} text-[10px]`}></i>
+                     {showTocOptions ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                      TOC Page Range
                      <span className="text-slate-400 ml-1">(pages {tocStartPage}-{tocEndPage})</span>
                    </button>
@@ -345,7 +350,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
                  {chapters.length === 0 && (
                    <div className="text-center text-slate-400 mt-10 p-6 border-2 border-dashed border-slate-200 rounded-xl">
-                     <i className="fas fa-list-ol text-2xl mb-2"></i>
+                     <ListOrdered className="w-6 h-6 mb-2" />
                      <p>No chapters defined.</p>
                    </div>
                  )}
@@ -354,14 +359,14 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                       {ch.isSuggested && (
                           <div className="absolute top-0 right-0 transform translate-x-1/3 -translate-y-1/3 z-10">
                               <span className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
-                                  <i className="fas fa-robot text-[8px]"></i> Suggested
+                                  <Bot className="w-2 h-2" /> Suggested
                               </span>
                           </div>
                       )}
                       {ch.isNotesOnly && !ch.isSuggested && (
                           <div className="absolute top-0 right-0 transform translate-x-1/3 -translate-y-1/3 z-10">
                               <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
-                                  <i className="fas fa-sticky-note text-[8px]"></i> Notes Only
+                                  <StickyNote className="w-2 h-2" /> Notes Only
                               </span>
                           </div>
                       )}
@@ -379,14 +384,14 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                                 type="button"
                                 title="Add section with PDF page range"
                             >
-                                <i className="fas fa-plus mr-1"></i> Add Section
+                                <Plus className="w-3 h-3 mr-1" /> Add Section
                             </button>
                             <button 
                               onClick={() => setChapters(chapters.filter((_, i) => i !== idx))} 
                               className="text-slate-300 hover:text-red-500 transition-colors p-1"
                               type="button"
                             >
-                              <i className="fas fa-trash-alt"></i>
+                              <Trash2 className="w-4 h-4" />
                             </button>
                         </div>
                       </div>
@@ -406,7 +411,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                             <label className="text-[10px] uppercase font-bold text-amber-600 mb-1 block">Chapter Notes (optional - or add sections below)</label>
                             <div className="flex gap-2 mb-2">
                               <label className="flex-1 flex items-center justify-center gap-2 p-3 border border-dashed border-amber-300 rounded bg-amber-50/50 hover:bg-amber-100 cursor-pointer transition-colors text-sm font-bold text-amber-600">
-                                <i className="fas fa-upload"></i>
+                                <Upload className="w-4 h-4" />
                                 <span>Upload .txt / .md file</span>
                                 <input
                                   type="file"
@@ -426,7 +431,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                               </label>
                               {ch.notes && (
                                 <div className="flex items-center gap-2 px-4 py-3 bg-green-50 border border-green-200 rounded text-sm font-bold text-green-600">
-                                  <i className="fas fa-check-circle"></i>
+                                  <CheckCircle className="w-4 h-4" />
                                   {ch.notes.split(/\s+/).length} words
                                 </div>
                               )}
@@ -434,7 +439,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                             {ch.notes && (
                               <details className="group">
                                 <summary className="text-xs text-amber-600 cursor-pointer hover:text-amber-700 font-medium">
-                                  <i className="fas fa-eye mr-1"></i> Preview / Edit notes
+                                  <Eye className="w-3 h-3 mr-1" /> Preview / Edit notes
                                 </summary>
                                 <textarea
                                   className="w-full p-2 border border-amber-300 rounded text-sm focus:ring-1 focus:ring-amber-400 outline-none bg-white text-slate-900 resize-none mt-2"
@@ -475,11 +480,11 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                                   <div key={sub.id} className={`relative p-3 rounded-lg ${sub.isNotesOnly ? 'bg-amber-50/50 border border-amber-200' : 'bg-slate-50'}`}>
                                       <div className="flex items-center gap-2 mb-2">
                                           <span className={`text-[10px] font-bold uppercase flex items-center gap-1 ${sub.isNotesOnly ? 'text-amber-600' : 'text-slate-400'}`}>
-                                            {sub.isNotesOnly ? <i className="fas fa-sticky-note"></i> : <i className="fas fa-file-pdf"></i>}
+                                            {sub.isNotesOnly ? <StickyNote className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
                                             Section {idx+1}.{sIdx+1}
                                             {sub.isNotesOnly && <span className="bg-amber-200 text-amber-700 px-1.5 rounded text-[8px] ml-1">NOTES</span>}
                                           </span>
-                                          <button onClick={() => deleteSubchapter(idx, sIdx)} className="text-slate-300 hover:text-red-400 text-xs ml-auto" type="button"><i className="fas fa-times"></i></button>
+                                          <button onClick={() => deleteSubchapter(idx, sIdx)} className="text-slate-300 hover:text-red-400 text-xs ml-auto" type="button"><X className="w-3 h-3" /></button>
                                       </div>
 
                                       {sub.isNotesOnly ? (
@@ -492,7 +497,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                                           />
                                           <div className="flex gap-2 mb-2">
                                             <label className="flex-1 flex items-center justify-center gap-2 p-2 border border-dashed border-amber-300 rounded bg-amber-50/50 hover:bg-amber-100 cursor-pointer transition-colors text-xs font-bold text-amber-600">
-                                              <i className="fas fa-upload"></i>
+                                              <Upload className="w-4 h-4" />
                                               <span>Upload .txt / .md</span>
                                               <input
                                                 type="file"
@@ -512,7 +517,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                                             </label>
                                             {sub.notes && (
                                               <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded text-xs font-bold text-green-600">
-                                                <i className="fas fa-check-circle"></i>
+                                                <CheckCircle className="w-4 h-4" />
                                                 {sub.notes.split(/\s+/).length} words
                                               </div>
                                             )}
@@ -520,7 +525,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
                                           {sub.notes && (
                                             <details className="group">
                                               <summary className="text-[10px] text-amber-600 cursor-pointer hover:text-amber-700 font-medium">
-                                                <i className="fas fa-eye mr-1"></i> Preview / Edit notes
+                                                <Eye className="w-3 h-3 mr-1" /> Preview / Edit notes
                                               </summary>
                                               <textarea
                                                 className="w-full p-2 border border-amber-200 rounded text-xs bg-white text-slate-900 focus:ring-1 focus:ring-amber-300 outline-none resize-none mt-2"
@@ -604,7 +609,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
 const StepIndicator = ({ num, active, done, label }: any) => (
   <div className={`flex items-center gap-2 ${active ? 'text-primary' : done ? 'text-green-600' : 'text-slate-400'}`}>
     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${active ? 'bg-primary text-white shadow-md' : done ? 'bg-green-600 text-white' : 'bg-slate-200'}`}>
-      {done ? <i className="fas fa-check"></i> : num}
+      {done ? <Check className="w-4 h-4" /> : num}
     </div>
     <span className={`text-sm font-bold ${active ? 'text-slate-800' : ''}`}>{label}</span>
   </div>

@@ -1,4 +1,7 @@
 import React, { useState, useEffect, type FC } from 'react';
+import {
+  User, Loader2, Crown, Coins, Palette, Moon, Sun, CloudDownload, Download, Database
+} from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { clearDatabase, loadCourses } from '../services/storage';
@@ -154,7 +157,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
       <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
          <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex items-center gap-4">
              <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-3xl overflow-hidden">
-                 {user.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover"/> : <i className="fas fa-user text-slate-300 dark:text-slate-500"></i>}
+                 {user.photoURL ? <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover"/> : <User className="w-8 h-8 text-slate-300 dark:text-slate-500" />}
              </div>
              <div>
                  <div className="font-bold text-lg text-slate-800 dark:text-slate-100">{user.email}</div>
@@ -178,7 +181,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
                         disabled={loading || displayName === user.displayName}
                         className="px-6 py-3 sm:py-2 bg-slate-800 dark:bg-slate-600 text-white font-bold rounded-lg hover:bg-slate-700 dark:hover:bg-slate-500 disabled:opacity-50 transition-colors"
                      >
-                         {loading ? <i className="fas fa-circle-notch fa-spin"></i> : 'Save'}
+                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
                      </button>
                  </div>
                  {message && (
@@ -193,7 +196,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
       {/* Subscription & Billing */}
       <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-             <h3 className="font-bold text-slate-800 dark:text-slate-100"><i className="fas fa-crown mr-2 text-amber-500"></i>Subscription & Billing</h3>
+             <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center"><Crown className="w-4 h-4 mr-2 text-amber-500" />Subscription & Billing</h3>
           </div>
           <div className="p-4 md:p-6 space-y-6">
               {/* Current Plan */}
@@ -204,7 +207,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
                           ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white'
                           : 'bg-slate-100 dark:bg-slate-700 text-slate-400'
                       }`}>
-                          <i className={`fas ${creditsInfo?.status === 'pro' ? 'fa-crown' : 'fa-user'}`}></i>
+                          {creditsInfo?.status === 'pro' ? <Crown className="w-6 h-6" /> : <User className="w-6 h-6" />}
                       </div>
                       <div>
                           <h4 className="font-bold text-slate-800 dark:text-slate-100">
@@ -263,7 +266,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
                     onClick={() => setShowPricingModal(true)}
                     className="mt-3 w-full py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm font-bold rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 transition-colors border border-green-200 dark:border-green-800"
                   >
-                      <i className="fas fa-coins mr-2"></i>Buy More Credits
+                      <Coins className="w-4 h-4 mr-2 inline" />Buy More Credits
                   </button>
               </div>
           </div>
@@ -272,13 +275,13 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
       {/* Appearance */}
       <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-             <h3 className="font-bold text-slate-800 dark:text-slate-100"><i className="fas fa-palette mr-2 text-slate-400"></i>Appearance</h3>
+             <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center"><Palette className="w-4 h-4 mr-2 text-slate-400" />Appearance</h3>
           </div>
           <div className="p-4 md:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
                       <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
-                        <i className={`fas ${darkMode ? 'fa-moon text-indigo-400' : 'fa-sun text-amber-500'}`}></i>
+                        {darkMode ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
                         {darkMode ? 'Dark Mode' : 'Light Mode'}
                       </h4>
                       <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -290,7 +293,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
                     className={`relative w-14 h-8 rounded-full transition-colors ${darkMode ? 'bg-indigo-600' : 'bg-slate-200'}`}
                   >
                     <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-transform flex items-center justify-center ${darkMode ? 'translate-x-7' : 'translate-x-1'}`}>
-                      <i className={`fas ${darkMode ? 'fa-moon text-indigo-600' : 'fa-sun text-amber-500'} text-xs`}></i>
+                      {darkMode ? <Moon className="w-3 h-3 text-indigo-600" /> : <Sun className="w-3 h-3 text-amber-500" />}
                     </div>
                   </button>
               </div>
@@ -300,7 +303,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
       {/* Backup & Export */}
       <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-             <h3 className="font-bold text-slate-800 dark:text-slate-100"><i className="fas fa-cloud-download-alt mr-2 text-slate-400"></i>Backup & Export</h3>
+             <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center"><CloudDownload className="w-4 h-4 mr-2 text-slate-400" />Backup & Export</h3>
           </div>
           <div className="p-4 md:p-6 space-y-6">
               {/* Export Data */}
@@ -317,9 +320,9 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
                     className="px-4 py-3 sm:py-2 bg-primary text-white font-bold rounded-lg hover:bg-blue-600 transition-colors shadow-sm whitespace-nowrap w-full sm:w-auto disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                       {exporting ? (
-                        <><i className="fas fa-circle-notch fa-spin"></i> Exporting...</>
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Exporting...</>
                       ) : (
-                        <><i className="fas fa-download"></i> Export JSON</>
+                        <><Download className="w-4 h-4" /> Export JSON</>
                       )}
                   </button>
               </div>
@@ -349,7 +352,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
       {/* Data Management */}
       <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
           <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-             <h3 className="font-bold text-slate-800 dark:text-slate-100"><i className="fas fa-database mr-2 text-slate-400"></i>Data Management</h3>
+             <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center"><Database className="w-4 h-4 mr-2 text-slate-400" />Data Management</h3>
           </div>
           <div className="p-4 md:p-6 bg-red-50/50 dark:bg-red-900/20">
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
