@@ -1,5 +1,5 @@
 
-import React, { useState, useContext, useMemo } from 'react';
+import React, { useState, useContext, useMemo, useEffect } from 'react';
 import {
   ArrowLeft, Book, FileText, ClipboardList, Mic, FileInput, Pencil,
   Share2, BookOpen, TrendingUp
@@ -31,6 +31,13 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
 
   const { showToast } = useContext(ToastContext);
   const navigate = useNavigate();
+
+  // Listen for openChapterWizard event from GeneratorPanel's "Add PDF" button
+  useEffect(() => {
+    const handleOpenWizard = () => setShowWizard(true);
+    window.addEventListener('openChapterWizard', handleOpenWizard);
+    return () => window.removeEventListener('openChapterWizard', handleOpenWizard);
+  }, []);
 
   const urlParts = window.location.hash.split('/');
   const courseId = urlParts[urlParts.length - 1];

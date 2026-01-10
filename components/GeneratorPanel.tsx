@@ -1180,7 +1180,7 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId, onChap
                     </label>
                     <button
                        onClick={(e) => { e.stopPropagation(); onViewLecture(lec); }}
-                       className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-600 rounded opacity-0 group-hover:opacity-100 transition-all"
+                       className="p-1.5 text-primary bg-primary/10 hover:bg-primary/20 rounded transition-all"
                        title="View/Play"
                     >
                         <Eye className="w-4 h-4" />
@@ -1215,7 +1215,25 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId, onChap
             )}
 
             {course.chapters.length === 0 && course.lectures.length === 0 && (
-               <div className="text-sm text-slate-400 p-2 text-center">No content available. Add Chapters or Import Notes.</div>
+               <div className="text-center py-6 px-4">
+                 <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                   <BookOpen className="w-8 h-8 text-slate-400" />
+                 </div>
+                 <p className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">No content yet</p>
+                 <p className="text-xs text-slate-400 mb-4">Add a PDF textbook or import notes to start generating study materials</p>
+                 <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                   <button
+                     onClick={() => {
+                       // Trigger the chapter wizard by dispatching a custom event
+                       window.dispatchEvent(new CustomEvent('openChapterWizard'));
+                     }}
+                     className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+                   >
+                     <CloudUpload className="w-4 h-4" />
+                     Add PDF / Book
+                   </button>
+                 </div>
+               </div>
             )}
 
           </div>
