@@ -4,7 +4,6 @@ import {
   GraduationCap,
   Sun,
   Moon,
-  Play,
   Sparkles,
   Brain,
   FileText,
@@ -19,7 +18,6 @@ import {
   X,
   Loader2,
   AlertCircle,
-  UserX,
   Lightbulb,
   Calculator,
   Crown
@@ -93,13 +91,6 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
     }
   };
 
-  const handleDemoLogin = () => {
-    onLoginSuccess({
-      displayName: "Demo Student",
-      email: "student@university.edu",
-      photoURL: null
-    });
-  };
 
   const features = [
     { icon: Sparkles, title: 'AI Flashcards', description: 'Auto-generate flashcards from any material' },
@@ -179,10 +170,6 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
                 className="bg-[#2563eb] text-white px-8 py-4 rounded-xl shadow-md hover:bg-blue-700 active:scale-[0.98] transition-all font-bold"
               >
                 Get Started Free
-              </button>
-              <button className="bg-white dark:bg-[#1e293b] border-2 border-slate-200 dark:border-slate-700 px-8 py-4 rounded-xl hover:border-slate-300 dark:hover:border-slate-600 active:scale-[0.98] transition-all font-bold text-slate-900 dark:text-white flex items-center justify-center gap-2">
-                <Play className="w-5 h-5" />
-                Watch Demo
               </button>
             </div>
           </div>
@@ -474,11 +461,6 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
                 </button>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-700 mt-4">
-                <button onClick={handleDemoLogin} className="text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors flex items-center justify-center gap-2 mx-auto px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg">
-                  <UserX className="w-4 h-4" /> Use Demo Account
-                </button>
-              </div>
 
               {error && (
                 <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm rounded-lg flex items-center justify-center gap-2 animate-fade-in border border-red-100 dark:border-red-800">

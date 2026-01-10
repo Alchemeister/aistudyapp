@@ -273,28 +273,19 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-         {/* Left: Viewer (PDF or Lecture Player) */}
-         {activeTab === 'content' && (
+         {/* Left: Viewer (PDF or Lecture Player) - only show if there's content */}
+         {activeTab === 'content' && (course.pdfUrl || activeLecture) && (
            <div className="w-full md:w-1/2 h-[40vh] md:h-full bg-slate-800 border-b md:border-b-0 md:border-r border-slate-200 relative shrink-0">
              {activeLecture ? (
                  <LecturePlayer lecture={activeLecture} onClose={() => setActiveLecture(null)} onUpdateLecture={handleUpdateLecture} />
              ) : (
-                 <>
-                   <PdfViewer url={course.pdfUrl || ''} initialPage={pdfPage} />
-                   {!course.pdfUrl && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-800 z-10 p-4 text-center">
-                        <BookOpen className="w-10 h-10 mb-4 opacity-50" />
-                        <p>No Content Yet</p>
-                        <button onClick={() => setShowWizard(true)} className="mt-4 text-blue-400 hover:underline">Add PDF or Notes to use Generator</button>
-                    </div>
-                   )}
-                 </>
+                 <PdfViewer url={course.pdfUrl || ''} initialPage={pdfPage} />
              )}
            </div>
          )}
 
-         {/* Right: Study/Gen Area */}
-         <div className={`w-full ${activeTab === 'content' ? 'md:w-1/2 h-full' : 'md:w-full h-full'} overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 md:p-6 flex flex-col`}>
+         {/* Right: Study/Gen Area - full width when no PDF/lecture */}
+         <div className={`w-full ${activeTab === 'content' && (course.pdfUrl || activeLecture) ? 'md:w-1/2 h-full' : 'md:w-full h-full'} overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 md:p-6 flex flex-col`}>
             {/* Tabs */}
             <div className="flex gap-2 mb-4 md:mb-6 border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0 overflow-x-auto">
               <button onClick={() => setActiveTab('content')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'content' ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>AI Generator</button>

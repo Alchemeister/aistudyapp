@@ -227,9 +227,8 @@ function App() {
     if (!user) return;
 
     const init = async () => {
-      // Only seed demo data for demo accounts (email contains 'demo' or anonymous users)
-      const isDemoAccount = !user.email || user.email.toLowerCase().includes('demo');
-      const localData = await seedInitialData(isDemoAccount);
+      // Never seed demo data - all users start fresh
+      const localData = await seedInitialData(false);
 
       // Try to load and merge cloud data
       if (isCloudSyncAvailable() && user.uid) {
