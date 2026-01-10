@@ -2,7 +2,7 @@
 import React, { useState, useContext, useMemo, useEffect } from 'react';
 import {
   ArrowLeft, Book, FileText, ClipboardList, Mic, FileInput, Pencil,
-  Share2, BookOpen, TrendingUp, File, StickyNote, Eye
+  Share2, BookOpen, TrendingUp, File, StickyNote, Eye, PanelLeftClose, PanelLeft
 } from 'lucide-react';
 import { Course, Flashcard, Lecture } from '../types';
 import { PdfViewer } from './PdfViewer';
@@ -29,6 +29,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
   const [activeLecture, setActiveLecture] = useState<Lecture | null>(null);
   const [pdfPage, setPdfPage] = useState(1);
   const [leftPanelView, setLeftPanelView] = useState<'pdf' | 'notes'>('pdf');
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
 
   const { showToast } = useContext(ToastContext);
   const navigate = useNavigate();
@@ -79,7 +80,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
     if (file) {
       // Get user ID for cloud storage (Pro users only)
       const userId = user?.uid || user?.id || '';
-      const fileName = file instanceof File ? file.name : newCourse.pdfName;
+      const fileName = (file as File).name || newCourse.pdfName || 'document.pdf';
 
       // Save PDF locally and to cloud (for Pro users)
       const { blobId, cloudPdfPath } = await savePdfWithCloud(
@@ -281,30 +282,62 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-         {/* Left: Viewer Panel - always visible on content tab */}
+         {/* Left: Viewer Panel - collapsible on desktop */}
          {activeTab === 'content' && (
-           <div className="w-full md:w-1/2 h-[40vh] md:h-full bg-slate-800 border-b md:border-b-0 md:border-r border-slate-200 relative shrink-0 flex flex-col">
-             {/* Toggle Bar - show when PDF exists and there are notes */}
-             {course.pdfUrl && course.lectures.length > 0 && !activeLecture && (
-               <div className="flex bg-slate-900 border-b border-slate-700 shrink-0">
+           <div className={`${leftPanelCollapsed ? 'hidden md:flex md:w-12' : 'w-full md:w-1/2 h-[40vh] md:h-full'} bg-slate-800 border-b md:border-b-0 md:border-r border-slate-700 relative shrink-0 flex flex-col transition-all`}>
+             {/* Collapsed State - just show expand button */}
+             {leftPanelCollapsed ? (
+               <div className="h-full flex flex-col items-center py-4">
                  <button
-                   onClick={() => setLeftPanelView('pdf')}
-                   className={`flex-1 px-4 py-2 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
-                     leftPanelView === 'pdf' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                   }`}
+                   onClick={() => setLeftPanelCollapsed(false)}
+                   className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
+                   title="Expand viewer"
                  >
-                   <File className="w-4 h-4" /> PDF
+                   <PanelLeft className="w-5 h-5" />
                  </button>
-                 <button
-                   onClick={() => setLeftPanelView('notes')}
-                   className={`flex-1 px-4 py-2 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
-                     leftPanelView === 'notes' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                   }`}
-                 >
-                   <StickyNote className="w-4 h-4" /> Notes ({course.lectures.length})
-                 </button>
+                 <div className="flex-1 flex items-center">
+                   <span className="text-slate-500 text-xs font-bold uppercase tracking-wider" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                     {course.pdfUrl ? 'PDF' : course.lectures.length > 0 ? 'Notes' : 'Viewer'}
+                   </span>
+                 </div>
                </div>
-             )}
+             ) : (
+               <>
+                 {/* Header with collapse button */}
+                 <div className="flex items-center justify-between bg-slate-900 border-b border-slate-700 shrink-0 px-2">
+                   {/* Toggle Bar - show when PDF exists and there are notes */}
+                   {course.pdfUrl && course.lectures.length > 0 && !activeLecture ? (
+                     <div className="flex flex-1">
+                       <button
+                         onClick={() => setLeftPanelView('pdf')}
+                         className={`flex-1 px-4 py-2 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
+                           leftPanelView === 'pdf' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                         }`}
+                       >
+                         <File className="w-4 h-4" /> PDF
+                       </button>
+                       <button
+                         onClick={() => setLeftPanelView('notes')}
+                         className={`flex-1 px-4 py-2 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
+                           leftPanelView === 'notes' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                         }`}
+                       >
+                         <StickyNote className="w-4 h-4" /> Notes ({course.lectures.length})
+                       </button>
+                     </div>
+                   ) : (
+                     <div className="flex-1 px-2 py-2 text-sm font-bold text-slate-400">
+                       {course.pdfUrl ? 'PDF Viewer' : course.lectures.length > 0 ? 'Notes' : 'Viewer'}
+                     </div>
+                   )}
+                   <button
+                     onClick={() => setLeftPanelCollapsed(true)}
+                     className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors hidden md:block"
+                     title="Collapse viewer"
+                   >
+                     <PanelLeftClose className="w-4 h-4" />
+                   </button>
+                 </div>
 
              {/* Content Area */}
              <div className="flex-1 overflow-hidden">
@@ -395,11 +428,13 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
                    </div>
                )}
              </div>
+               </>
+             )}
            </div>
          )}
 
-         {/* Right: Study/Gen Area */}
-         <div className={`w-full ${activeTab === 'content' ? 'md:w-1/2 h-full' : 'md:w-full h-full'} overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 md:p-6 flex flex-col`}>
+         {/* Right: Study/Gen Area - expands when left panel is collapsed */}
+         <div className={`w-full ${activeTab === 'content' && !leftPanelCollapsed ? 'md:w-1/2 h-full' : 'md:flex-1 h-full'} overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 md:p-6 flex flex-col`}>
             {/* Tabs */}
             <div className="flex gap-2 mb-4 md:mb-6 border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0 overflow-x-auto">
               <button onClick={() => setActiveTab('content')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'content' ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>AI Generator</button>
