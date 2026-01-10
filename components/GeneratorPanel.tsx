@@ -2,7 +2,7 @@
 import React, { useState, useContext, useMemo, useRef, useEffect } from 'react';
 import {
   Loader2, Layers, Bot, StickyNote, FileText, Plus, Trash2, Move, X, Eye, ArrowRight,
-  MessageSquare, Zap, HelpCircle, AlignLeft, Share2, FileSignature, Brain,
+  MessageSquare, Zap, HelpCircle, AlignLeft, Share2, FileSignature, Brain, Pencil,
   Info, Sparkles, BookOpen, Trash, Send, RefreshCw, ArrowsUpFromLine, PlusCircle,
   File, CloudUpload, BookMarked, Mic, Calculator, Lightbulb
 } from 'lucide-react';
@@ -1217,22 +1217,32 @@ export const GeneratorPanel = ({ course, onUpdate, onViewLecture, userId, onChap
             {course.chapters.length === 0 && course.lectures.length === 0 && (
                <div className="text-center py-6 px-4">
                  <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                   <BookOpen className="w-8 h-8 text-slate-400" />
+                   {course.pdfUrl ? (
+                     <File className="w-8 h-8 text-green-500" />
+                   ) : (
+                     <BookOpen className="w-8 h-8 text-slate-400" />
+                   )}
                  </div>
-                 <p className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">No content yet</p>
-                 <p className="text-xs text-slate-400 mb-4">Add a PDF textbook or import notes to start generating study materials</p>
-                 <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                   <button
-                     onClick={() => {
-                       // Trigger the chapter wizard by dispatching a custom event
-                       window.dispatchEvent(new CustomEvent('openChapterWizard'));
-                     }}
-                     className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
-                   >
-                     <CloudUpload className="w-4 h-4" />
-                     Add PDF / Book
-                   </button>
-                 </div>
+                 {course.pdfUrl ? (
+                   <>
+                     <p className="text-sm font-medium text-green-600 dark:text-green-400 mb-2">PDF Uploaded!</p>
+                     <p className="text-xs text-slate-400 mb-4">Now add chapters to select which sections to generate study materials from</p>
+                   </>
+                 ) : (
+                   <>
+                     <p className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">No content yet</p>
+                     <p className="text-xs text-slate-400 mb-4">Add a PDF textbook or import notes to start generating study materials</p>
+                   </>
+                 )}
+                 <button
+                   onClick={() => {
+                     window.dispatchEvent(new CustomEvent('openChapterWizard'));
+                   }}
+                   className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 mx-auto"
+                 >
+                   <Pencil className="w-4 h-4" />
+                   {course.pdfUrl ? 'Edit Book / Add Chapters' : 'Add PDF / Book'}
+                 </button>
                </div>
             )}
 

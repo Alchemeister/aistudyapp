@@ -2,7 +2,7 @@
 import React, { useState, useContext, useMemo, useEffect } from 'react';
 import {
   ArrowLeft, Book, FileText, ClipboardList, Mic, FileInput, Pencil,
-  Share2, BookOpen, TrendingUp
+  Share2, BookOpen, TrendingUp, File, StickyNote, Eye
 } from 'lucide-react';
 import { Course, Flashcard, Lecture } from '../types';
 import { PdfViewer } from './PdfViewer';
@@ -28,6 +28,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
   const [showShare, setShowShare] = useState(false);
   const [activeLecture, setActiveLecture] = useState<Lecture | null>(null);
   const [pdfPage, setPdfPage] = useState(1);
+  const [leftPanelView, setLeftPanelView] = useState<'pdf' | 'notes'>('pdf');
 
   const { showToast } = useContext(ToastContext);
   const navigate = useNavigate();
@@ -280,19 +281,98 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-         {/* Left: Viewer (PDF or Lecture Player) - only show if there's content */}
-         {activeTab === 'content' && (course.pdfUrl || activeLecture) && (
-           <div className="w-full md:w-1/2 h-[40vh] md:h-full bg-slate-800 border-b md:border-b-0 md:border-r border-slate-200 relative shrink-0">
-             {activeLecture ? (
-                 <LecturePlayer lecture={activeLecture} onClose={() => setActiveLecture(null)} onUpdateLecture={handleUpdateLecture} />
-             ) : (
-                 <PdfViewer url={course.pdfUrl || ''} initialPage={pdfPage} />
+         {/* Left: Viewer (PDF or Lecture Player or Notes List) - only show if there's content */}
+         {activeTab === 'content' && (course.pdfUrl || activeLecture || course.lectures.length > 0) && (
+           <div className="w-full md:w-1/2 h-[40vh] md:h-full bg-slate-800 border-b md:border-b-0 md:border-r border-slate-200 relative shrink-0 flex flex-col">
+             {/* Toggle Bar - show when PDF exists and there are notes */}
+             {course.pdfUrl && course.lectures.length > 0 && !activeLecture && (
+               <div className="flex bg-slate-900 border-b border-slate-700 shrink-0">
+                 <button
+                   onClick={() => setLeftPanelView('pdf')}
+                   className={`flex-1 px-4 py-2 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
+                     leftPanelView === 'pdf' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                   }`}
+                 >
+                   <File className="w-4 h-4" /> PDF
+                 </button>
+                 <button
+                   onClick={() => setLeftPanelView('notes')}
+                   className={`flex-1 px-4 py-2 text-sm font-bold flex items-center justify-center gap-2 transition-colors ${
+                     leftPanelView === 'notes' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                   }`}
+                 >
+                   <StickyNote className="w-4 h-4" /> Notes ({course.lectures.length})
+                 </button>
+               </div>
              )}
+
+             {/* Content Area */}
+             <div className="flex-1 overflow-hidden">
+               {activeLecture ? (
+                   <LecturePlayer lecture={activeLecture} onClose={() => setActiveLecture(null)} onUpdateLecture={handleUpdateLecture} />
+               ) : leftPanelView === 'notes' && course.lectures.length > 0 ? (
+                   /* Notes List View */
+                   <div className="h-full overflow-y-auto p-4">
+                     <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Notes & Lectures</h3>
+                     <div className="space-y-2">
+                       {course.lectures.map(lec => (
+                         <button
+                           key={lec.id}
+                           onClick={() => setActiveLecture(lec)}
+                           className="w-full p-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-left transition-colors group"
+                         >
+                           <div className="flex items-center gap-3">
+                             {lec.sourceType === 'upload' ? (
+                               <FileText className="w-5 h-5 text-amber-400" />
+                             ) : (
+                               <Mic className="w-5 h-5 text-purple-400" />
+                             )}
+                             <div className="flex-1 min-w-0">
+                               <div className="font-medium text-white truncate">{lec.title}</div>
+                               <div className="text-xs text-slate-400">{new Date(lec.date).toLocaleDateString()}</div>
+                             </div>
+                             <Eye className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
+                           </div>
+                         </button>
+                       ))}
+                     </div>
+                   </div>
+               ) : course.pdfUrl ? (
+                   <PdfViewer url={course.pdfUrl} initialPage={pdfPage} />
+               ) : course.lectures.length > 0 ? (
+                   /* Only notes, no PDF - show notes list directly */
+                   <div className="h-full overflow-y-auto p-4">
+                     <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Notes & Lectures</h3>
+                     <div className="space-y-2">
+                       {course.lectures.map(lec => (
+                         <button
+                           key={lec.id}
+                           onClick={() => setActiveLecture(lec)}
+                           className="w-full p-3 bg-slate-700 hover:bg-slate-600 rounded-lg text-left transition-colors group"
+                         >
+                           <div className="flex items-center gap-3">
+                             {lec.sourceType === 'upload' ? (
+                               <FileText className="w-5 h-5 text-amber-400" />
+                             ) : (
+                               <Mic className="w-5 h-5 text-purple-400" />
+                             )}
+                             <div className="flex-1 min-w-0">
+                               <div className="font-medium text-white truncate">{lec.title}</div>
+                               <div className="text-xs text-slate-400">{new Date(lec.date).toLocaleDateString()}</div>
+                             </div>
+                             <Eye className="w-4 h-4 text-slate-400 group-hover:text-white transition-colors" />
+                           </div>
+                         </button>
+                       ))}
+                     </div>
+                   </div>
+               ) : null}
+             </div>
            </div>
          )}
 
-         {/* Right: Study/Gen Area - full width when no PDF/lecture */}
-         <div className={`w-full ${activeTab === 'content' && (course.pdfUrl || activeLecture) ? 'md:w-1/2 h-full' : 'md:w-full h-full'} overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 md:p-6 flex flex-col`}>
+         {/* Right: Study/Gen Area - full width when no PDF/lecture/notes */}
+         <div className={`w-full ${activeTab === 'content' && (course.pdfUrl || activeLecture || course.lectures.length > 0) ? 'md:w-1/2 h-full' : 'md:w-full h-full'} overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 md:p-6 flex flex-col`}>
             {/* Tabs */}
             <div className="flex gap-2 mb-4 md:mb-6 border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0 overflow-x-auto">
               <button onClick={() => setActiveTab('content')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'content' ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>AI Generator</button>
