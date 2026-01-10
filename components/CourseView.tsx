@@ -281,8 +281,8 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-         {/* Left: Viewer (PDF or Lecture Player or Notes List) - only show if there's content */}
-         {activeTab === 'content' && (course.pdfUrl || activeLecture || course.lectures.length > 0) && (
+         {/* Left: Viewer Panel - always visible on content tab */}
+         {activeTab === 'content' && (
            <div className="w-full md:w-1/2 h-[40vh] md:h-full bg-slate-800 border-b md:border-b-0 md:border-r border-slate-200 relative shrink-0 flex flex-col">
              {/* Toggle Bar - show when PDF exists and there are notes */}
              {course.pdfUrl && course.lectures.length > 0 && !activeLecture && (
@@ -366,13 +366,40 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
                        ))}
                      </div>
                    </div>
-               ) : null}
+               ) : (
+                   /* Empty State - no PDF, no notes */
+                   <div className="h-full flex flex-col items-center justify-center p-6 text-center">
+                     <div className="w-20 h-20 bg-slate-700 rounded-2xl flex items-center justify-center mb-4">
+                       <BookOpen className="w-10 h-10 text-slate-500" />
+                     </div>
+                     <h3 className="text-lg font-bold text-white mb-2">No Content Yet</h3>
+                     <p className="text-sm text-slate-400 mb-6 max-w-xs">
+                       Add a PDF textbook or import notes to view them here
+                     </p>
+                     <div className="flex flex-col gap-2">
+                       <button
+                         onClick={() => setShowWizard(true)}
+                         className="px-5 py-2.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                       >
+                         <File className="w-4 h-4" />
+                         Add PDF / Book
+                       </button>
+                       <button
+                         onClick={() => setShowImport(true)}
+                         className="px-5 py-2.5 bg-slate-700 text-white text-sm font-bold rounded-lg hover:bg-slate-600 transition-colors flex items-center gap-2"
+                       >
+                         <StickyNote className="w-4 h-4" />
+                         Import Notes
+                       </button>
+                     </div>
+                   </div>
+               )}
              </div>
            </div>
          )}
 
-         {/* Right: Study/Gen Area - full width when no PDF/lecture/notes */}
-         <div className={`w-full ${activeTab === 'content' && (course.pdfUrl || activeLecture || course.lectures.length > 0) ? 'md:w-1/2 h-full' : 'md:w-full h-full'} overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 md:p-6 flex flex-col`}>
+         {/* Right: Study/Gen Area */}
+         <div className={`w-full ${activeTab === 'content' ? 'md:w-1/2 h-full' : 'md:w-full h-full'} overflow-y-auto bg-slate-50 dark:bg-slate-900 p-4 md:p-6 flex flex-col`}>
             {/* Tabs */}
             <div className="flex gap-2 mb-4 md:mb-6 border-b border-slate-200 dark:border-slate-700 pb-2 shrink-0 overflow-x-auto">
               <button onClick={() => setActiveTab('content')} className={`flex-1 md:flex-none px-4 py-2 text-sm font-bold rounded transition-colors whitespace-nowrap ${activeTab === 'content' ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'}`}>AI Generator</button>
