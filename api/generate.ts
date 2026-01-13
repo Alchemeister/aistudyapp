@@ -6,13 +6,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 const GEMINI_API_KEY = process.env.VITE_AI_SERVICE_KEY;
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
-// Debug logging for deployment troubleshooting
-console.log('[generate.ts] Startup check:', {
-  hasGeminiKey: !!GEMINI_API_KEY,
-  geminiKeyLength: GEMINI_API_KEY?.length || 0,
-  hasFirebaseServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
-  firebaseServiceAccountLength: process.env.FIREBASE_SERVICE_ACCOUNT?.length || 0,
-});
 
 // Firebase Admin - lazy initialization to avoid ESM import issues
 let admin: any = null;
@@ -26,8 +19,6 @@ async function initFirebaseAdmin() {
     const firebaseAdmin = await import('firebase-admin');
     admin = firebaseAdmin.default || firebaseAdmin;
 
-    console.log('[generate.ts] firebase-admin module loaded, apps:', admin?.apps?.length || 0);
-
     if (!admin?.apps?.length) {
       const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
       if (serviceAccount) {
@@ -35,17 +26,14 @@ async function initFirebaseAdmin() {
           admin.initializeApp({
             credential: admin.credential.cert(JSON.parse(serviceAccount)),
           });
-          console.log('[generate.ts] Firebase Admin initialized successfully');
         } catch (e) {
-          console.error('[generate.ts] Firebase Admin init failed:', e instanceof Error ? e.message : 'Unknown error');
+          console.error('Firebase Admin init failed:', e instanceof Error ? e.message : 'Unknown error');
         }
-      } else {
-        console.warn('[generate.ts] FIREBASE_SERVICE_ACCOUNT env var not set');
       }
     }
     firebaseAdminInitialized = true;
   } catch (e) {
-    console.error('[generate.ts] Failed to load firebase-admin:', e instanceof Error ? e.message : 'Unknown error');
+    console.error('Failed to load firebase-admin:', e instanceof Error ? e.message : 'Unknown error');
   }
 
   return admin;
@@ -60,39 +48,29 @@ const PRO_MONTHLY_LIMIT = 500;
 
 // Verify Firebase auth token
 async function verifyAuth(authHeader: string | undefined): Promise<{ uid: string; email: string } | null> {
-  console.log('[generate.ts] verifyAuth called, hasAuthHeader:', !!authHeader, 'startsWithBearer:', authHeader?.startsWith('Bearer '));
-
   if (!authHeader?.startsWith('Bearer ')) {
-    console.log('[generate.ts] Auth failed: No Bearer token');
     return null;
   }
   const token = authHeader.slice(7);
-  console.log('[generate.ts] Token length:', token.length);
 
   // Initialize Firebase Admin
   const adminSdk = await initFirebaseAdmin();
 
-  // If Firebase Admin not initialized, use a fallback for debugging
-  // This allows testing the Gemini API even if Firebase is misconfigured
+  // If Firebase Admin not initialized, use fallback auth (extract from JWT)
   if (!adminSdk?.apps?.length) {
-    console.warn('[generate.ts] Firebase Admin not initialized - using fallback auth (DEBUG MODE)');
-    // Extract uid from token payload (JWT format: header.payload.signature)
     try {
       const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-      console.log('[generate.ts] Fallback auth - extracted uid:', payload.user_id?.substring(0, 8) + '...');
       return { uid: payload.user_id || 'anonymous', email: payload.email || '' };
     } catch {
-      console.log('[generate.ts] Fallback auth - could not parse token, using anonymous');
-      return { uid: 'anonymous-debug', email: '' };
+      return { uid: 'anonymous-fallback', email: '' };
     }
   }
 
   try {
     const decoded = await adminSdk.auth().verifyIdToken(token);
-    console.log('[generate.ts] Auth success, uid:', decoded.uid?.substring(0, 8) + '...');
     return { uid: decoded.uid, email: decoded.email || '' };
   } catch (e) {
-    console.error('[generate.ts] Auth token verification failed:', e instanceof Error ? e.message : 'Unknown error');
+    console.error('Auth verification failed:', e instanceof Error ? e.message : 'Unknown');
     return null;
   }
 }
@@ -183,24 +161,19 @@ function checkRateLimit(userId: string): boolean {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Top-level try-catch to ensure we always return JSON, never plain text
   try {
-    console.log('[generate.ts] Handler called, method:', req.method);
-
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' });
     }
 
     if (!GEMINI_API_KEY) {
-      console.error('[generate.ts] VITE_AI_SERVICE_KEY not configured - returning 500');
-      return res.status(500).json({ error: 'AI service not configured', debug: 'VITE_AI_SERVICE_KEY missing' });
+      return res.status(500).json({ error: 'AI service not configured' });
     }
 
     // Verify authentication
     const authUser = await verifyAuth(req.headers.authorization as string);
     if (!authUser) {
-      console.log('[generate.ts] Auth failed - returning 401');
-      return res.status(401).json({ error: 'Unauthorized', debug: 'Auth verification failed' });
+      return res.status(401).json({ error: 'Unauthorized' });
     }
-    console.log('[generate.ts] Auth passed for user');
 
     // Rate limiting
     if (!checkRateLimit(authUser.uid)) {
@@ -237,7 +210,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Call Gemini API (server-side, key hidden)
-    console.log('[generate.ts] Calling Gemini API...');
     const geminiResponse = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -252,13 +224,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text();
-      console.error('[generate.ts] Gemini API error:', geminiResponse.status, errorText.substring(0, 200));
-      return res.status(500).json({ error: 'AI generation failed', debug: `Gemini returned ${geminiResponse.status}` });
+      console.error('Gemini API error:', geminiResponse.status);
+      return res.status(500).json({ error: 'AI generation failed' });
     }
 
     const result = await geminiResponse.json();
-    console.log('[generate.ts] Gemini response received');
 
     // Deduct credit after successful generation
     await deductCredit(authUser.uid);
@@ -273,10 +243,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
   } catch (error: any) {
-    console.error('[generate.ts] Unhandled error:', error?.message || error);
-    return res.status(500).json({
-      error: 'Failed to generate content',
-      debug: error?.message || 'Unknown error'
-    });
+    console.error('Generation error:', error?.message || 'Unknown');
+    return res.status(500).json({ error: 'Failed to generate content' });
   }
 }

@@ -6,16 +6,9 @@ import { ContentType, Difficulty } from "../types";
 const getAuthToken = async (): Promise<string | null> => {
   try {
     const { auth } = await import('./firebase');
-    console.log('[geminiService] getAuthToken - auth exists:', !!auth, 'currentUser:', !!auth?.currentUser);
-    if (!auth?.currentUser) {
-      console.log('[geminiService] No current user - will return mock data');
-      return null;
-    }
-    const token = await auth.currentUser.getIdToken();
-    console.log('[geminiService] Got auth token, length:', token?.length || 0);
-    return token;
-  } catch (e) {
-    console.error('[geminiService] getAuthToken error:', e);
+    if (!auth?.currentUser) return null;
+    return await auth.currentUser.getIdToken();
+  } catch {
     return null;
   }
 };
@@ -34,16 +27,12 @@ const callServerGenerate = async (
   prompt: string,
   systemInstruction?: string
 ): Promise<ServerGenerateResponse> => {
-  console.log('[geminiService] callServerGenerate called for:', contentType);
-
   const token = await getAuthToken();
   if (!token) {
-    console.log('[geminiService] No auth token - returning not authenticated');
     return { success: false, content: '', error: 'Not authenticated' };
   }
 
   try {
-    console.log('[geminiService] Calling /api/generate...');
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: {
@@ -53,21 +42,16 @@ const callServerGenerate = async (
       body: JSON.stringify({ contentType, prompt, systemInstruction }),
     });
 
-    console.log('[geminiService] Server response status:', response.status);
-
     // Handle non-JSON responses (server crash returns plain text)
     const responseContentType = response.headers.get('content-type');
     if (!responseContentType?.includes('application/json')) {
       const text = await response.text();
-      console.error('[geminiService] Server returned non-JSON:', text.substring(0, 100));
-      return { success: false, content: '', error: `Server error (${response.status}): ${text.substring(0, 50)}` };
+      return { success: false, content: '', error: `Server error (${response.status})` };
     }
 
     const data = await response.json();
-    console.log('[geminiService] Server response data:', { success: data.success, hasContent: !!data.content, error: data.error, debug: data.debug });
 
     if (!response.ok) {
-      console.log('[geminiService] Server returned error:', data.error, data.debug);
       return {
         success: false,
         content: '',
@@ -77,14 +61,13 @@ const callServerGenerate = async (
       };
     }
 
-    console.log('[geminiService] Generation successful, content length:', data.content?.length || 0);
     return {
       success: true,
       content: data.content,
       creditsRemaining: data.creditsRemaining,
     };
   } catch (e) {
-    console.error('[geminiService] Network/fetch error:', e);
+    console.error('Generation network error:', e);
     return { success: false, content: '', error: 'Network error' };
   }
 };
