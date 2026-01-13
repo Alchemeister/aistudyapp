@@ -7,7 +7,16 @@ import * as admin from 'firebase-admin';
 const GEMINI_API_KEY = process.env.VITE_AI_SERVICE_KEY;
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
+// Debug logging for deployment troubleshooting
+console.log('[generate.ts] Startup check:', {
+  hasGeminiKey: !!GEMINI_API_KEY,
+  geminiKeyLength: GEMINI_API_KEY?.length || 0,
+  hasFirebaseServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+  firebaseServiceAccountLength: process.env.FIREBASE_SERVICE_ACCOUNT?.length || 0,
+});
+
 // Initialize Firebase Admin
+let firebaseAdminInitialized = false;
 if (!admin.apps.length) {
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccount) {
@@ -15,10 +24,17 @@ if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert(JSON.parse(serviceAccount)),
       });
+      firebaseAdminInitialized = true;
+      console.log('[generate.ts] Firebase Admin initialized successfully');
     } catch (e) {
-      console.error('Firebase Admin init failed');
+      console.error('[generate.ts] Firebase Admin init failed:', e instanceof Error ? e.message : 'Unknown error');
     }
+  } else {
+    console.warn('[generate.ts] FIREBASE_SERVICE_ACCOUNT env var not set');
   }
+} else {
+  firebaseAdminInitialized = true;
+  console.log('[generate.ts] Firebase Admin already initialized');
 }
 
 // Content types that require Pro subscription
@@ -30,13 +46,25 @@ const PRO_MONTHLY_LIMIT = 500;
 
 // Verify Firebase auth token
 async function verifyAuth(authHeader: string | undefined): Promise<{ uid: string; email: string } | null> {
-  if (!authHeader?.startsWith('Bearer ')) return null;
+  console.log('[generate.ts] verifyAuth called, hasAuthHeader:', !!authHeader, 'startsWithBearer:', authHeader?.startsWith('Bearer '));
+
+  if (!authHeader?.startsWith('Bearer ')) {
+    console.log('[generate.ts] Auth failed: No Bearer token');
+    return null;
+  }
   const token = authHeader.slice(7);
+  console.log('[generate.ts] Token length:', token.length);
+
   try {
-    if (!admin.apps.length) return null;
+    if (!admin.apps.length) {
+      console.log('[generate.ts] Auth failed: Firebase Admin not initialized');
+      return null;
+    }
     const decoded = await admin.auth().verifyIdToken(token);
+    console.log('[generate.ts] Auth success, uid:', decoded.uid?.substring(0, 8) + '...');
     return { uid: decoded.uid, email: decoded.email || '' };
-  } catch {
+  } catch (e) {
+    console.error('[generate.ts] Auth token verification failed:', e instanceof Error ? e.message : 'Unknown error');
     return null;
   }
 }
@@ -123,20 +151,24 @@ function checkRateLimit(userId: string): boolean {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('[generate.ts] Handler called, method:', req.method);
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   if (!GEMINI_API_KEY) {
-    console.error('VITE_AI_SERVICE_KEY not configured');
+    console.error('[generate.ts] VITE_AI_SERVICE_KEY not configured - returning 500');
     return res.status(500).json({ error: 'AI service not configured' });
   }
 
   // Verify authentication
   const authUser = await verifyAuth(req.headers.authorization as string);
   if (!authUser) {
+    console.log('[generate.ts] Auth failed - returning 401');
     return res.status(401).json({ error: 'Unauthorized' });
   }
+  console.log('[generate.ts] Auth passed for user');
 
   // Rate limiting
   if (!checkRateLimit(authUser.uid)) {
