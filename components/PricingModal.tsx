@@ -3,7 +3,7 @@ import { Crown, User, Rocket, Coins, Loader2, Check, Info, Gift } from 'lucide-r
 import { Modal } from './Modal';
 import { STRIPE_CONFIG, FEATURES } from '../services/stripeConfig';
 import { upgradeToPro, buyCredits } from '../services/subscriptionService';
-import { getUserReferralCredits, useReferralCredits, formatCentsAsDollars } from '../services/referralService';
+import { getUserReferralCredits, formatCentsAsDollars } from '../services/referralService';
 
 interface Props {
   isOpen: boolean;
@@ -45,17 +45,9 @@ export const PricingModal: React.FC<Props> = ({
   const handleUpgrade = async (plan: 'monthly' | 'semester' | 'annual') => {
     setLoading(plan);
     try {
-      // Calculate credits to apply (capped at plan price)
-      const planPrices = { monthly: 1499, semester: 4999, annual: 9999 };
-      const planPrice = planPrices[plan];
-      const creditsToApply = applyCredits ? Math.min(referralCredits, planPrice) : 0;
-
-      // Deduct credits from user's balance before checkout
-      if (creditsToApply > 0) {
-        await useReferralCredits(userId, creditsToApply);
-      }
-
-      await upgradeToPro(userId, userEmail, plan, creditsToApply);
+      // SECURITY: Credits are verified and deducted server-side after successful payment
+      // We just pass whether user wants to apply credits - server validates actual amount
+      await upgradeToPro(plan, applyCredits && referralCredits > 0);
       // Will redirect to Stripe
     } catch (error: any) {
       onToast(error.message || 'Failed to start checkout', 'error');
@@ -66,7 +58,7 @@ export const PricingModal: React.FC<Props> = ({
   const handleBuyCredits = async (pack: 'pack25' | 'pack50' | 'pack100') => {
     setLoading(pack);
     try {
-      await buyCredits(userId, userEmail, pack);
+      await buyCredits(pack);
       // Will redirect to Stripe
     } catch (error: any) {
       onToast(error.message || 'Failed to start checkout', 'error');

@@ -231,28 +231,43 @@ export const getCreditsInfo = async (userId: string): Promise<{
   };
 };
 
+// Get auth token for API requests
+const getAuthToken = async (): Promise<string | null> => {
+  try {
+    const { auth } = await import('./firebase');
+    if (!auth?.currentUser) return null;
+    return await auth.currentUser.getIdToken();
+  } catch {
+    return null;
+  }
+};
+
 // Create Stripe checkout session (calls our API)
 export const createCheckoutSession = async (
-  userId: string,
   priceId: string,
-  email: string,
   mode: 'subscription' | 'payment' = 'subscription',
-  referralCreditsCents: number = 0
+  applyCredits: boolean = false
 ): Promise<string> => {
+  const authToken = await getAuthToken();
+  if (!authToken) {
+    throw new Error('Not authenticated');
+  }
+
   const successUrl = `${window.location.origin}/#/settings?payment=success`;
   const cancelUrl = `${window.location.origin}/#/settings?payment=cancelled`;
 
   const response = await fetch('/api/create-checkout-session', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`,
+    },
     body: JSON.stringify({
-      userId,
       priceId,
-      email,
       mode,
       successUrl,
       cancelUrl,
-      referralCreditsCents,
+      applyCredits, // Server will verify and apply actual credits
     }),
   });
 
@@ -267,10 +282,8 @@ export const createCheckoutSession = async (
 
 // Redirect to Stripe checkout for subscription
 export const upgradeToPro = async (
-  userId: string,
-  email: string,
   plan: 'monthly' | 'semester' | 'annual',
-  referralCreditsCents: number = 0
+  applyCredits: boolean = false
 ): Promise<void> => {
   const priceId = {
     monthly: STRIPE_CONFIG.prices.proMonthly,
@@ -280,14 +293,14 @@ export const upgradeToPro = async (
 
   // Semester and annual are one-time payments, monthly is subscription
   const mode = plan === 'monthly' ? 'subscription' : 'payment';
-  const url = await createCheckoutSession(userId, priceId, email, mode, referralCreditsCents);
+  const url = await createCheckoutSession(priceId, mode, applyCredits);
   window.location.href = url;
 };
 
 // Redirect to Stripe checkout for credits
-export const buyCredits = async (userId: string, email: string, pack: 'pack25' | 'pack50' | 'pack100'): Promise<void> => {
+export const buyCredits = async (pack: 'pack25' | 'pack50' | 'pack100'): Promise<void> => {
   const { priceId } = STRIPE_CONFIG.credits[pack];
-  const url = await createCheckoutSession(userId, priceId, email, 'payment');
+  const url = await createCheckoutSession(priceId, 'payment', false);
   window.location.href = url;
 };
 

@@ -1,8 +1,70 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
+// SECURITY: AI calls go through server endpoints - no API key exposed to browser
 import { ContentType, Difficulty } from "../types";
 
-// --- Generation Tracking ---
+// --- Server API Helper ---
+// All AI generation now goes through /api/generate to keep API keys secure
+const getAuthToken = async (): Promise<string | null> => {
+  try {
+    const { auth } = await import('./firebase');
+    if (!auth?.currentUser) return null;
+    return await auth.currentUser.getIdToken();
+  } catch {
+    return null;
+  }
+};
+
+interface ServerGenerateResponse {
+  success: boolean;
+  content: string;
+  creditsRemaining?: number;
+  error?: string;
+  requiresPro?: boolean;
+  limitReached?: boolean;
+}
+
+const callServerGenerate = async (
+  contentType: string,
+  prompt: string,
+  systemInstruction?: string
+): Promise<ServerGenerateResponse> => {
+  const token = await getAuthToken();
+  if (!token) {
+    return { success: false, content: '', error: 'Not authenticated' };
+  }
+
+  try {
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ contentType, prompt, systemInstruction }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        content: '',
+        error: data.error || 'Generation failed',
+        requiresPro: data.requiresPro,
+        limitReached: data.limitReached,
+      };
+    }
+
+    return {
+      success: true,
+      content: data.content,
+      creditsRemaining: data.creditsRemaining,
+    };
+  } catch (e) {
+    return { success: false, content: '', error: 'Network error' };
+  }
+};
+
+// --- Generation Tracking (local cache, server is source of truth) ---
 const STORAGE_KEY = 'ai_generation_usage';
 const FREE_LIMIT = 50;
 
@@ -25,42 +87,25 @@ export const getGenerationUsage = (): GenerationUsage => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const usage = JSON.parse(stored) as GenerationUsage;
-
-      // Validate the stored data has required fields
       if (typeof usage.generationsThisMonth !== 'number' || !usage.periodEnd) {
-        console.warn('Invalid stored usage data, resetting:', usage);
         throw new Error('Invalid usage data');
       }
-
-      // Check if we need to reset for new month
       const now = new Date();
       const periodEnd = new Date(usage.periodEnd);
-
-      // Only reset if period end is valid and we're past it
       if (!isNaN(periodEnd.getTime()) && now > periodEnd) {
-        console.log('New month detected, resetting credits. Old period:', usage.periodEnd);
         const bounds = getMonthBounds();
-        const resetUsage: GenerationUsage = {
-          generationsThisMonth: 0,
-          ...bounds
-        };
+        const resetUsage: GenerationUsage = { generationsThisMonth: 0, ...bounds };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(resetUsage));
         return resetUsage;
       }
-
       return usage;
     }
-  } catch (e) {
-    console.warn('Failed to load generation usage, initializing:', e);
+  } catch {
+    // Silent fail, initialize fresh
   }
-
   const bounds = getMonthBounds();
-  const initialUsage: GenerationUsage = {
-    generationsThisMonth: 0,
-    ...bounds
-  };
+  const initialUsage: GenerationUsage = { generationsThisMonth: 0, ...bounds };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(initialUsage));
-  console.log('Initialized new usage tracking:', initialUsage);
   return initialUsage;
 };
 
@@ -71,7 +116,8 @@ export const getRemainingGenerations = (): number => {
 
 export const getGenerationLimit = (): number => FREE_LIMIT;
 
-const recordGeneration = (type: ContentType): void => {
+// Update local cache after server confirms generation (local cache is just for UI, server is source of truth)
+const recordGeneration = (): void => {
   try {
     const usage = getGenerationUsage();
     const updated: GenerationUsage = {
@@ -80,23 +126,9 @@ const recordGeneration = (type: ContentType): void => {
       lastGeneration: new Date().toISOString()
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    console.log(`Generation recorded (${type}). Used: ${updated.generationsThisMonth}/${FREE_LIMIT}`);
-  } catch (e) {
-    console.warn('Failed to record generation:', e);
+  } catch {
+    // Silent fail - server tracks actual usage
   }
-};
-
-// FAST MODEL: Gemini 3 Flash (High speed, lower cost)
-const MODEL_NAME = "gemini-3-flash-preview"; 
-
-// --- Lazy Load Client ---
-const getAiClient = (): GoogleGenAI | null => {
-  const key = process.env.API_KEY;
-  if (!key || key.trim() === '') {
-    console.warn("Gemini API Key is missing. App will use Mock Data.");
-    return null;
-  }
-  return new GoogleGenAI({ apiKey: key });
 };
 
 // --- Helper: Clean JSON ---
@@ -415,20 +447,20 @@ export const generateContent = async (
   text: string,
   type: ContentType,
   difficulty: Difficulty,
-  contextTitle: string = "Course Material", 
+  contextTitle: string = "Course Material",
   count: number = 10
 ): Promise<any> => {
-  
-  const ai = getAiClient();
 
-  if (!ai) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  // SECURITY: All AI calls go through server - no API key exposed
+  const token = await getAuthToken();
+  if (!token) {
+    // Not logged in - return mock data
+    await new Promise(resolve => setTimeout(resolve, 500));
     return getMockData(type, count);
   }
 
   if (!text || text.trim().length < 20) {
-      console.warn("Generation aborted: Source text is empty or too short.");
-      throw new Error("SOURCE_TEXT_EMPTY"); 
+      throw new Error("SOURCE_TEXT_EMPTY");
   }
 
   // Optimized prompts to ensure concise output -> Faster generation -> Less timeouts
@@ -451,9 +483,7 @@ export const generateContent = async (
           ? "Mix of: Definitions ('What is X?'), Applications ('When would you use X?'), and Cause/Effect ('What results from X?')."
           : "Focus on: Basic definitions ('What is X?'), Simple recall ('Name the parts of X'), and Direct facts.";
 
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `
+      const prompt = `
           Generate exactly ${count} high-quality flashcards based on the source text.
 
           Context Source Name: "${contextTitle}"
@@ -496,15 +526,19 @@ export const generateContent = async (
 
           Source Material:
           ${safeText}
-        `,
-        config: {
-          responseMimeType: "application/json",
-        }
-      });
+        `;
 
-      const raw = cleanAndParseJson(response.text || "[]");
+      const response = await callServerGenerate('flashcards', prompt);
+      if (!response.success) {
+        if (response.requiresPro || response.limitReached) {
+          throw new Error(response.error || 'Generation limit reached');
+        }
+        return getMockData(type, count);
+      }
+
+      const raw = cleanAndParseJson(response.content);
       const result = cleanFlashcards(raw);
-      if (result.length > 0) recordGeneration(type);
+      if (result.length > 0) recordGeneration();
       return result;
     }
 
@@ -597,43 +631,51 @@ STRICT RULES:
 Source Material:
 ${safeText}`;
 
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
+      const response = await callServerGenerate(isMock ? 'mock_test' : 'quiz', prompt);
+      if (!response.success) {
+        if (response.requiresPro || response.limitReached) {
+          throw new Error(response.error || 'Generation limit reached');
         }
-      });
+        return getMockData(type, count);
+      }
 
-      const raw = cleanAndParseJson(response.text || "[]");
+      const raw = cleanAndParseJson(response.content);
       const result = cleanQuestions(raw);
-      if (result.length > 0) recordGeneration(type);
+      if (result.length > 0) recordGeneration();
       return result;
     }
 
     // Notes / Mindmap
     if (type === ContentType.NOTES || type === ContentType.MINDMAP || type === ContentType.ACTIVE_RECALL) {
-      let prompt = "";
-      if (type === ContentType.NOTES) prompt = "Generate concise Cornell-style notes (Main Points, Details, Summary).";
-      if (type === ContentType.MINDMAP) prompt = "Generate a text-based hierarchical mind map (markdown bullets).";
-      if (type === ContentType.ACTIVE_RECALL) prompt = `Generate ${count} Active Recall questions (no answers).`;
+      let typeLabel = 'notes';
+      let promptText = "";
+      if (type === ContentType.NOTES) {
+        promptText = "Generate concise Cornell-style notes (Main Points, Details, Summary).";
+        typeLabel = 'notes';
+      }
+      if (type === ContentType.MINDMAP) {
+        promptText = "Generate a text-based hierarchical mind map (markdown bullets).";
+        typeLabel = 'mindmap';
+      }
+      if (type === ContentType.ACTIVE_RECALL) {
+        promptText = `Generate ${count} Active Recall questions (no answers).`;
+        typeLabel = 'active_recall';
+      }
 
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `${prompt} Context: ${contextTitle}. Source Material: ${safeText}`,
-        config: {
-            responseMimeType: "text/plain",
+      const response = await callServerGenerate(typeLabel, `${promptText} Context: ${contextTitle}. Source Material: ${safeText}`);
+      if (!response.success) {
+        if (response.requiresPro || response.limitReached) {
+          throw new Error(response.error || 'Generation limit reached');
         }
-      });
-      if (response.text) recordGeneration(type);
-      return response.text;
+        return `[Generation Failed] ${response.error || 'Unknown error'}`;
+      }
+      if (response.content) recordGeneration();
+      return response.content;
     }
 
-    // Concept Connections
+    // Concept Connections (Pro feature)
     if (type === ContentType.CONCEPT_CONNECTIONS) {
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `
+      const prompt = `
           Extract and map concept connections from the source material.
           Identify ${count} key concepts and show how they relate to other concepts.
 
@@ -663,23 +705,25 @@ ${safeText}`;
 
           Source Material:
           ${safeText}
-        `,
-        config: {
-          responseMimeType: "application/json",
-        }
-      });
+        `;
 
-      const raw = cleanAndParseJson(response.text || "[]");
+      const response = await callServerGenerate('concept_connections', prompt);
+      if (!response.success) {
+        if (response.requiresPro || response.limitReached) {
+          throw new Error(response.error || 'Generation limit reached');
+        }
+        return [];
+      }
+
+      const raw = cleanAndParseJson(response.content);
       const result = cleanConceptConnections(raw);
-      if (result.length > 0) recordGeneration(type);
+      if (result.length > 0) recordGeneration();
       return result;
     }
 
     // Practice Problems (STEM)
     if (type === ContentType.PRACTICE_PROBLEMS) {
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `
+      const prompt = `
           Generate ${count} practice problems with step-by-step solutions for STEM students.
 
           Context Source: "${contextTitle}"
@@ -737,23 +781,25 @@ ${safeText}`;
 
           Source Material:
           ${safeText}
-        `,
-        config: {
-          responseMimeType: "application/json",
-        }
-      });
+        `;
 
-      const raw = cleanAndParseJson(response.text || "[]");
+      const response = await callServerGenerate('practice_problems', prompt);
+      if (!response.success) {
+        if (response.requiresPro || response.limitReached) {
+          throw new Error(response.error || 'Generation limit reached');
+        }
+        return getMockData(type, count);
+      }
+
+      const raw = cleanAndParseJson(response.content);
       const result = cleanPracticeProblems(raw);
-      if (result.length > 0) recordGeneration(type);
+      if (result.length > 0) recordGeneration();
       return result;
     }
 
     // Mnemonics
     if (type === ContentType.MNEMONICS) {
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `
+      const prompt = `
           Analyze the source material and create ${count} memorable mnemonics for lists, sequences, steps, or categories.
 
           Context Source: "${contextTitle}"
@@ -798,23 +844,28 @@ ${safeText}`;
 
           Source Material:
           ${safeText}
-        `,
-        config: {
-          responseMimeType: "application/json",
-        }
-      });
+        `;
 
-      const raw = cleanAndParseJson(response.text || "[]");
+      const response = await callServerGenerate('mnemonics', prompt);
+      if (!response.success) {
+        if (response.requiresPro || response.limitReached) {
+          throw new Error(response.error || 'Generation limit reached');
+        }
+        return getMockData(type, count);
+      }
+
+      const raw = cleanAndParseJson(response.content);
       const result = cleanMnemonics(raw);
-      if (result.length > 0) recordGeneration(type);
+      if (result.length > 0) recordGeneration();
       return result;
     }
 
   } catch (error: any) {
-    console.error("Gemini Gen Error:", error);
+    console.error("Generation error:", error?.message || 'Unknown error');
     if (error.message === "SOURCE_TEXT_EMPTY") throw error;
-    if (!process.env.API_KEY) return getMockData(type, count);
-    return []; 
+    // Re-throw limit/pro errors so UI can show appropriate message
+    if (error.message?.includes('limit') || error.message?.includes('Pro')) throw error;
+    return getMockData(type, count);
   }
 };
 
@@ -830,10 +881,9 @@ export const generateExamFromMaterials = async (
   questionCount: number = 100,
   difficulty: Difficulty = Difficulty.MEDIUM
 ): Promise<any[]> => {
-  const ai = getAiClient();
-
-  if (!ai) {
-    // Return mock data if no API key
+  const token = await getAuthToken();
+  if (!token) {
+    // Return mock data if not logged in
     await new Promise(resolve => setTimeout(resolve, 1000));
     return getMockData(ContentType.MOCK_TEST, Math.min(questionCount, 20)) as any[];
   }
@@ -850,7 +900,6 @@ export const generateExamFromMaterials = async (
   const totalSourceItems = flashcards.length + existingQuestions.length;
 
   if (totalSourceItems < 10) {
-    console.warn("Not enough source material for exam generation");
     throw new Error("INSUFFICIENT_MATERIALS");
   }
 
@@ -904,90 +953,94 @@ MATCHING: {"type": "MATCHING", "text": "Select the term that...", "options": ["w
 
 Return ONLY a JSON array of questions. No markdown wrapping.`;
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
+    const response = await callServerGenerate('mock_test', prompt);
+    if (!response.success) {
+      if (response.requiresPro || response.limitReached) {
+        throw new Error(response.error || 'Generation limit reached');
       }
-    });
+      return getMockData(ContentType.MOCK_TEST, Math.min(questionCount, 20)) as any[];
+    }
 
-    const raw = cleanAndParseJson(response.text || "[]");
+    const raw = cleanAndParseJson(response.content);
     const result = cleanQuestions(raw);
-    if (result.length > 0) recordGeneration(ContentType.MOCK_TEST);
+    if (result.length > 0) recordGeneration();
     return result;
   } catch (error: any) {
-    console.error("Exam generation error:", error);
-    if (!process.env.API_KEY) return getMockData(ContentType.MOCK_TEST, Math.min(questionCount, 20)) as any[];
-    throw error;
+    console.error("Exam generation error:", error?.message || 'Unknown error');
+    if (error.message?.includes('limit') || error.message?.includes('Pro')) throw error;
+    return getMockData(ContentType.MOCK_TEST, Math.min(questionCount, 20)) as any[];
   }
 };
 
 export const fixFlashcardContent = async (
   contextText: string,
 ): Promise<{ front: string; back: string }> => {
-  const ai = getAiClient();
-  if (!ai) return { front: "Error", back: "No API Key" };
+  const token = await getAuthToken();
+  if (!token) return { front: "Error", back: "Not logged in" };
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: `Fix/Improve flashcard. Input: ${contextText.substring(0, 1000)}`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            front: { type: Type.STRING },
-            back: { type: Type.STRING },
-          }
-        }
-      }
-    });
-    // Use the same robust cleaner for the fix function
-    const fixedArr = cleanAndParseJson(response.text || "[]");
-    const data = fixedArr[0] || {};
-    return { front: data.front || "Error", back: data.back || "Could not fix" };
+    const prompt = `Fix/Improve this flashcard and return a JSON object with "front" and "back" keys. Input: ${contextText.substring(0, 1000)}`;
+    const response = await callServerGenerate('flashcard_fix', prompt);
+
+    if (!response.success) {
+      return { front: "Error", back: response.error || "Generation failed" };
+    }
+
+    // Parse the response
+    const fixedArr = cleanAndParseJson(response.content);
+    const data = Array.isArray(fixedArr) ? fixedArr[0] : fixedArr;
+    return { front: data?.front || "Error", back: data?.back || "Could not fix" };
   } catch (e) {
     return { front: "Error", back: "API Error" };
   }
 };
 
 export const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
-  const ai = getAiClient();
-  if (!ai) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      return "[Mock Transcription] Need API Key.";
+  // Audio transcription requires server-side endpoint with multipart support
+  // For now, return a message indicating this feature needs server setup
+  const token = await getAuthToken();
+  if (!token) {
+    return "[Transcription unavailable] Please log in to use this feature.";
   }
 
   try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => {
-              const base64Data = reader.result as string;
-              const base64Content = base64Data.split(',')[1];
-              resolve(base64Content);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(audioBlob);
-      });
-      
-      const base64Audio = await base64Promise;
+    // Convert audio to base64
+    const reader = new FileReader();
+    const base64Promise = new Promise<string>((resolve, reject) => {
+      reader.onloadend = () => {
+        const base64Data = reader.result as string;
+        const base64Content = base64Data.split(',')[1];
+        resolve(base64Content);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(audioBlob);
+    });
 
-      const response = await ai.models.generateContent({
-          model: MODEL_NAME, 
-          contents: {
-              parts: [
-                  { inlineData: { mimeType: audioBlob.type, data: base64Audio } },
-                  { text: "Transcribe this audio verbatim." }
-              ]
-          }
-      });
-      
-      return response.text || "Transcription failed.";
+    const base64Audio = await base64Promise;
+
+    // Call server transcription endpoint
+    const response = await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        audio: base64Audio,
+        mimeType: audioBlob.type,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      return error.error || "Transcription failed.";
+    }
+
+    const data = await response.json();
+    return data.text || "Transcription failed.";
   } catch (e) {
-      console.error("Transcription Error:", e);
-      return "Error during transcription.";
+    console.error("Transcription error");
+    return "Error during transcription. Please try again.";
   }
 };
 
@@ -1000,13 +1053,11 @@ export interface TOCEntry {
 }
 
 export const parseTableOfContents = async (fullText: string): Promise<TOCEntry[]> => {
-  const ai = getAiClient();
-  if (!ai) return [];
+  const token = await getAuthToken();
+  if (!token) return [];
 
   try {
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: `
+    const prompt = `
         Analyze this text from the first 30 pages of a PDF and extract the Table of Contents structure.
 
         TASK: Identify chapters and their sections/subsections with page numbers.
@@ -1050,13 +1101,14 @@ export const parseTableOfContents = async (fullText: string): Promise<TOCEntry[]
 
         TEXT TO ANALYZE:
         ${fullText.substring(0, 15000)}
-      `,
-      config: {
-        responseMimeType: "application/json",
-      }
-    });
+      `;
 
-    const parsed = cleanAndParseJson(response.text || "[]");
+    const response = await callServerGenerate('toc_parse', prompt);
+    if (!response.success) {
+      return [];
+    }
+
+    const parsed = cleanAndParseJson(response.content);
 
     // Clean and validate the response
     return parsed
@@ -1076,7 +1128,7 @@ export const parseTableOfContents = async (fullText: string): Promise<TOCEntry[]
           : []
       }));
   } catch (e) {
-    console.error("TOC Parse Error:", e);
+    console.error("TOC parse error");
     return [];
   }
 };
@@ -1088,50 +1140,41 @@ export const chatWithContext = async (
   contextTitle: string,
   chatHistory: { role: 'user' | 'assistant'; content: string }[] = []
 ): Promise<string> => {
-  const ai = getAiClient();
-  if (!ai) {
-    return "AI Chat requires a valid API key. Please add your Gemini API key in settings.";
+  const token = await getAuthToken();
+  if (!token) {
+    return "AI Tutor requires you to be logged in. Please sign in to continue.";
   }
 
   try {
-    // Build conversation history for context
-    const historyText = chatHistory
-      .slice(-6) // Keep last 6 messages for context
-      .map(msg => `${msg.role === 'user' ? 'Student' : 'Tutor'}: ${msg.content}`)
-      .join('\n');
+    // Build context for the AI
+    const context = `CONTEXT SOURCE: "${contextTitle}"\n\nRELEVANT MATERIAL:\n${contextText.substring(0, 12000)}`;
 
-    const prompt = `You are an expert tutor helping a student understand their study material.
-
-CONTEXT SOURCE: "${contextTitle}"
-
-RELEVANT MATERIAL:
-${contextText.substring(0, 12000)}
-
-${historyText ? `PREVIOUS CONVERSATION:\n${historyText}\n` : ''}
-
-STUDENT'S QUESTION: ${userMessage}
-
-INSTRUCTIONS:
-1. Answer ONLY based on the provided material above
-2. If the answer isn't in the material, say "I don't see that covered in the selected material"
-3. Be concise but thorough
-4. Use examples from the material when helpful
-5. If asked to explain a concept, break it down simply
-6. Reference specific parts of the material when relevant
-
-YOUR RESPONSE:`;
-
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: "text/plain",
-      }
+    // Call the dedicated chat endpoint
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        message: userMessage,
+        context,
+        history: chatHistory.slice(-10), // Last 10 messages for context
+      }),
     });
 
-    return response.text || "I couldn't generate a response. Please try again.";
-  } catch (e: any) {
-    console.error("Chat Error:", e);
+    const data = await response.json();
+
+    if (!response.ok) {
+      if (data.requiresPro) {
+        return "AI Tutor is a Pro feature. Upgrade to Pro to get personalized tutoring help!";
+      }
+      return data.error || "Sorry, there was an error. Please try again.";
+    }
+
+    return data.response || "I couldn't generate a response. Please try again.";
+  } catch (e) {
+    console.error("Chat error");
     return "Sorry, there was an error processing your question. Please try again.";
   }
 };
@@ -1147,9 +1190,9 @@ export const generateLectureSummary = async (
   transcript: string,
   lectureTitle: string
 ): Promise<LectureSummaryResult | null> => {
-  const ai = getAiClient();
-  if (!ai) {
-    // Return mock data if no API key
+  const token = await getAuthToken();
+  if (!token) {
+    // Return mock data if not logged in
     return {
       summary: "[Mock] This lecture covered important concepts related to the topic. Key themes included foundational principles, practical applications, and real-world examples. The instructor emphasized understanding core concepts before moving to advanced material.",
       keyPoints: [
@@ -1195,21 +1238,18 @@ OUTPUT FORMAT (JSON):
 
 Return ONLY valid JSON, no markdown.`;
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      }
-    });
+    const response = await callServerGenerate('lecture_summary', prompt);
+    if (!response.success) {
+      return null;
+    }
 
     // Parse as object (not array)
     let result: any;
     try {
-      result = JSON.parse(response.text || "{}");
+      result = JSON.parse(response.content || "{}");
     } catch {
       // Try cleanAndParseJson as fallback
-      const parsed = cleanAndParseJson(response.text || "{}");
+      const parsed = cleanAndParseJson(response.content || "{}");
       result = Array.isArray(parsed) ? parsed[0] : parsed;
     }
 
@@ -1222,8 +1262,8 @@ Return ONLY valid JSON, no markdown.`;
     }
 
     return null;
-  } catch (e: any) {
-    console.error("Lecture summary error:", e);
+  } catch (e) {
+    console.error("Lecture summary error");
     return null;
   }
 };

@@ -72,7 +72,7 @@ async function sendEmail(to: string, subject: string, html: string): Promise<boo
       return false;
     }
 
-    console.log(`Email sent: ${subject} to ${to}`);
+    console.log(`Email sent: ${subject}`);
     return true;
   } catch (error) {
     console.error('Email send error:', error);
@@ -239,10 +239,29 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     return;
   }
 
-  const { userId, priceId } = session.metadata || {};
+  const { userId, priceId, referralCreditsCents } = session.metadata || {};
   if (!userId || !priceId) {
     console.error('Missing metadata in checkout session');
     return;
+  }
+
+  // SECURITY: Deduct referral credits used in this checkout (server-side, after payment confirmed)
+  const creditsUsed = parseInt(referralCreditsCents || '0') || 0;
+  if (creditsUsed > 0) {
+    try {
+      const userRefDoc = adminDb.collection('users').doc(userId).collection('referral').doc('info');
+      const refSnap = await userRefDoc.get();
+      if (refSnap.exists) {
+        const currentUsed = refSnap.data()?.creditsUsed || 0;
+        await userRefDoc.update({
+          creditsUsed: currentUsed + creditsUsed,
+        });
+        console.log(`Deducted ${creditsUsed} cents in referral credits`);
+      }
+    } catch (e) {
+      console.error('Failed to deduct referral credits:', e);
+      // Don't fail the whole checkout for this
+    }
   }
 
   const docRef = adminDb.collection('users').doc(userId).collection('subscription').doc('current');
@@ -257,7 +276,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
       purchasedCredits: currentCredits + credits,
     }, { merge: true });
 
-    console.log(`Added ${credits} credits to user ${userId}`);
+    console.log(`Added ${credits} credits to account`);
     return;
   }
 
@@ -281,7 +300,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     currentPeriodEnd: currentPeriodEnd.toISOString(),
   }, { merge: true });
 
-  console.log(`Activated Pro subscription for user ${userId}, plan: ${plan}`);
+  console.log(`Activated Pro subscription, plan: ${plan}`);
 
   // Send emails
   const customerEmail = session.customer_email || session.customer_details?.email;
@@ -342,7 +361,7 @@ async function awardReferralCredit(userId: string) {
     const currentConversions = referrerData?.proConversions || 0;
 
     if (currentConversions >= REFERRAL_CONFIG.maxReferrals) {
-      console.log(`Referrer ${userRef.referredBy} has hit the cap of ${REFERRAL_CONFIG.maxReferrals} referrals`);
+      console.log(`Referrer has hit the cap of ${REFERRAL_CONFIG.maxReferrals} referrals`);
       // Still mark as converted but don't award credits
       await recordRef.update({
         status: 'converted_pro',
@@ -369,7 +388,7 @@ async function awardReferralCredit(userId: string) {
       referralCredits: newTotalCredits,
     });
 
-    console.log(`Awarded $${creditsToAward / 100} referral credit to ${userRef.referredBy} for Pro conversion by ${userId}`);
+    console.log(`Awarded $${creditsToAward / 100} referral credit for Pro conversion`);
 
     // Send email to referrer
     try {
@@ -409,7 +428,7 @@ async function handleSubscriptionCanceled(subscription: Stripe.Subscription) {
       stripeSubscriptionId: null,
       plan: null,
     });
-    console.log(`Canceled subscription for user: ${doc.ref.parent.parent?.id}`);
+    console.log('Subscription canceled successfully');
   }
 }
 
@@ -431,6 +450,6 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
       currentPeriodEnd: newPeriodEnd.toISOString(),
       status: subscription.status === 'active' ? 'pro' : 'free',
     });
-    console.log(`Updated subscription for user: ${doc.ref.parent.parent?.id}`);
+    console.log('Subscription updated successfully');
   }
 }

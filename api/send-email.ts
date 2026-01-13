@@ -1,10 +1,61 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import * as admin from 'firebase-admin';
 
 // Resend API endpoint for sending transactional emails
 // Get your API key at https://resend.com/api-keys
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'StudyStack <hello@send.studystack.ai>';
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY; // For server-to-server calls
+
+// Initialize Firebase Admin (singleton pattern)
+if (!admin.apps.length) {
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (serviceAccount) {
+    try {
+      admin.initializeApp({
+        credential: admin.credential.cert(JSON.parse(serviceAccount)),
+      });
+    } catch (e) {
+      console.error('Firebase Admin init failed:', e);
+    }
+  }
+}
+
+// SECURITY: HTML escape user input to prevent XSS in emails
+function escapeHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Verify authentication - accepts Firebase token OR internal API key
+async function verifyAuth(req: VercelRequest): Promise<{ valid: boolean; email?: string; isInternal: boolean }> {
+  const authHeader = req.headers.authorization as string | undefined;
+
+  // Check for internal API key (server-to-server)
+  if (INTERNAL_API_KEY && authHeader === `Bearer ${INTERNAL_API_KEY}`) {
+    return { valid: true, isInternal: true };
+  }
+
+  // Check for Firebase user token
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    try {
+      if (!admin.apps.length) return { valid: false, isInternal: false };
+      const decoded = await admin.auth().verifyIdToken(token);
+      return { valid: true, email: decoded.email, isInternal: false };
+    } catch (e) {
+      return { valid: false, isInternal: false };
+    }
+  }
+
+  return { valid: false, isInternal: false };
+}
 
 // Email templates
 const templates = {
@@ -424,6 +475,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Email service not configured' });
   }
 
+  // SECURITY: Verify authentication
+  const auth = await verifyAuth(req);
+  if (!auth.valid) {
+    return res.status(401).json({ error: 'Unauthorized - valid auth token required' });
+  }
+
   try {
     const { to, type, data = {} } = req.body as SendEmailRequest;
 
@@ -431,55 +488,76 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Missing required fields: to, type' });
     }
 
+    // SECURITY: For client requests, only allow sending to the authenticated user's own email
+    if (!auth.isInternal && auth.email && auth.email.toLowerCase() !== to.toLowerCase()) {
+      return res.status(403).json({ error: 'Can only send emails to your own email address' });
+    }
+
     if (!templates[type]) {
       return res.status(400).json({ error: `Invalid email type: ${type}` });
     }
 
+    // SECURITY: HTML escape all user-provided data
+    const safeData = {
+      name: escapeHtml(data.name || ''),
+      remaining: data.remaining || 0,
+      daysActive: data.daysActive || 0,
+      referralCode: escapeHtml(data.referralCode || ''),
+      plan: escapeHtml(data.plan || ''),
+      amount: escapeHtml(data.amount || ''),
+      date: escapeHtml(data.date || ''),
+      expiresAt: escapeHtml(data.expiresAt || ''),
+      friendName: escapeHtml(data.friendName || ''),
+      totalCredits: escapeHtml(data.totalCredits || ''),
+      daysLeft: data.daysLeft || 0,
+    };
+
     // Generate email content based on type
     let emailContent;
+    // Use safeData (HTML escaped) for all template values
     switch (type) {
       case 'welcome':
-        emailContent = templates.welcome(data.name || '');
+        emailContent = templates.welcome(safeData.name);
         break;
       case 'creditsLow':
-        emailContent = templates.creditsLow(data.name || '', data.remaining || 0);
+        emailContent = templates.creditsLow(safeData.name, safeData.remaining);
         break;
       case 'upgradeNudge':
-        emailContent = templates.upgradeNudge(data.name || '', data.daysActive || 7);
+        emailContent = templates.upgradeNudge(safeData.name, safeData.daysActive || 7);
         break;
       case 'referralReminder':
-        emailContent = templates.referralReminder(data.name || '', data.referralCode || 'XXXXXXXX');
+        emailContent = templates.referralReminder(safeData.name, safeData.referralCode || 'XXXXXXXX');
         break;
       case 'paymentReceipt':
         emailContent = templates.paymentReceipt(
-          data.name || '',
-          data.plan || 'Monthly',
-          data.amount || '$0.00',
-          data.date || new Date().toLocaleDateString()
+          safeData.name,
+          safeData.plan || 'Monthly',
+          safeData.amount || '$0.00',
+          safeData.date || new Date().toLocaleDateString()
         );
         break;
       case 'subscriptionConfirmed':
         emailContent = templates.subscriptionConfirmed(
-          data.name || '',
-          data.plan || 'Monthly',
-          data.expiresAt || 'N/A'
+          safeData.name,
+          safeData.plan || 'Monthly',
+          safeData.expiresAt || 'N/A'
         );
         break;
       case 'referralSignup':
-        emailContent = templates.referralSignup(data.name || '', data.friendName || 'Someone');
+        emailContent = templates.referralSignup(safeData.name, safeData.friendName || 'Someone');
         break;
       case 'referralSuccess':
         emailContent = templates.referralSuccess(
-          data.name || '',
-          data.friendName || 'Your friend',
-          data.totalCredits || '$7.50'
+          safeData.name,
+          safeData.friendName || 'Your friend',
+          safeData.totalCredits || '$7.50'
         );
         break;
       case 'subscriptionExpiring':
         emailContent = templates.subscriptionExpiring(
-          data.name || '',
-          data.expiresAt || 'soon',
-          data.daysLeft || 3
+          safeData.name,
+          safeData.expiresAt || 'soon',
+          safeData.daysLeft || 3
         );
         break;
       default:

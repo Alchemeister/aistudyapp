@@ -26,12 +26,32 @@ interface EmailData {
   daysLeft?: number;
 }
 
-// Send email via our API endpoint
+// Get auth token for API requests
+const getAuthToken = async (): Promise<string | null> => {
+  try {
+    const { auth } = await import('./firebase');
+    if (!auth?.currentUser) return null;
+    return await auth.currentUser.getIdToken();
+  } catch {
+    return null;
+  }
+};
+
+// Send email via our API endpoint (requires authentication)
 const sendEmail = async (to: string, type: EmailType, data?: EmailData): Promise<boolean> => {
   try {
+    const authToken = await getAuthToken();
+    if (!authToken) {
+      console.error('Email send failed: not authenticated');
+      return false;
+    }
+
     const response = await fetch('/api/send-email', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`,
+      },
       body: JSON.stringify({ to, type, data }),
     });
 
@@ -40,7 +60,7 @@ const sendEmail = async (to: string, type: EmailType, data?: EmailData): Promise
       return false;
     }
 
-    console.log(`📧 Email sent: ${type} to ${to}`);
+    console.log(`📧 Email sent: ${type}`);
     return true;
   } catch (error) {
     console.error('Email send error:', error);
