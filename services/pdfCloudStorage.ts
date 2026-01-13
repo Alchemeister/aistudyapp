@@ -15,8 +15,8 @@ export const STORAGE_LIMITS = {
   },
   PRO: {
     enabled: true,
-    maxPdfSize: 50 * 1024 * 1024, // 50MB per PDF
-    totalStorage: 1 * 1024 * 1024 * 1024 // 1GB total
+    maxPdfSize: 250 * 1024 * 1024, // 250MB per PDF (handles large textbooks)
+    totalStorage: 2 * 1024 * 1024 * 1024 // 2GB total
   }
 };
 
@@ -51,7 +51,7 @@ export const uploadPdfToCloud = async (
   // Check file size
   if (file.size > STORAGE_LIMITS.PRO.maxPdfSize) {
     console.error(`PDF too large: ${file.size} bytes (max: ${STORAGE_LIMITS.PRO.maxPdfSize})`);
-    throw new Error('PDF file is too large. Maximum size is 50MB.');
+    throw new Error('PDF file is too large. Maximum size is 250MB.');
   }
 
   // Generate storage path
