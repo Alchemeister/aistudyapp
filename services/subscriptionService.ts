@@ -236,7 +236,8 @@ export const createCheckoutSession = async (
   userId: string,
   priceId: string,
   email: string,
-  mode: 'subscription' | 'payment' = 'subscription'
+  mode: 'subscription' | 'payment' = 'subscription',
+  referralCreditsCents: number = 0
 ): Promise<string> => {
   const successUrl = `${window.location.origin}/#/settings?payment=success`;
   const cancelUrl = `${window.location.origin}/#/settings?payment=cancelled`;
@@ -251,6 +252,7 @@ export const createCheckoutSession = async (
       mode,
       successUrl,
       cancelUrl,
+      referralCreditsCents,
     }),
   });
 
@@ -264,7 +266,12 @@ export const createCheckoutSession = async (
 };
 
 // Redirect to Stripe checkout for subscription
-export const upgradeToPro = async (userId: string, email: string, plan: 'monthly' | 'semester' | 'annual'): Promise<void> => {
+export const upgradeToPro = async (
+  userId: string,
+  email: string,
+  plan: 'monthly' | 'semester' | 'annual',
+  referralCreditsCents: number = 0
+): Promise<void> => {
   const priceId = {
     monthly: STRIPE_CONFIG.prices.proMonthly,
     semester: STRIPE_CONFIG.prices.proSemester,
@@ -273,7 +280,7 @@ export const upgradeToPro = async (userId: string, email: string, plan: 'monthly
 
   // Semester and annual are one-time payments, monthly is subscription
   const mode = plan === 'monthly' ? 'subscription' : 'payment';
-  const url = await createCheckoutSession(userId, priceId, email, mode);
+  const url = await createCheckoutSession(userId, priceId, email, mode, referralCreditsCents);
   window.location.href = url;
 };
 

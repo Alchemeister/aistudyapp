@@ -6,7 +6,8 @@ import {
   Layers, Users, Settings, LogOut, Loader2, Check, Lightbulb, ChevronRight,
   ChevronLeft, Trash2, User, LayoutGrid, TrendingUp, Plus, BookOpen, FileText,
   ArrowRight, ArrowLeft, List, Share2, AlertTriangle, HelpCircle, Network,
-  AlignLeft, Pencil, Shuffle, Download, X, Inbox, File, Combine, Calculator, Trophy
+  AlignLeft, Pencil, Shuffle, Download, X, Inbox, File, Combine, Calculator, Trophy,
+  Clock, Play, Pause, RotateCcw
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection, PracticeProblem, Mnemonic } from './types';
@@ -16,7 +17,6 @@ import { CloudSyncIndicator } from './components/CloudSyncIndicator';
 import { generateContent, fixFlashcardContent, getRemainingGenerations, getGenerationLimit, getGenerationUsage } from './services/geminiService';
 import { loadPdfDocument, extractTextFromRange } from './services/pdfUtils';
 import { getInitialCardState } from './services/srs';
-import { Pomodoro } from './components/Pomodoro';
 import { QuizTaker } from './components/QuizTaker';
 import { Modal } from './components/Modal';
 import { BookSearchModal } from './components/BookSearchModal';
@@ -42,10 +42,28 @@ import { PricingModal } from './components/PricingModal';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { SRSDashboard } from './components/SRSDashboard';
 import { getCreditsInfo } from './services/subscriptionService';
+import { checkAndStoreReferralFromUrl, getPendingReferralCode, clearPendingReferralCode, applyReferralCode, getUserReferralInfo } from './services/referralService';
+import {
+  sendWelcomeEmail,
+  sendCreditsLowEmail,
+  sendUpgradeNudgeEmail,
+  sendReferralReminderEmail,
+  sendSubscriptionExpiringEmail,
+} from './services/emailService';
 
 // --- Utils ---
 const uuid = () => Math.random().toString(36).substring(2, 9);
 const formatDate = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+// Helper to estimate subscription duration in ms
+const getDurationInMs = (plan?: string): number => {
+  switch (plan) {
+    case 'monthly': return 30 * 24 * 60 * 60 * 1000;
+    case 'semester': return 6 * 30 * 24 * 60 * 60 * 1000;
+    case 'annual': return 365 * 24 * 60 * 60 * 1000;
+    default: return 30 * 24 * 60 * 60 * 1000;
+  }
+};
 
 // Helper: Fisher-Yates Shuffle
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -174,6 +192,203 @@ const MobileNav = ({ user, onLogout, dueCount, syncStatus, creditsInfo, onOpenPr
   );
 };
 
+// --- Desktop Top Bar ---
+const TopBar = ({ user, onLogout, creditsInfo, onOpenPricing }: {
+  user: any,
+  onLogout: () => void,
+  creditsInfo?: { status: 'free' | 'pro', total: number, monthlyLimit: number },
+  onOpenPricing?: () => void
+}) => {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  // Pomodoro state
+  const [pomodoroTime, setPomodoroTime] = useState(() => {
+    const saved = localStorage.getItem('pomodoro_time');
+    return saved ? parseInt(saved) : 25 * 60;
+  });
+  const [pomodoroActive, setPomodoroActive] = useState(false);
+  const [pomodoroExpanded, setPomodoroExpanded] = useState(false);
+
+  // Pomodoro timer effect
+  useEffect(() => {
+    let interval: any = null;
+    if (pomodoroActive && pomodoroTime > 0) {
+      interval = setInterval(() => {
+        setPomodoroTime(t => {
+          const newTime = t - 1;
+          localStorage.setItem('pomodoro_time', newTime.toString());
+          return newTime;
+        });
+      }, 1000);
+    } else if (pomodoroTime === 0) {
+      setPomodoroActive(false);
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification("Pomodoro Complete! Take a break.");
+      }
+    }
+    return () => clearInterval(interval);
+  }, [pomodoroActive, pomodoroTime]);
+
+  const resetPomodoro = () => {
+    setPomodoroActive(false);
+    setPomodoroTime(25 * 60);
+    localStorage.setItem('pomodoro_time', (25 * 60).toString());
+  };
+
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="hidden md:flex h-14 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 items-center justify-end gap-4 flex-shrink-0">
+      {/* Pomodoro Timer */}
+      <div className="flex items-center">
+        {pomodoroExpanded ? (
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 rounded-full px-3 py-1.5">
+            <span className={`font-mono font-bold text-sm ${pomodoroActive ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}`}>
+              {formatTime(pomodoroTime)}
+            </span>
+            <button
+              onClick={() => setPomodoroActive(!pomodoroActive)}
+              className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
+                pomodoroActive
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                  : 'bg-green-500 hover:bg-green-600 text-white'
+              }`}
+            >
+              {pomodoroActive ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+            </button>
+            <button
+              onClick={resetPomodoro}
+              className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 flex items-center justify-center text-slate-500 dark:text-slate-300"
+            >
+              <RotateCcw className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => setPomodoroExpanded(false)}
+              className="w-7 h-7 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center text-slate-400"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setPomodoroExpanded(true)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-colors ${
+              pomodoroActive
+                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+            }`}
+            title="Pomodoro Timer"
+          >
+            <Clock className="w-4 h-4" />
+            <span className="font-mono text-sm font-medium">{formatTime(pomodoroTime)}</span>
+            {pomodoroActive && <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></span>}
+          </button>
+        )}
+      </div>
+      {/* Credits Badge */}
+      {creditsInfo && (
+        <button
+          onClick={onOpenPricing}
+          className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all hover:scale-105 ${
+            creditsInfo.status === 'pro'
+              ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white'
+              : creditsInfo.total < creditsInfo.monthlyLimit * 0.2
+              ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+              : 'bg-primary/10 dark:bg-primary/20 text-primary'
+          }`}
+          title={creditsInfo.status === 'pro' ? 'Pro Member' : `${creditsInfo.total} credits remaining`}
+        >
+          {creditsInfo.status === 'pro' ? <Crown className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
+          <span className="text-sm font-bold">{creditsInfo.status === 'pro' ? 'Pro' : creditsInfo.total}</span>
+        </button>
+      )}
+
+      {/* Profile (just display, no dropdown) */}
+      <div className="flex items-center gap-2 px-2 py-1.5">
+        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center overflow-hidden">
+          {user.photoURL ? (
+            <img src={user.photoURL} alt="user" className="w-full h-full object-cover" />
+          ) : (
+            <User className="w-4 h-4 text-slate-400" />
+          )}
+        </div>
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-200 max-w-[120px] truncate">
+          {user.displayName || 'Student'}
+        </span>
+      </div>
+
+      {/* Settings Gear Dropdown */}
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => setDropdownOpen(!dropdownOpen)}
+          className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+            dropdownOpen
+              ? 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'
+              : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+          }`}
+          title="Settings"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+
+        {/* Dropdown Menu */}
+        {dropdownOpen && (
+          <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-50 animate-fade-in">
+            <button
+              onClick={() => { navigate('/settings'); setDropdownOpen(false); }}
+              className="w-full px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </button>
+            <button
+              onClick={() => { navigate('/friends'); setDropdownOpen(false); }}
+              className="w-full px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+            >
+              <Users className="w-4 h-4" />
+              Friends
+            </button>
+            <button
+              onClick={() => {
+                const newMode = !document.documentElement.classList.contains('dark');
+                document.documentElement.classList.toggle('dark', newMode);
+                localStorage.setItem('studystack_theme', newMode ? 'dark' : 'light');
+              }}
+              className="w-full px-4 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+            >
+              <Sun className="w-4 h-4 hidden dark:block" />
+              <Moon className="w-4 h-4 block dark:hidden" />
+              <span className="dark:hidden">Dark Mode</span>
+              <span className="hidden dark:inline">Light Mode</span>
+            </button>
+            <div className="border-t border-slate-100 dark:border-slate-700 my-1"></div>
+            <button
+              onClick={() => { onLogout(); setDropdownOpen(false); }}
+              className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
@@ -187,6 +402,7 @@ function App() {
     plan?: string;
     expiresAt?: string;
   } | null>(null);
+  const [hasReferralDiscount, setHasReferralDiscount] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     // Persist sidebar state
     const saved = localStorage.getItem('studystack_sidebar_collapsed');
@@ -201,6 +417,11 @@ function App() {
     });
   };
 
+  // Check for referral code in URL on mount
+  useEffect(() => {
+    checkAndStoreReferralFromUrl();
+  }, []);
+
   // Auth Listener
   useEffect(() => {
     if (!auth) {
@@ -209,13 +430,43 @@ function App() {
         return;
     }
 
-    const unsubscribe = auth.onAuthStateChanged((u) => {
+    const unsubscribe = auth.onAuthStateChanged(async (u) => {
       if (u) {
         setUser(u);
         // Create/update user profile for friends feature
         createOrUpdateProfile(u);
+
+        // Check for pending referral code and apply it
+        const pendingCode = getPendingReferralCode();
+        const existingInfo = await getUserReferralInfo(u.uid);
+        const isNewUser = !existingInfo; // No referral info = first time user
+
+        if (pendingCode) {
+          if (!existingInfo?.referredBy) {
+            // New user - apply the referral code
+            const result = await applyReferralCode(u.uid, u.email || '', pendingCode);
+            if (result.success) {
+              console.log('✅ Referral code applied:', result.message);
+              setHasReferralDiscount(true);
+            } else {
+              console.log('ℹ️ Referral code not applied:', result.message);
+            }
+          } else {
+            // User was already referred - they have the discount
+            setHasReferralDiscount(true);
+          }
+          clearPendingReferralCode();
+        } else if (existingInfo?.referredBy) {
+          setHasReferralDiscount(true);
+        }
+
+        // Send welcome email for new users
+        if (isNewUser && u.email) {
+          sendWelcomeEmail(u.email, u.displayName || undefined);
+        }
       } else {
         // Keep user null, will show Login
+        setHasReferralDiscount(false);
       }
       setLoading(false);
     });
@@ -270,9 +521,9 @@ function App() {
     return () => setSyncStatusCallback(null);
   }, []);
 
-  // Load credits info for mobile nav
+  // Load credits info for mobile nav + trigger lifecycle emails
   useEffect(() => {
-    if (user?.uid) {
+    if (user?.uid && user?.email) {
       getCreditsInfo(user.uid).then(info => {
         setMobileCreditsInfo({
           status: info.status,
@@ -281,6 +532,38 @@ function App() {
           plan: info.plan,
           expiresAt: info.expiresAt,
         });
+
+        // Lifecycle emails (run silently, debounced internally)
+        const userName = user.displayName || undefined;
+
+        // 1. Credits low alert for free users
+        if (info.status === 'free' && info.total <= 5) {
+          sendCreditsLowEmail(user.email!, userName, info.total);
+        }
+
+        // 2. Upgrade nudge for free users after 7 days
+        if (info.status === 'free' && user.metadata?.creationTime) {
+          const signupDate = new Date(user.metadata.creationTime);
+          sendUpgradeNudgeEmail(user.email!, userName, signupDate);
+        }
+
+        // 3. Subscription expiring reminder for Pro users
+        if (info.status === 'pro' && info.expiresAt) {
+          sendSubscriptionExpiringEmail(user.email!, userName, new Date(info.expiresAt));
+        }
+
+        // 4. Referral reminder for Pro users (after 30 days)
+        if (info.status === 'pro' && user.metadata?.creationTime) {
+          getUserReferralInfo(user.uid).then(refInfo => {
+            if (refInfo?.referralCode) {
+              // Use creation time as proxy for Pro start (not perfect but works for most)
+              const proStartDate = info.expiresAt
+                ? new Date(new Date(info.expiresAt).getTime() - getDurationInMs(info.plan))
+                : new Date(user.metadata.creationTime!);
+              sendReferralReminderEmail(user.email!, userName, refInfo.referralCode, proStartDate);
+            }
+          });
+        }
       });
     }
   }, [user?.uid]);
@@ -374,10 +657,11 @@ function App() {
     <ToastContainer>
       <Router>
         <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 dark:bg-slate-900 font-sans md:h-screen md:overflow-hidden relative transition-colors">
-          <Sidebar courses={courses} onAddCourse={addCourse} onDeleteCourse={deleteCourse} user={user} onLogout={handleLogout} dueCount={dueCardsCount} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} syncStatus={syncStatus} />
+          <Sidebar courses={courses} onAddCourse={addCourse} onDeleteCourse={deleteCourse} user={user} onLogout={handleLogout} dueCount={dueCardsCount} collapsed={sidebarCollapsed} onToggleCollapse={toggleSidebar} syncStatus={syncStatus} hasReferralDiscount={hasReferralDiscount} />
 
           <main className="flex-1 w-full relative flex flex-col md:h-full md:overflow-hidden">
              <MobileNav user={user} onLogout={handleLogout} dueCount={dueCardsCount} syncStatus={syncStatus} creditsInfo={mobileCreditsInfo || undefined} onOpenPricing={() => setShowMobilePricingModal(true)} />
+             <TopBar user={user} onLogout={handleLogout} creditsInfo={mobileCreditsInfo || undefined} onOpenPricing={() => setShowMobilePricingModal(true)} />
              <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900">
                 <Routes>
                   <Route path="/" element={<Dashboard courses={courses} onDeleteCourse={deleteCourse} onAddCourse={addCourse} user={user} />} />
@@ -392,9 +676,6 @@ function App() {
                 </Routes>
              </div>
           </main>
-
-          {/* Pomodoro at Root Level for correct Z-Index and Boundary calculation */}
-          <Pomodoro />
 
           {/* Mobile Pricing Modal */}
           <PricingModal
@@ -417,22 +698,25 @@ function App() {
 // --- Review Controller ---
 const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], onUpdateCard: (cid: string, mid: string, card: Flashcard) => void, user: any }) => {
     const navigate = useNavigate();
-    const [userStatus, setUserStatus] = useState<'free' | 'pro' | 'loading'>('loading');
 
-    // Check subscription status
-    useEffect(() => {
-      if (user?.uid) {
-        getCreditsInfo(user.uid).then(info => {
-          setUserStatus(info.status);
-        }).catch(() => setUserStatus('free'));
-      } else {
-        setUserStatus('free');
-      }
-    }, [user?.uid]);
+    // Daily cap stored in localStorage (default 50)
+    const [dailyCap, setDailyCap] = useState<number>(() => {
+      const saved = localStorage.getItem('srs_daily_cap');
+      return saved ? parseInt(saved) : 50;
+    });
+
+    // Course filter (default "all")
+    const [courseFilter, setCourseFilter] = useState<string>('all');
+
+    // Update localStorage when cap changes
+    const handleCapChange = (newCap: number) => {
+      setDailyCap(newCap);
+      localStorage.setItem('srs_daily_cap', newCap.toString());
+    };
 
     // Gather all due cards (excluding broken ones)
     const now = new Date();
-    const queue: ReviewItem[] = [];
+    const allDueCards: ReviewItem[] = [];
 
     for (const c of courses) {
         c.materials.forEach(m => {
@@ -442,7 +726,7 @@ const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], 
                     if (!card.front || !card.back || !card.front.trim() || !card.back.trim()) return;
 
                     if (card.dueDate && new Date(card.dueDate) <= now) {
-                        queue.push({
+                        allDueCards.push({
                             courseId: c.id,
                             materialId: m.id,
                             card: card,
@@ -454,58 +738,21 @@ const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], 
         });
     }
 
-    // Loading state
-    if (userStatus === 'loading') {
-      return (
-        <div className="h-full flex items-center justify-center bg-slate-100 dark:bg-slate-900">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      );
-    }
+    // Apply course filter
+    const filteredCards = courseFilter === 'all'
+      ? allDueCards
+      : allDueCards.filter(item => item.courseId === courseFilter);
 
-    // Pro gate - show upsell for free users
-    if (userStatus !== 'pro') {
-      return (
-        <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-slate-100 dark:bg-slate-900">
-          <div className="max-w-md">
-            <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center text-4xl mb-6 mx-auto shadow-lg">
-              <Crown className="w-6 h-6 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-3">Smart Review is a Pro Feature</h2>
-            <p className="text-slate-500 dark:text-slate-400 mb-6">
-              Unlock spaced repetition review with our scientifically-proven algorithm that helps you remember more in less time.
-            </p>
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 mb-6 text-left border border-slate-200 dark:border-slate-700">
-              <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-3 text-sm">What you get with Pro:</h3>
-              <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Smart SRS algorithm (like Anki)</li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Cards shown at optimal intervals</li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> Track mastery over time</li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> 1,000 generations/month</li>
-                <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-500" /> AI Tutor, Concept Maps & more</li>
-              </ul>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => navigate('/settings')}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-xl font-bold hover:from-amber-500 hover:to-orange-600 transition-all shadow-md"
-              >
-                <Crown className="w-4 h-4 mr-2" /> Upgrade to Pro
-              </button>
-              <button
-                onClick={() => navigate('/')}
-                className="flex-1 px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition-all"
-              >
-                Back to Dashboard
-              </button>
-            </div>
-            <p className="text-xs text-slate-400 mt-4">
-              <Lightbulb className="w-4 h-4 mr-1" /> Tip: You can still review flashcards manually in each course
-            </p>
-          </div>
-        </div>
-      );
-    }
+    // Apply daily cap (0 means unlimited)
+    const queue = dailyCap > 0 ? filteredCards.slice(0, dailyCap) : filteredCards;
+
+    // Get unique courses that have due cards
+    const coursesWithDueCards = useMemo(() => {
+      const courseIds = new Set(allDueCards.map(item => item.courseId));
+      return courses.filter(c => courseIds.has(c.id));
+    }, [courses, allDueCards]);
+
+    const capOptions = [10, 25, 50, 100, 0]; // 0 = unlimited
 
     return (
       <div className="h-full flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden">
@@ -513,6 +760,56 @@ const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], 
         <div className="flex-shrink-0 px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
           <SRSDashboard courses={courses} />
         </div>
+
+        {/* Review Controls */}
+        <div className="flex-shrink-0 px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {/* Left: Stats */}
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-slate-500 dark:text-slate-400">
+                {filteredCards.length} cards due
+              </span>
+              {dailyCap > 0 && filteredCards.length > dailyCap && (
+                <span className="text-slate-400 dark:text-slate-500">
+                  → reviewing {dailyCap}
+                </span>
+              )}
+            </div>
+
+            {/* Right: Controls */}
+            <div className="flex items-center gap-3">
+              {/* Course Filter */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Course:</label>
+                <select
+                  value={courseFilter}
+                  onChange={(e) => setCourseFilter(e.target.value)}
+                  className="text-sm px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  <option value="all">All Courses</option>
+                  {coursesWithDueCards.map(c => (
+                    <option key={c.id} value={c.id}>{c.code || c.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Daily Cap */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Limit:</label>
+                <select
+                  value={dailyCap}
+                  onChange={(e) => handleCapChange(parseInt(e.target.value))}
+                  className="text-sm px-2 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  {capOptions.map(cap => (
+                    <option key={cap} value={cap}>{cap === 0 ? 'Unlimited' : cap}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Review Session */}
         <div className="flex-1 overflow-hidden">
           <ReviewSession
@@ -619,12 +916,10 @@ const SemesterCourseList = ({ courses, onDeleteCourse }: { courses: Course[], on
 };
 
 // --- Sidebar ---
-const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCount, collapsed, onToggleCollapse, syncStatus }: any) => {
+const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCount, collapsed, onToggleCollapse, syncStatus, hasReferralDiscount }: any) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCourse, setNewCourse] = useState({ title: '', code: '', subtitle: '', description: '', semester: 'Fall 2024' });
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
-  const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
-  const [showPricingModal, setShowPricingModal] = useState(false);
   const [creditsInfo, setCreditsInfo] = useState<{
     status: 'free' | 'pro';
     monthlyRemaining: number;
@@ -633,7 +928,6 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
     plan?: string;
     expiresAt?: string;
   } | null>(null);
-  const { showToast } = useContext(ToastContext);
 
   // Load credits info
   useEffect(() => {
@@ -650,13 +944,6 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
       });
     }
   }, [user?.uid]);
-
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    document.documentElement.classList.toggle('dark', newMode);
-    localStorage.setItem('studystack_theme', newMode ? 'dark' : 'light');
-  };
 
   const handleCreate = () => {
     if (!newCourse.title || !newCourse.code) return;
@@ -704,31 +991,6 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
           </button>
         )}
 
-        {/* User Profile Snippet */}
-        {!collapsed && (
-          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3">
-               <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {user.photoURL ? <img src={user.photoURL} alt="user" className="w-full h-full object-cover" /> : <User className="w-4 h-4 text-slate-400" />}
-               </div>
-               <div className="flex-1 min-w-0">
-                  <div className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{user.displayName || "Student"}</div>
-               </div>
-            </div>
-            {/* Credits Display */}
-            {creditsInfo && (
-              <div className="mt-3">
-                <CreditsDisplay
-                  status={creditsInfo.status}
-                  creditsRemaining={creditsInfo.total}
-                  monthlyLimit={creditsInfo.monthlyLimit}
-                  onClick={() => setShowPricingModal(true)}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
         <nav className={`${collapsed ? 'p-2' : 'p-4'} space-y-1 flex-1 overflow-y-auto custom-scrollbar`}>
           <Link to="/" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Dashboard">
             <LayoutGrid className="w-5 h-5" />
@@ -746,10 +1008,6 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
               </span>
             )}
           </Link>
-          <Link to="/settings" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Settings">
-            <Settings className="w-5 h-5" />
-            {!collapsed && <span>Settings</span>}
-          </Link>
           <Link to="/friends" className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-primary font-medium transition-colors`} title="Friends">
             <Users className="w-5 h-5" />
             {!collapsed && <span>Friends</span>}
@@ -765,16 +1023,6 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
               <span className="text-[9px] bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wide font-bold">Pro</span>
             )}
           </Link>
-
-          {/* Dark Mode Toggle */}
-          <button
-            onClick={toggleDarkMode}
-            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} px-3 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-[0.98] font-medium transition-all w-full`}
-            title={darkMode ? 'Light Mode' : 'Dark Mode'}
-          >
-            {darkMode ? <Sun className="w-5 h-5 text-slate-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
-            {!collapsed && <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
-          </button>
 
           {!collapsed && (
             <SemesterCourseList courses={courses} onDeleteCourse={setCourseToDelete} />
@@ -828,19 +1076,6 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
         course={courseToDelete}
         onClose={() => setCourseToDelete(null)}
         onConfirm={() => { if(courseToDelete) onDeleteCourse(courseToDelete.id); setCourseToDelete(null); }}
-      />
-
-      {/* Pricing Modal */}
-      <PricingModal
-        isOpen={showPricingModal}
-        onClose={() => setShowPricingModal(false)}
-        userId={user?.uid || ''}
-        userEmail={user?.email || ''}
-        currentStatus={creditsInfo?.status || 'free'}
-        currentPlan={creditsInfo?.plan}
-        expiresAt={creditsInfo?.expiresAt}
-        creditsRemaining={creditsInfo?.total || 0}
-        onToast={(msg, type) => showToast(msg, type)}
       />
     </>
   );

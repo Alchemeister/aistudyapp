@@ -17,13 +17,35 @@ const PRICE_METADATA: Record<string, { type: 'subscription' | 'credits'; credits
   'price_1Sn7rsBqCnLJvgINalcNIC0v': { type: 'credits', credits: 100 },
 };
 
+// Create a one-time coupon for referral credits (amount in cents)
+async function createReferralCreditCoupon(amountCents: number, userId: string): Promise<string | null> {
+  if (amountCents <= 0) return null;
+
+  try {
+    // Create a unique coupon for this user's credits
+    const couponId = `REFERRAL_CREDIT_${userId}_${Date.now()}`;
+    await stripe.coupons.create({
+      id: couponId,
+      amount_off: amountCents,
+      currency: 'usd',
+      duration: 'once',
+      name: `Referral Credit - $${(amountCents / 100).toFixed(2)} off`,
+      max_redemptions: 1,
+    });
+    return couponId;
+  } catch (error) {
+    console.error('Failed to create referral credit coupon:', error);
+    return null;
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { userId, priceId, email, mode, successUrl, cancelUrl } = req.body;
+    const { userId, priceId, email, mode, successUrl, cancelUrl, referralCreditsCents } = req.body;
 
     if (!userId || !priceId || !email) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -49,9 +71,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       metadata: {
         userId,
         priceId,
+        referralCreditsCents: referralCreditsCents || 0, // Track credits used for webhook
         ...priceMeta,
       },
     };
+
+    // Apply referral credits if user has any
+    const creditsToApply = parseInt(referralCreditsCents) || 0;
+    if (creditsToApply > 0 && priceMeta.type === 'subscription') {
+      const couponId = await createReferralCreditCoupon(creditsToApply, userId);
+      if (couponId) {
+        sessionParams.discounts = [{ coupon: couponId }];
+      }
+    }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
 

@@ -20,12 +20,52 @@ import {
   AlertCircle,
   Lightbulb,
   Calculator,
-  Crown
+  Crown,
+  Star,
+  Users,
+  Zap,
+  ChevronDown,
+  Shield,
+  Clock,
+  BookOpen,
+  Gift
 } from 'lucide-react';
 
 interface Props {
   onLoginSuccess: (user: any) => void;
 }
+
+// Typing animation hook
+const useTypingEffect = (words: string[], typingSpeed = 100, deletingSpeed = 50, pauseTime = 2000) => {
+  const [displayText, setDisplayText] = useState('');
+  const [wordIndex, setWordIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const currentWord = words[wordIndex];
+
+    const timeout = setTimeout(() => {
+      if (!isDeleting) {
+        if (displayText.length < currentWord.length) {
+          setDisplayText(currentWord.slice(0, displayText.length + 1));
+        } else {
+          setTimeout(() => setIsDeleting(true), pauseTime);
+        }
+      } else {
+        if (displayText.length > 0) {
+          setDisplayText(displayText.slice(0, -1));
+        } else {
+          setIsDeleting(false);
+          setWordIndex((prev) => (prev + 1) % words.length);
+        }
+      }
+    }, isDeleting ? deletingSpeed : typingSpeed);
+
+    return () => clearTimeout(timeout);
+  }, [displayText, isDeleting, wordIndex, words, typingSpeed, deletingSpeed, pauseTime]);
+
+  return displayText;
+};
 
 export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
@@ -38,6 +78,19 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+
+  // Animated typing effect for hero
+  const typingWords = ['Flashcards', 'Quizzes', 'Study Guides', 'Summaries', 'Mock Exams', 'Mock Tests'];
+  const typedText = useTypingEffect(typingWords, 80, 40, 1500);
+
+  // Smooth scroll to section
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   useEffect(() => {
     if (darkMode) {
@@ -96,9 +149,9 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
     { icon: Sparkles, title: 'AI Flashcards', description: 'Auto-generate flashcards from any material' },
     { icon: Brain, title: 'Smart Quizzes', description: 'Adaptive quizzes that target your weak spots' },
     { icon: FileText, title: 'Summary Notes', description: 'Get concise summaries of long documents' },
-    { icon: Mic, title: 'Lecture Recording', description: 'Record and transcribe lectures automatically' },
-    { icon: CalendarCheck, title: 'Spaced Repetition', description: 'Science-backed review scheduling', pro: true },
-    { icon: MessageSquare, title: 'AI Tutor Chat', description: 'Get instant answers to your questions' },
+    { icon: CalendarCheck, title: 'Spaced Repetition', description: 'Science-backed review scheduling' },
+    { icon: Mic, title: 'Lecture Recording', description: 'Record and transcribe lectures automatically', pro: true },
+    { icon: MessageSquare, title: 'AI Tutor Chat', description: 'Get instant answers to your questions', pro: true },
     { icon: Share2, title: 'Concept Connections', description: 'Visualize connections between concepts', pro: true },
     { icon: Lightbulb, title: 'Mnemonics', description: 'Memory aids to remember complex topics', pro: true },
     { icon: Calculator, title: 'Practice Problems', description: 'STEM practice with step-by-step solutions', pro: true },
@@ -117,16 +170,47 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
     { name: 'Pro Annual', price: '$99.99', period: '/yr', badge: 'Save ~$80', highlighted: true, features: ['12 months access', '1,000 generations/mo', 'All features', 'Priority support', 'Best value'] },
   ];
 
+  const faqs = [
+    { q: 'What file types does StudyStack support?', a: 'StudyStack supports PDF files, audio recordings (MP3, WAV, M4A), and plain text notes. You can upload textbooks, lecture slides, or any study material in PDF format.' },
+    { q: 'How does the AI generate flashcards?', a: 'Our AI analyzes your uploaded content, identifies key concepts, definitions, and important facts, then creates question-answer pairs optimized for learning and retention.' },
+    { q: 'Is my data secure?', a: 'Yes! All uploads are encrypted and stored securely. We never share your study materials with third parties. Pro users get cloud backup with end-to-end encryption.' },
+    { q: 'Can I use StudyStack offline?', a: 'Yes! StudyStack works offline for reviewing flashcards and taking quizzes. Your data syncs automatically when you reconnect to the internet.' },
+    { q: 'What is spaced repetition?', a: 'Spaced repetition is a scientifically-proven learning technique that shows you flashcards at optimal intervals to maximize long-term retention. Our SM-2 algorithm adapts to your performance.' },
+    { q: 'Can I cancel my subscription anytime?', a: 'Absolutely! You can cancel your Pro subscription at any time. You\'ll keep access until the end of your billing period with no hidden fees.' },
+  ];
+
+  const comparisonData = [
+    { feature: 'AI-Generated Content', studystack: true, anki: false, quizlet: 'Limited' },
+    { feature: 'PDF Upload & Processing', studystack: true, anki: false, quizlet: false },
+    { feature: 'Lecture Recording', studystack: true, anki: false, quizlet: false },
+    { feature: 'Spaced Repetition (SRS)', studystack: true, anki: true, quizlet: 'Basic' },
+    { feature: 'AI Tutor Chat', studystack: true, anki: false, quizlet: false },
+    { feature: 'Practice Problems', studystack: true, anki: false, quizlet: false },
+    { feature: 'Concept Mind Maps', studystack: true, anki: false, quizlet: false },
+    { feature: 'Quiz Generation', studystack: true, anki: false, quizlet: true },
+    { feature: 'Free Tier', studystack: true, anki: true, quizlet: true },
+    { feature: 'Mobile App', studystack: 'Web App', anki: true, quizlet: true },
+  ];
+
   return (
     <div className="h-full overflow-y-auto bg-[#f8fafc] dark:bg-[#0f172a] transition-colors">
       {/* Navbar */}
-      <nav className="sticky top-0 z-50 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-slate-700 shadow-sm">
+      <nav className="sticky top-0 z-50 bg-white/95 dark:bg-[#1e293b]/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-[#2563eb] rounded-xl">
               <GraduationCap className="w-6 h-6 text-white" />
             </div>
             <span className="text-xl font-bold text-slate-900 dark:text-white">StudyStack</span>
+          </div>
+
+          {/* Nav Links */}
+          <div className="hidden md:flex items-center gap-6">
+            <button onClick={() => scrollToSection('features')} className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Features</button>
+            <button onClick={() => scrollToSection('how-it-works')} className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">How It Works</button>
+            <button onClick={() => scrollToSection('pricing')} className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Pricing</button>
+            <button onClick={() => scrollToSection('compare')} className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Compare</button>
+            <button onClick={() => scrollToSection('faq')} className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">FAQ</button>
           </div>
 
           <div className="flex items-center gap-4">
@@ -139,7 +223,7 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
 
             <button
               onClick={() => setShowAuthModal(true)}
-              className="bg-white dark:bg-[#1e293b] border-2 border-slate-200 dark:border-slate-700 px-6 py-2 rounded-xl hover:border-slate-300 dark:hover:border-slate-600 active:scale-[0.98] transition-all font-bold text-slate-900 dark:text-white"
+              className="bg-[#2563eb] text-white px-6 py-2 rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all font-bold shadow-sm"
             >
               Sign In
             </button>
@@ -147,34 +231,101 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {/* Hero Section - Animated */}
       <section className="px-6 py-20 max-w-7xl mx-auto">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-8">
-            <div className="inline-block p-4 bg-[#2563eb] rounded-2xl shadow-lg rotate-3 hover:rotate-6 transition-transform">
-              <GraduationCap className="w-12 h-12 text-white" />
+            {/* Floating animated icons */}
+            <div className="relative">
+              <div className="inline-block p-4 bg-[#2563eb] rounded-2xl shadow-lg animate-bounce" style={{ animationDuration: '3s' }}>
+                <GraduationCap className="w-12 h-12 text-white" />
+              </div>
+              <div
+                className="absolute top-0 right-20 p-3 bg-green-500 rounded-xl shadow-lg"
+                style={{ animation: 'slowBounce 3s ease-in-out infinite' }}
+              >
+                <Zap className="w-6 h-6 text-white" />
+              </div>
+              <div
+                className="absolute -bottom-4 left-20 p-3 bg-purple-500 rounded-xl shadow-lg"
+                style={{ animation: 'slowBounce 3s ease-in-out infinite', animationDelay: '1.5s' }}
+              >
+                <Brain className="w-6 h-6 text-white" />
+              </div>
+              <style>{`
+                @keyframes slowBounce {
+                  0%, 100% { transform: translateY(0); }
+                  50% { transform: translateY(-10px); }
+                }
+              `}</style>
             </div>
 
             <div className="space-y-4">
               <h1 className="text-5xl font-bold text-slate-900 dark:text-white">
-                Master Your Coursework
+                AI-Powered{' '}
+                <span className="text-[#2563eb] inline-block min-w-[200px]">
+                  {typedText}<span className="animate-pulse">|</span>
+                </span>
               </h1>
               <p className="text-xl text-slate-500 dark:text-slate-400">
-                Upload your PDFs, lectures, or notes. AI generates flashcards, quizzes, and study guides instantly.
+                Upload your PDFs, lectures, or notes. AI generates study materials instantly so you can focus on learning.
               </p>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4">
               <button
                 onClick={() => setShowAuthModal(true)}
-                className="bg-[#2563eb] text-white px-8 py-4 rounded-xl shadow-md hover:bg-blue-700 active:scale-[0.98] transition-all font-bold"
+                className="bg-[#2563eb] text-white px-8 py-4 rounded-xl shadow-md hover:bg-blue-700 active:scale-[0.98] transition-all font-bold group"
               >
                 Get Started Free
+                <ArrowRight className="w-5 h-5 inline ml-2 group-hover:translate-x-1 transition-transform" />
               </button>
+              <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm">
+                <Shield className="w-4 h-4" />
+                <span>No credit card required</span>
+              </div>
+            </div>
+
+            {/* Social Proof Stats */}
+            <div className="flex flex-wrap gap-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-[#2563eb]" />
+                <span className="font-bold text-slate-900 dark:text-white">2,500+</span>
+                <span className="text-slate-500 dark:text-slate-400 text-sm">Students</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+                <span className="font-bold text-slate-900 dark:text-white">4.9</span>
+                <span className="text-slate-500 dark:text-slate-400 text-sm">Rating</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-purple-500" />
+                <span className="font-bold text-slate-900 dark:text-white">100K+</span>
+                <span className="text-slate-500 dark:text-slate-400 text-sm">Cards Generated</span>
+              </div>
             </div>
           </div>
 
           <div className="relative">
+            {/* Floating cards around main image */}
+            <div className="absolute -top-4 -left-4 bg-white dark:bg-slate-800 p-3 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 animate-float" style={{ animationDelay: '0s' }}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
+                  <Check className="w-4 h-4 text-green-600" />
+                </div>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Quiz Complete!</span>
+              </div>
+            </div>
+
+            <div className="absolute -bottom-4 -right-4 bg-white dark:bg-slate-800 p-3 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 animate-float" style={{ animationDelay: '1.5s' }}>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-blue-600" />
+                </div>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">25 Cards Created</span>
+              </div>
+            </div>
+
             <div className="bg-white dark:bg-[#1e293b] p-4 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700">
               <img
                 src="https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800&auto=format&fit=crop"
@@ -187,7 +338,7 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
       </section>
 
       {/* Features Section */}
-      <section className="px-6 py-20 max-w-7xl mx-auto">
+      <section id="features" className="px-6 py-20 max-w-7xl mx-auto scroll-mt-20">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
             Everything You Need to Study Smarter
@@ -219,7 +370,7 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
       </section>
 
       {/* How It Works */}
-      <section className="px-6 py-20 max-w-7xl mx-auto">
+      <section id="how-it-works" className="px-6 py-20 max-w-7xl mx-auto scroll-mt-20">
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
             How It Works
@@ -246,6 +397,118 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
               <p className="text-slate-500 dark:text-slate-400">{step.description}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Best For Section */}
+      <section className="px-6 py-20 bg-slate-100 dark:bg-slate-800/50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
+              Perfect For Every Subject
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 text-lg">
+              Different tools for different learning needs
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { subject: 'Medical & Pre-Med', icon: '🩺', tools: ['Flashcards', 'Spaced Repetition', 'Mnemonics'], desc: 'Master anatomy, pharmacology, and medical terminology' },
+              { subject: 'Law School', icon: '⚖️', tools: ['Summary Notes', 'Flashcards', 'AI Tutor'], desc: 'Case briefs, legal concepts, and exam prep' },
+              { subject: 'STEM', icon: '🔬', tools: ['Practice Problems', 'Concept Maps', 'Quizzes'], desc: 'Math, physics, chemistry with step-by-step solutions' },
+              { subject: 'Languages', icon: '🌍', tools: ['Flashcards', 'Spaced Repetition', 'Quizzes'], desc: 'Vocabulary, grammar, and pronunciation' },
+            ].map((item, i) => (
+              <div key={i} className="bg-white dark:bg-[#1e293b] p-6 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
+                <div className="text-4xl mb-4">{item.icon}</div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-2">{item.subject}</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">{item.desc}</p>
+                <div className="flex flex-wrap gap-2">
+                  {item.tools.map((tool, j) => (
+                    <span key={j} className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full font-medium">
+                      {tool}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* SRS Explainer Section */}
+      <section className="px-6 py-20 max-w-7xl mx-auto">
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-4 py-2 rounded-full text-sm font-bold mb-6">
+              <Brain className="w-4 h-4" />
+              Science-Backed Learning
+            </div>
+            <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-6">
+              What is Spaced Repetition?
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 mb-6 text-lg">
+              Spaced Repetition is a learning technique that shows you information at <strong className="text-slate-900 dark:text-white">scientifically-optimized intervals</strong> to maximize long-term memory retention.
+            </p>
+            <div className="space-y-4">
+              <div className="flex gap-4">
+                <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-white">Optimal Timing</h4>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm">Cards appear right before you'd forget them, strengthening memory pathways</p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-white">Adaptive Difficulty</h4>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm">Hard cards appear more often, easy cards less - focusing your study time</p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Zap className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 dark:text-white">80% Less Study Time</h4>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm">Research shows SRS users retain more while studying less</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-[#1e293b] p-8 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700">
+            <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-6">How It Works</h3>
+            <div className="space-y-4">
+              {[
+                { day: 'Day 1', desc: 'Learn new card', interval: 'See again in 1 day', color: 'bg-red-500' },
+                { day: 'Day 2', desc: 'Review & rate "Good"', interval: 'See again in 3 days', color: 'bg-orange-500' },
+                { day: 'Day 5', desc: 'Review & rate "Good"', interval: 'See again in 7 days', color: 'bg-yellow-500' },
+                { day: 'Day 12', desc: 'Review & rate "Easy"', interval: 'See again in 21 days', color: 'bg-green-500' },
+                { day: 'Day 33+', desc: 'Card mastered!', interval: 'Long-term memory', color: 'bg-blue-500' },
+              ].map((step, i) => (
+                <div key={i} className="flex items-center gap-4">
+                  <div className={`w-3 h-3 rounded-full ${step.color}`}></div>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-slate-900 dark:text-white text-sm">{step.day}</span>
+                      <span className="text-xs text-slate-400">{step.interval}</span>
+                    </div>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs">{step.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+              <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                💡 StudyStack uses the SM-2 algorithm, the same proven system used by medical students worldwide.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -278,8 +541,59 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
         </div>
       </section>
 
+      {/* Referral Program */}
+      <section className="px-6 py-20 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-4 py-2 rounded-full text-sm font-bold mb-6">
+              <Gift className="w-4 h-4" />
+              Referral Program
+            </div>
+            <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
+              Invite Friends, Earn a Free Semester
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 text-lg">
+              Share StudyStack with friends and both of you save money
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 text-center">
+              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Share2 className="w-6 h-6 text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="font-bold text-slate-900 dark:text-white mb-2">Share Your Code</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Get a unique referral code when you sign up</p>
+            </div>
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 text-center">
+              <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h3 className="font-bold text-slate-900 dark:text-white mb-2">Friends Get $7.50 Off</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Your friend saves on their first purchase</p>
+            </div>
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 text-center">
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Crown className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="font-bold text-slate-900 dark:text-white mb-2">You Earn $7.50 Credit</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">When they upgrade to Pro</p>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 text-center">
+            <p className="text-lg text-slate-700 dark:text-slate-300 mb-2">
+              <span className="font-bold text-2xl text-primary">Refer 6 friends</span>
+            </p>
+            <p className="text-slate-500 dark:text-slate-400">
+              Earn up to <span className="font-bold text-green-600 dark:text-green-400">$45 in credits</span> — that's basically a free semester!
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing */}
-      <section className="px-6 py-20 max-w-7xl mx-auto">
+      <section id="pricing" className="px-6 py-20 max-w-7xl mx-auto scroll-mt-20">
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
             Simple, Transparent Pricing
@@ -335,6 +649,104 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
               >
                 Choose Plan
               </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Comparison Section */}
+      <section id="compare" className="px-6 py-20 max-w-7xl mx-auto scroll-mt-20">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
+            How StudyStack Compares
+          </h2>
+          <p className="text-slate-500 dark:text-slate-400 text-lg">
+            See why students are switching to StudyStack
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full bg-white dark:bg-[#1e293b] rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800">
+                <th className="px-6 py-4 text-left text-sm font-bold text-slate-600 dark:text-slate-300">Feature</th>
+                <th className="px-6 py-4 text-center text-sm font-bold text-[#2563eb]">
+                  <div className="flex items-center justify-center gap-2">
+                    <GraduationCap className="w-5 h-5" />
+                    StudyStack
+                  </div>
+                </th>
+                <th className="px-6 py-4 text-center text-sm font-bold text-slate-600 dark:text-slate-300">Anki</th>
+                <th className="px-6 py-4 text-center text-sm font-bold text-slate-600 dark:text-slate-300">Quizlet</th>
+              </tr>
+            </thead>
+            <tbody>
+              {comparisonData.map((row, i) => (
+                <tr key={i} className="border-t border-slate-100 dark:border-slate-700">
+                  <td className="px-6 py-4 text-sm text-slate-700 dark:text-slate-300 font-medium">{row.feature}</td>
+                  <td className="px-6 py-4 text-center">
+                    {row.studystack === true ? (
+                      <Check className="w-5 h-5 text-green-500 mx-auto" />
+                    ) : row.studystack === false ? (
+                      <X className="w-5 h-5 text-slate-300 mx-auto" />
+                    ) : (
+                      <span className="text-sm text-slate-500">{row.studystack}</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    {row.anki === true ? (
+                      <Check className="w-5 h-5 text-green-500 mx-auto" />
+                    ) : row.anki === false ? (
+                      <X className="w-5 h-5 text-slate-300 mx-auto" />
+                    ) : (
+                      <span className="text-sm text-slate-500">{row.anki}</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    {row.quizlet === true ? (
+                      <Check className="w-5 h-5 text-green-500 mx-auto" />
+                    ) : row.quizlet === false ? (
+                      <X className="w-5 h-5 text-slate-300 mx-auto" />
+                    ) : (
+                      <span className="text-sm text-slate-500">{row.quizlet}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section id="faq" className="px-6 py-20 max-w-4xl mx-auto scroll-mt-20">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
+            Frequently Asked Questions
+          </h2>
+          <p className="text-slate-500 dark:text-slate-400 text-lg">
+            Everything you need to know about StudyStack
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {faqs.map((faq, i) => (
+            <div
+              key={i}
+              className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden"
+            >
+              <button
+                onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              >
+                <span className="font-bold text-slate-900 dark:text-white">{faq.q}</span>
+                <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${openFaq === i ? 'rotate-180' : ''}`} />
+              </button>
+              {openFaq === i && (
+                <div className="px-6 pb-4 text-slate-600 dark:text-slate-400 animate-fade-in">
+                  {faq.a}
+                </div>
+              )}
             </div>
           ))}
         </div>

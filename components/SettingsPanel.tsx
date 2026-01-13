@@ -1,6 +1,6 @@
 import React, { useState, useEffect, type FC } from 'react';
 import {
-  User, Loader2, Crown, Coins, Palette, Moon, Sun, CloudDownload, Download, Database
+  User, Loader2, Crown, Coins, Palette, Moon, Sun, CloudDownload, Download, Database, Gift
 } from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../services/firebase';
@@ -8,6 +8,8 @@ import { clearDatabase, loadCourses } from '../services/storage';
 import { getCreditsInfo } from '../services/subscriptionService';
 import { PricingModal } from './PricingModal';
 import { STRIPE_CONFIG } from '../services/stripeConfig';
+import { ReferralPanel } from './ReferralPanel';
+import { getUserReferralInfo } from '../services/referralService';
 
 interface Props {
   user: any;
@@ -35,6 +37,7 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
     plan?: string;
     expiresAt?: string;
   } | null>(null);
+  const [hasReferralDiscount, setHasReferralDiscount] = useState(false);
 
   // Check URL for payment status
   useEffect(() => {
@@ -60,8 +63,17 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
     }
   };
 
+  // Check for referral discount
+  const checkReferralDiscount = async () => {
+    if (user?.uid) {
+      const referralInfo = await getUserReferralInfo(user.uid);
+      setHasReferralDiscount(!!referralInfo?.referredBy);
+    }
+  };
+
   useEffect(() => {
     loadCreditsInfo();
+    checkReferralDiscount();
   }, [user?.uid]);
 
   const toggleDarkMode = () => {
@@ -269,6 +281,16 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
                       <Coins className="w-4 h-4 mr-2 inline" />Buy More Credits
                   </button>
               </div>
+          </div>
+      </section>
+
+      {/* Referral Program */}
+      <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+             <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center"><Gift className="w-4 h-4 mr-2 text-green-500" />Invite Friends</h3>
+          </div>
+          <div className="p-4 md:p-6">
+              <ReferralPanel user={user} />
           </div>
       </section>
 
