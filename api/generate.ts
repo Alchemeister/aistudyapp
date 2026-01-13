@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import * as admin from 'firebase-admin';
 
 // Server-side AI generation endpoint
 // Keeps Gemini API key secret and enforces subscription/credit limits
@@ -15,26 +14,41 @@ console.log('[generate.ts] Startup check:', {
   firebaseServiceAccountLength: process.env.FIREBASE_SERVICE_ACCOUNT?.length || 0,
 });
 
-// Initialize Firebase Admin
+// Firebase Admin - lazy initialization to avoid ESM import issues
+let admin: any = null;
 let firebaseAdminInitialized = false;
-if (!admin.apps.length) {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (serviceAccount) {
-    try {
-      admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(serviceAccount)),
-      });
-      firebaseAdminInitialized = true;
-      console.log('[generate.ts] Firebase Admin initialized successfully');
-    } catch (e) {
-      console.error('[generate.ts] Firebase Admin init failed:', e instanceof Error ? e.message : 'Unknown error');
+
+async function initFirebaseAdmin() {
+  if (firebaseAdminInitialized) return admin;
+
+  try {
+    // Dynamic import for ESM compatibility
+    const firebaseAdmin = await import('firebase-admin');
+    admin = firebaseAdmin.default || firebaseAdmin;
+
+    console.log('[generate.ts] firebase-admin module loaded, apps:', admin?.apps?.length || 0);
+
+    if (!admin?.apps?.length) {
+      const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+      if (serviceAccount) {
+        try {
+          admin.initializeApp({
+            credential: admin.credential.cert(JSON.parse(serviceAccount)),
+          });
+          console.log('[generate.ts] Firebase Admin initialized successfully');
+        } catch (e) {
+          console.error('[generate.ts] Firebase Admin init failed:', e instanceof Error ? e.message : 'Unknown error');
+        }
+      } else {
+        console.warn('[generate.ts] FIREBASE_SERVICE_ACCOUNT env var not set');
+      }
     }
-  } else {
-    console.warn('[generate.ts] FIREBASE_SERVICE_ACCOUNT env var not set');
+    firebaseAdminInitialized = true;
+  } catch (e) {
+    console.error('[generate.ts] Failed to load firebase-admin:', e instanceof Error ? e.message : 'Unknown error');
   }
-} else {
-  firebaseAdminInitialized = true;
-  console.log('[generate.ts] Firebase Admin already initialized');
+
+  return admin;
 }
 
 // Content types that require Pro subscription
@@ -55,9 +69,12 @@ async function verifyAuth(authHeader: string | undefined): Promise<{ uid: string
   const token = authHeader.slice(7);
   console.log('[generate.ts] Token length:', token.length);
 
+  // Initialize Firebase Admin
+  const adminSdk = await initFirebaseAdmin();
+
   // If Firebase Admin not initialized, use a fallback for debugging
   // This allows testing the Gemini API even if Firebase is misconfigured
-  if (!admin.apps.length) {
+  if (!adminSdk?.apps?.length) {
     console.warn('[generate.ts] Firebase Admin not initialized - using fallback auth (DEBUG MODE)');
     // Extract uid from token payload (JWT format: header.payload.signature)
     try {
@@ -71,7 +88,7 @@ async function verifyAuth(authHeader: string | undefined): Promise<{ uid: string
   }
 
   try {
-    const decoded = await admin.auth().verifyIdToken(token);
+    const decoded = await adminSdk.auth().verifyIdToken(token);
     console.log('[generate.ts] Auth success, uid:', decoded.uid?.substring(0, 8) + '...');
     return { uid: decoded.uid, email: decoded.email || '' };
   } catch (e) {
@@ -87,12 +104,13 @@ async function getSubscriptionStatus(userId: string): Promise<{
   monthlyLimit: number;
   canGenerate: boolean;
 }> {
-  if (!admin.apps.length) {
+  const adminSdk = await initFirebaseAdmin();
+  if (!adminSdk?.apps?.length) {
     return { status: 'free', monthlyUsed: 0, monthlyLimit: FREE_MONTHLY_LIMIT, canGenerate: true };
   }
 
   try {
-    const db = admin.firestore();
+    const db = adminSdk.firestore();
     const subDoc = await db.doc(`users/${userId}/subscription/current`).get();
 
     if (!subDoc.exists) {
@@ -126,13 +144,14 @@ async function getSubscriptionStatus(userId: string): Promise<{
 
 // Deduct a credit after successful generation
 async function deductCredit(userId: string): Promise<void> {
-  if (!admin.apps.length) return;
+  const adminSdk = await initFirebaseAdmin();
+  if (!adminSdk?.apps?.length) return;
 
   try {
-    const db = admin.firestore();
+    const db = adminSdk.firestore();
     const docRef = db.doc(`users/${userId}/subscription/current`);
     await docRef.update({
-      monthlyCreditsUsed: admin.firestore.FieldValue.increment(1),
+      monthlyCreditsUsed: adminSdk.firestore.FieldValue.increment(1),
     });
   } catch (e) {
     console.error('Failed to deduct credit');
