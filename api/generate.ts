@@ -151,31 +151,32 @@ function checkRateLimit(userId: string): boolean {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  console.log('[generate.ts] Handler called, method:', req.method);
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  if (!GEMINI_API_KEY) {
-    console.error('[generate.ts] VITE_AI_SERVICE_KEY not configured - returning 500');
-    return res.status(500).json({ error: 'AI service not configured' });
-  }
-
-  // Verify authentication
-  const authUser = await verifyAuth(req.headers.authorization as string);
-  if (!authUser) {
-    console.log('[generate.ts] Auth failed - returning 401');
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  console.log('[generate.ts] Auth passed for user');
-
-  // Rate limiting
-  if (!checkRateLimit(authUser.uid)) {
-    return res.status(429).json({ error: 'Too many requests. Please wait a minute.' });
-  }
-
+  // Top-level try-catch to ensure we always return JSON, never plain text
   try {
+    console.log('[generate.ts] Handler called, method:', req.method);
+
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
+    if (!GEMINI_API_KEY) {
+      console.error('[generate.ts] VITE_AI_SERVICE_KEY not configured - returning 500');
+      return res.status(500).json({ error: 'AI service not configured', debug: 'VITE_AI_SERVICE_KEY missing' });
+    }
+
+    // Verify authentication
+    const authUser = await verifyAuth(req.headers.authorization as string);
+    if (!authUser) {
+      console.log('[generate.ts] Auth failed - returning 401');
+      return res.status(401).json({ error: 'Unauthorized', debug: 'Auth verification failed' });
+    }
+    console.log('[generate.ts] Auth passed for user');
+
+    // Rate limiting
+    if (!checkRateLimit(authUser.uid)) {
+      return res.status(429).json({ error: 'Too many requests. Please wait a minute.' });
+    }
+
     const { contentType, prompt, systemInstruction } = req.body;
 
     if (!prompt) {
@@ -206,6 +207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Call Gemini API (server-side, key hidden)
+    console.log('[generate.ts] Calling Gemini API...');
     const geminiResponse = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -220,12 +222,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     if (!geminiResponse.ok) {
-      const error = await geminiResponse.text();
-      console.error('Gemini API error');
-      return res.status(500).json({ error: 'AI generation failed' });
+      const errorText = await geminiResponse.text();
+      console.error('[generate.ts] Gemini API error:', geminiResponse.status, errorText.substring(0, 200));
+      return res.status(500).json({ error: 'AI generation failed', debug: `Gemini returned ${geminiResponse.status}` });
     }
 
     const result = await geminiResponse.json();
+    console.log('[generate.ts] Gemini response received');
 
     // Deduct credit after successful generation
     await deductCredit(authUser.uid);
@@ -240,7 +243,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
   } catch (error: any) {
-    console.error('Generation error');
-    return res.status(500).json({ error: 'Failed to generate content' });
+    console.error('[generate.ts] Unhandled error:', error?.message || error);
+    return res.status(500).json({
+      error: 'Failed to generate content',
+      debug: error?.message || 'Unknown error'
+    });
   }
 }

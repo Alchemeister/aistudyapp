@@ -54,11 +54,20 @@ const callServerGenerate = async (
     });
 
     console.log('[geminiService] Server response status:', response.status);
+
+    // Handle non-JSON responses (server crash returns plain text)
+    const responseContentType = response.headers.get('content-type');
+    if (!responseContentType?.includes('application/json')) {
+      const text = await response.text();
+      console.error('[geminiService] Server returned non-JSON:', text.substring(0, 100));
+      return { success: false, content: '', error: `Server error (${response.status}): ${text.substring(0, 50)}` };
+    }
+
     const data = await response.json();
-    console.log('[geminiService] Server response data:', { success: data.success, hasContent: !!data.content, error: data.error });
+    console.log('[geminiService] Server response data:', { success: data.success, hasContent: !!data.content, error: data.error, debug: data.debug });
 
     if (!response.ok) {
-      console.log('[geminiService] Server returned error:', data.error);
+      console.log('[geminiService] Server returned error:', data.error, data.debug);
       return {
         success: false,
         content: '',
