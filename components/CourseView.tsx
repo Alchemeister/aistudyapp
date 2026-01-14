@@ -14,7 +14,8 @@ import { ImportNotesModal } from './ImportNotesModal';
 import { LectureRecorder } from './LectureRecorder';
 import { LecturePlayer } from './LecturePlayer';
 import { ShareCourseModal } from './ShareCourseModal';
-import { savePdfWithCloud, saveMediaBlob } from '../services/storage';
+import { savePdfBlob, saveMediaBlob } from '../services/storage';
+import { uploadPdfToCloud } from '../services/pdfCloudStorage';
 import { loadPdfDocument, generatePdfThumbnail } from '../services/pdfUtils';
 import { ToastContext } from '../App';
 import { useNavigate } from 'react-router-dom';
@@ -97,25 +98,28 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
       const fileName = (file as File).name || newCourse.pdfName || 'document.pdf';
       console.log('[CourseView] Starting background PDF save', { userId, fileName, fileSize: file.size });
 
-      // Save PDF locally and to cloud (background)
+      // Step 1: Save PDF locally FIRST (fast) and update state immediately
       try {
-        console.log('[CourseView] Calling savePdfWithCloud...');
-        const { blobId, cloudPdfPath } = await savePdfWithCloud(
-          userId,
-          newCourse.id,
-          file,
-          fileName
-        );
-        console.log('[CourseView] savePdfWithCloud returned', { blobId, cloudPdfPath });
+        console.log('[CourseView] Saving blob locally...');
+        const blobId = await savePdfBlob(newCourse.id, file);
+        console.log('[CourseView] Blob saved locally:', blobId);
 
+        // Update course with blobId IMMEDIATELY so it persists
         const updatedCourse = { ...newCourse, pdfBlobId: blobId };
-        if (cloudPdfPath) {
-          updatedCourse.cloudPdfPath = cloudPdfPath;
-        }
-        console.log('[CourseView] Calling onUpdate with pdfBlobId');
+        console.log('[CourseView] Updating course with pdfBlobId');
         onUpdate(updatedCourse);
 
-        // Generate thumbnail (background)
+        // Step 2: Cloud upload in background (don't wait)
+        uploadPdfToCloud(userId, newCourse.id, file, fileName)
+          .then(cloudPdfPath => {
+            if (cloudPdfPath) {
+              console.log('[CourseView] Cloud upload complete:', cloudPdfPath);
+              onUpdate({ ...updatedCourse, cloudPdfPath });
+            }
+          })
+          .catch(e => console.warn('[CourseView] Cloud upload failed (local save OK):', e));
+
+        // Step 3: Generate thumbnail in background
         const MAX_THUMBNAIL_SIZE = 100 * 1024 * 1024;
         if (file.size < MAX_THUMBNAIL_SIZE && newCourse.pdfUrl) {
           try {
@@ -128,7 +132,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
             console.warn('[CourseView] Failed to generate PDF thumbnail:', e);
           }
         }
-        console.log('[CourseView] Background save complete');
+        console.log('[CourseView] Local save complete');
       } catch (e) {
         console.error('[CourseView] Failed to save PDF:', e);
         showToast?.('Failed to save PDF', 'error');
