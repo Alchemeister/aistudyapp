@@ -76,16 +76,20 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
   if (!course) return <div className="p-8 text-center">Course not found</div>;
 
   const handleSaveWizard = async (updated: Course, file?: File | Blob) => {
+    console.log('[CourseView] handleSaveWizard called', { hasFile: !!file, courseId: updated.id });
     let newCourse = { ...updated };
 
     // If there's a file, create object URL immediately for display
     if (file) {
+      console.log('[CourseView] Creating object URL for file');
       newCourse.pdfUrl = URL.createObjectURL(file);
     }
 
     // Close modal immediately - don't make user wait
+    console.log('[CourseView] Calling onUpdate and closing modal');
     onUpdate(newCourse);
     setShowWizard(false);
+    console.log('[CourseView] Modal should now be closed');
 
     // Do heavy operations in background
     if (file) {
