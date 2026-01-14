@@ -138,8 +138,8 @@ async function deductCredit(userId: string): Promise<void> {
 
 // Simple rate limiting (per user, in-memory for this instance)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 10; // requests per minute
-const RATE_WINDOW = 60000; // 1 minute
+const RATE_LIMIT = 60; // requests per hour
+const RATE_WINDOW = 3600000; // 1 hour
 
 function checkRateLimit(userId: string): boolean {
   const now = Date.now();
