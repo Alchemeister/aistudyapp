@@ -124,7 +124,7 @@ async function deductMessage(userId: string): Promise<void> {
 
 // Rate limiting
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 20; // messages per minute
+const RATE_LIMIT = 10; // messages per minute
 const RATE_WINDOW = 60000;
 
 function checkRateLimit(userId: string): boolean {
