@@ -77,43 +77,50 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
 
   const handleSaveWizard = async (updated: Course, file?: File | Blob) => {
     let newCourse = { ...updated };
+
+    // If there's a file, create object URL immediately for display
     if (file) {
-      // Get user ID for cloud storage (Pro users only)
-      const userId = user?.uid || user?.id || '';
-      const fileName = (file as File).name || newCourse.pdfName || 'document.pdf';
-
-      // Save PDF locally and to cloud (for Pro users)
-      const { blobId, cloudPdfPath } = await savePdfWithCloud(
-        userId,
-        newCourse.id,
-        file,
-        fileName
-      );
-
-      newCourse.pdfBlobId = blobId;
       newCourse.pdfUrl = URL.createObjectURL(file);
-      if (cloudPdfPath) {
-        newCourse.cloudPdfPath = cloudPdfPath;
-      }
-
     }
 
-    // Save and close immediately
+    // Close modal immediately - don't make user wait
     onUpdate(newCourse);
     setShowWizard(false);
 
-    // Generate thumbnail in background (doesn't block UI)
-    if (file && newCourse.pdfUrl) {
-      const MAX_THUMBNAIL_SIZE = 100 * 1024 * 1024; // 100MB - skip only for very large files
-      if (file.size < MAX_THUMBNAIL_SIZE) {
-        try {
-          const pdf = await loadPdfDocument(newCourse.pdfUrl);
-          const thumbnail = await generatePdfThumbnail(pdf, 200);
-          // Update course with thumbnail after generation
-          onUpdate({ ...newCourse, pdfThumbnail: thumbnail });
-        } catch (e) {
-          console.warn('Failed to generate PDF thumbnail:', e);
+    // Do heavy operations in background
+    if (file) {
+      const userId = user?.uid || user?.id || '';
+      const fileName = (file as File).name || newCourse.pdfName || 'document.pdf';
+
+      // Save PDF locally and to cloud (background)
+      try {
+        const { blobId, cloudPdfPath } = await savePdfWithCloud(
+          userId,
+          newCourse.id,
+          file,
+          fileName
+        );
+
+        const updatedCourse = { ...newCourse, pdfBlobId: blobId };
+        if (cloudPdfPath) {
+          updatedCourse.cloudPdfPath = cloudPdfPath;
         }
+        onUpdate(updatedCourse);
+
+        // Generate thumbnail (background)
+        const MAX_THUMBNAIL_SIZE = 100 * 1024 * 1024;
+        if (file.size < MAX_THUMBNAIL_SIZE && newCourse.pdfUrl) {
+          try {
+            const pdf = await loadPdfDocument(newCourse.pdfUrl);
+            const thumbnail = await generatePdfThumbnail(pdf, 200);
+            onUpdate({ ...updatedCourse, pdfThumbnail: thumbnail });
+          } catch (e) {
+            console.warn('Failed to generate PDF thumbnail:', e);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to save PDF:', e);
+        showToast?.('Failed to save PDF', 'error');
       }
     }
   };
