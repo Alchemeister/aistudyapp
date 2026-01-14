@@ -26,14 +26,17 @@ async function initFirebaseAdmin() {
           admin.initializeApp({
             credential: admin.credential.cert(JSON.parse(serviceAccount)),
           });
+          console.log('[initFirebaseAdmin] Firebase Admin initialized successfully');
         } catch (e) {
-          console.error('Firebase Admin init failed:', e instanceof Error ? e.message : 'Unknown error');
+          console.error('[initFirebaseAdmin] Firebase Admin init failed:', e instanceof Error ? e.message : 'Unknown error');
         }
+      } else {
+        console.error('[initFirebaseAdmin] FIREBASE_SERVICE_ACCOUNT env var is not set');
       }
     }
     firebaseAdminInitialized = true;
   } catch (e) {
-    console.error('Failed to load firebase-admin:', e instanceof Error ? e.message : 'Unknown error');
+    console.error('[initFirebaseAdmin] Failed to load firebase-admin:', e instanceof Error ? e.message : 'Unknown error');
   }
 
   return admin;
@@ -84,6 +87,7 @@ async function getSubscriptionStatus(userId: string): Promise<{
 }> {
   const adminSdk = await initFirebaseAdmin();
   if (!adminSdk?.apps?.length) {
+    console.error('[getSubscriptionStatus] Firebase Admin not initialized - FIREBASE_SERVICE_ACCOUNT may be missing');
     return { status: 'free', monthlyUsed: 0, monthlyLimit: FREE_MONTHLY_LIMIT, canGenerate: true };
   }
 
