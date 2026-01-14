@@ -77,63 +77,51 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
   if (!course) return <div className="p-8 text-center">Course not found</div>;
 
   const handleSaveWizard = async (updated: Course, file?: File | Blob) => {
-    console.log('[CourseView] handleSaveWizard called', { hasFile: !!file, courseId: updated.id });
     let newCourse = { ...updated };
 
     // If there's a file, create object URL immediately for display
     if (file) {
-      console.log('[CourseView] Creating object URL for file');
       newCourse.pdfUrl = URL.createObjectURL(file);
     }
 
     // Close modal immediately - don't make user wait
-    console.log('[CourseView] Calling onUpdate and closing modal');
     onUpdate(newCourse);
     setShowWizard(false);
-    console.log('[CourseView] Modal should now be closed');
 
     // Do heavy operations in background
     if (file) {
       const userId = user?.uid || user?.id || '';
       const fileName = (file as File).name || newCourse.pdfName || 'document.pdf';
-      console.log('[CourseView] Starting background PDF save', { userId, fileName, fileSize: file.size });
 
       // Step 1: Save PDF locally FIRST (fast) and update state immediately
       try {
-        console.log('[CourseView] Saving blob locally...');
         const blobId = await savePdfBlob(newCourse.id, file);
-        console.log('[CourseView] Blob saved locally:', blobId);
 
         // Update course with blobId IMMEDIATELY so it persists
         const updatedCourse = { ...newCourse, pdfBlobId: blobId };
-        console.log('[CourseView] Updating course with pdfBlobId');
         onUpdate(updatedCourse);
 
         // Step 2: Cloud upload in background (don't wait)
         uploadPdfToCloud(userId, newCourse.id, file, fileName)
           .then(cloudPdfPath => {
             if (cloudPdfPath) {
-              console.log('[CourseView] Cloud upload complete:', cloudPdfPath);
               onUpdate({ ...updatedCourse, cloudPdfPath });
             }
           })
-          .catch(e => console.warn('[CourseView] Cloud upload failed (local save OK):', e));
+          .catch(() => {}); // Cloud upload failed, local save is fine
 
-        // Step 3: Generate thumbnail in background (PDF.js only loads page 1, so file size doesn't matter)
+        // Step 3: Generate thumbnail in background
         if (newCourse.pdfUrl) {
           try {
-            console.log('[CourseView] Generating thumbnail...');
             const pdf = await loadPdfDocument(newCourse.pdfUrl);
             const thumbnail = await generatePdfThumbnail(pdf, 200);
-            console.log('[CourseView] Thumbnail generated, updating course');
             onUpdate({ ...updatedCourse, pdfThumbnail: thumbnail });
           } catch (e) {
-            console.warn('[CourseView] Failed to generate PDF thumbnail:', e);
+            // Thumbnail generation failed, not critical
           }
         }
-        console.log('[CourseView] Local save complete');
       } catch (e) {
-        console.error('[CourseView] Failed to save PDF:', e);
+        console.error('Failed to save PDF:', e);
         showToast?.('Failed to save PDF', 'error');
       }
     }

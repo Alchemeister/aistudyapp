@@ -585,15 +585,7 @@ export const ChapterWizard: FC<Props> = ({ course, onSave, onCancel, onToast }) 
          <div className="flex gap-3">
            {step === 2 && <button onClick={() => setStep(1)} className="px-4 py-2 border border-slate-300 rounded text-slate-600 font-medium">Back</button>}
            <button
-             onClick={() => {
-               console.log('[ChapterWizard] Button clicked, step:', step);
-               if (step === 1) {
-                 setStep(2);
-               } else {
-                 console.log('[ChapterWizard] Calling onSave with:', { pdfName, chaptersCount: chapters.length, hasPdfFile: !!pdfFile });
-                 onSave({ ...course, pdfName, chapters }, pdfFile || undefined);
-               }
-             }}
+             onClick={() => step === 1 ? setStep(2) : onSave({ ...course, pdfName, chapters }, pdfFile || undefined)}
              className="px-6 py-2 bg-primary text-white rounded-lg font-bold shadow-md hover:shadow-lg hover:bg-blue-600 transition-all transform active:scale-95"
            >
              {step === 1 ? 'Next: Map Chapters' : 'Save & Close'}
