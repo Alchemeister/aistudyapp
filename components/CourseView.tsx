@@ -119,9 +119,8 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
           })
           .catch(e => console.warn('[CourseView] Cloud upload failed (local save OK):', e));
 
-        // Step 3: Generate thumbnail in background
-        const MAX_THUMBNAIL_SIZE = 100 * 1024 * 1024;
-        if (file.size < MAX_THUMBNAIL_SIZE && newCourse.pdfUrl) {
+        // Step 3: Generate thumbnail in background (PDF.js only loads page 1, so file size doesn't matter)
+        if (newCourse.pdfUrl) {
           try {
             console.log('[CourseView] Generating thumbnail...');
             const pdf = await loadPdfDocument(newCourse.pdfUrl);
