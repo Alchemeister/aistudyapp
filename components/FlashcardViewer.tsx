@@ -65,14 +65,14 @@ export const FlashcardViewer: FC<Props> = ({ cards, onFixCard }) => {
 
           {/* Back */}
           <div
-            className={`absolute inset-0 backface-hidden border shadow-sm rounded-xl flex flex-col items-center justify-center p-8 text-center ${card.isDuplicate ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800' : 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'}`}
+            className={`absolute inset-0 backface-hidden border shadow-sm rounded-xl flex flex-col items-center justify-center p-8 text-center ${card.isDuplicate ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800' : 'bg-blue-50 dark:bg-slate-700 border-blue-200 dark:border-slate-600'}`}
             style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
           >
              <div className="overflow-y-auto w-full max-h-full">
-                <h4 className={`text-xl font-medium leading-relaxed ${card.isDuplicate ? 'text-slate-600 dark:text-slate-400 opacity-80' : 'text-blue-900 dark:text-blue-100'}`}>{card.back}</h4>
+                <h4 className={`text-xl font-medium leading-relaxed ${card.isDuplicate ? 'text-slate-600 dark:text-slate-400 opacity-80' : 'text-blue-900 dark:text-slate-100'}`}>{card.back}</h4>
                 {card.source && (
-                    <div className="mt-6 pt-4 border-t border-blue-100 dark:border-blue-800 w-full">
-                        <p className={`text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-1 ${card.isDuplicate ? 'text-slate-400' : 'text-blue-400'}`}>
+                    <div className="mt-6 pt-4 border-t border-blue-100 dark:border-slate-600 w-full">
+                        <p className={`text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-1 ${card.isDuplicate ? 'text-slate-400' : 'text-blue-400 dark:text-slate-400'}`}>
                             <MapPin className="w-3 h-3" /> {card.source}
                         </p>
                     </div>
@@ -87,17 +87,17 @@ export const FlashcardViewer: FC<Props> = ({ cards, onFixCard }) => {
         <button
           onClick={(e) => { e.stopPropagation(); setFlipped(false); setIndex(Math.max(0, safeIndex - 1)); }}
           disabled={safeIndex === 0}
-          className="p-3 rounded-full hover:bg-slate-100 disabled:opacity-30 transition-colors"
+          className="p-3 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors"
         >
-          <ChevronLeft className="w-5 h-5 text-slate-600" />
+          <ChevronLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
         </button>
-        <span className="text-base font-bold text-slate-500">{safeIndex + 1} / {cards.length}</span>
+        <span className="text-base font-bold text-slate-500 dark:text-slate-400">{safeIndex + 1} / {cards.length}</span>
         <button
           onClick={(e) => { e.stopPropagation(); setFlipped(false); setIndex(Math.min(cards.length - 1, safeIndex + 1)); }}
           disabled={safeIndex === cards.length - 1}
-          className="p-3 rounded-full hover:bg-slate-100 disabled:opacity-30 transition-colors"
+          className="p-3 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors"
         >
-          <ChevronRight className="w-5 h-5 text-slate-600" />
+          <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-300" />
         </button>
       </div>
     </div>
