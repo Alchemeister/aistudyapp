@@ -95,35 +95,42 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
     if (file) {
       const userId = user?.uid || user?.id || '';
       const fileName = (file as File).name || newCourse.pdfName || 'document.pdf';
+      console.log('[CourseView] Starting background PDF save', { userId, fileName, fileSize: file.size });
 
       // Save PDF locally and to cloud (background)
       try {
+        console.log('[CourseView] Calling savePdfWithCloud...');
         const { blobId, cloudPdfPath } = await savePdfWithCloud(
           userId,
           newCourse.id,
           file,
           fileName
         );
+        console.log('[CourseView] savePdfWithCloud returned', { blobId, cloudPdfPath });
 
         const updatedCourse = { ...newCourse, pdfBlobId: blobId };
         if (cloudPdfPath) {
           updatedCourse.cloudPdfPath = cloudPdfPath;
         }
+        console.log('[CourseView] Calling onUpdate with pdfBlobId');
         onUpdate(updatedCourse);
 
         // Generate thumbnail (background)
         const MAX_THUMBNAIL_SIZE = 100 * 1024 * 1024;
         if (file.size < MAX_THUMBNAIL_SIZE && newCourse.pdfUrl) {
           try {
+            console.log('[CourseView] Generating thumbnail...');
             const pdf = await loadPdfDocument(newCourse.pdfUrl);
             const thumbnail = await generatePdfThumbnail(pdf, 200);
+            console.log('[CourseView] Thumbnail generated, updating course');
             onUpdate({ ...updatedCourse, pdfThumbnail: thumbnail });
           } catch (e) {
-            console.warn('Failed to generate PDF thumbnail:', e);
+            console.warn('[CourseView] Failed to generate PDF thumbnail:', e);
           }
         }
+        console.log('[CourseView] Background save complete');
       } catch (e) {
-        console.error('Failed to save PDF:', e);
+        console.error('[CourseView] Failed to save PDF:', e);
         showToast?.('Failed to save PDF', 'error');
       }
     }

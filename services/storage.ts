@@ -68,17 +68,20 @@ const SAMPLE_DATA: Course[] = [
 // --- API ---
 
 export const saveCourses = async (courses: Course[]): Promise<void> => {
+  console.log('[storage] saveCourses called with', courses.length, 'courses');
   // We strip transient URLs before saving to DB
   const toSave = courses.map(c => {
-    const { pdfUrl, ...rest } = c; 
+    const { pdfUrl, ...rest } = c;
     // Also strip lecture audioUrls
     rest.lectures = rest.lectures.map(l => {
         const { audioUrl, ...lRest } = l;
         return lRest;
     });
+    console.log('[storage] Course to save:', { id: c.id, pdfBlobId: rest.pdfBlobId, hasThumbnail: !!rest.pdfThumbnail });
     return rest;
   });
   await set(COURSES_KEY, toSave);
+  console.log('[storage] saveCourses complete');
 };
 
 export const loadCourses = async (): Promise<Course[]> => {
@@ -139,7 +142,9 @@ export const loadCourses = async (): Promise<Course[]> => {
 
 export const savePdfBlob = async (courseId: string, file: File | Blob): Promise<string> => {
   const blobId = `${BLOB_PREFIX}${courseId}_${Date.now()}`;
+  console.log('[storage] savePdfBlob: saving blob to IndexedDB', { blobId, fileSize: file.size });
   await set(blobId, file);
+  console.log('[storage] savePdfBlob: blob saved successfully');
   return blobId;
 };
 
