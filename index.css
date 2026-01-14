@@ -29,5 +29,11 @@
 /* Ensure proper mobile behavior */
 html, body, #root {
   height: 100%;
-  overflow: hidden;
+}
+
+/* Only hide overflow on desktop - allow mobile scrolling */
+@media (min-width: 768px) {
+  html, body, #root {
+    overflow: hidden;
+  }
 }

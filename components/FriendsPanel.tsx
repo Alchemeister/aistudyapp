@@ -176,7 +176,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
       {/* Add Friend Section */}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
         <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">Add Friend</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="email"
             placeholder="Enter friend's email..."
@@ -188,7 +188,7 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
           <button
             onClick={handleSearch}
             disabled={searching || !searchEmail.trim()}
-            className="px-5 py-2 bg-primary text-white rounded-lg font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors flex items-center gap-2"
+            className="w-full sm:w-auto px-5 py-2 bg-primary text-white rounded-lg font-bold hover:bg-blue-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {searching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Search
