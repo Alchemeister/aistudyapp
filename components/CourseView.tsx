@@ -103,7 +103,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
     setShowWizard(false);
 
     // Generate thumbnail in background (doesn't block UI)
-    if (file) {
+    if (file && newCourse.pdfUrl) {
       const MAX_THUMBNAIL_SIZE = 100 * 1024 * 1024; // 100MB - skip only for very large files
       if (file.size < MAX_THUMBNAIL_SIZE) {
         try {
