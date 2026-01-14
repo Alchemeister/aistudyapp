@@ -96,20 +96,26 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
         newCourse.cloudPdfPath = cloudPdfPath;
       }
 
-      // Generate PDF thumbnail (skip for large files to prevent hanging)
-      const MAX_THUMBNAIL_SIZE = 50 * 1024 * 1024; // 50MB
+    }
+
+    // Save and close immediately
+    onUpdate(newCourse);
+    setShowWizard(false);
+
+    // Generate thumbnail in background (doesn't block UI)
+    if (file) {
+      const MAX_THUMBNAIL_SIZE = 100 * 1024 * 1024; // 100MB - skip only for very large files
       if (file.size < MAX_THUMBNAIL_SIZE) {
         try {
           const pdf = await loadPdfDocument(newCourse.pdfUrl);
           const thumbnail = await generatePdfThumbnail(pdf, 200);
-          newCourse.pdfThumbnail = thumbnail;
+          // Update course with thumbnail after generation
+          onUpdate({ ...newCourse, pdfThumbnail: thumbnail });
         } catch (e) {
           console.warn('Failed to generate PDF thumbnail:', e);
         }
       }
     }
-    onUpdate(newCourse);
-    setShowWizard(false);
   };
 
   const handleImportSave = (note: Partial<Lecture>) => {
