@@ -3,7 +3,7 @@
  * Handles Firebase Storage for Pro user PDFs
  */
 
-import { storage, isConfigured, ref, uploadBytes, getDownloadURL, deleteObject } from './firebase';
+import { storage, isConfigured, ref, uploadBytes, getDownloadURL, getBlob, deleteObject } from './firebase';
 import { hasCloudPdfAccess } from './subscriptionService';
 
 // Storage limits
@@ -96,18 +96,24 @@ export const getCloudPdfUrl = async (path: string): Promise<string | null> => {
 
 /**
  * Download a PDF from cloud storage as a Blob
+ * Uses Firebase SDK's getBlob to avoid CORS issues
  */
 export const downloadCloudPdf = async (path: string): Promise<Blob | null> => {
-  const url = await getCloudPdfUrl(path);
-  if (!url) return null;
+  if (!isConfigured || !storage) {
+    console.log('Firebase Storage not configured');
+    return null;
+  }
 
   try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
+    const storageRef = ref(storage, path);
+    const blob = await getBlob(storageRef);
+    console.log(`Downloaded cloud PDF: ${path} (${blob.size} bytes)`);
+    return blob;
+  } catch (error: any) {
+    if (error.code === 'storage/object-not-found') {
+      console.log('Cloud PDF not found:', path);
+      return null;
     }
-    return await response.blob();
-  } catch (error) {
     console.error('Failed to download cloud PDF:', error);
     return null;
   }

@@ -30,6 +30,7 @@ import {
   ref,
   uploadBytes,
   getDownloadURL,
+  getBlob,
   deleteObject
 } from 'firebase/storage';
 
@@ -160,4 +161,4 @@ export const signOut = async () => {
 export { doc, setDoc, getDoc, collection, collectionGroup, query, where, getDocs, deleteDoc, writeBatch };
 
 // Re-export Storage utilities
-export { ref, uploadBytes, getDownloadURL, deleteObject };
+export { ref, uploadBytes, getDownloadURL, getBlob, deleteObject };
