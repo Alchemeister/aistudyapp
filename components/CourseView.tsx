@@ -96,13 +96,16 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
         newCourse.cloudPdfPath = cloudPdfPath;
       }
 
-      // Generate PDF thumbnail
-      try {
-        const pdf = await loadPdfDocument(newCourse.pdfUrl);
-        const thumbnail = await generatePdfThumbnail(pdf, 200);
-        newCourse.pdfThumbnail = thumbnail;
-      } catch (e) {
-        console.warn('Failed to generate PDF thumbnail:', e);
+      // Generate PDF thumbnail (skip for large files to prevent hanging)
+      const MAX_THUMBNAIL_SIZE = 50 * 1024 * 1024; // 50MB
+      if (file.size < MAX_THUMBNAIL_SIZE) {
+        try {
+          const pdf = await loadPdfDocument(newCourse.pdfUrl);
+          const thumbnail = await generatePdfThumbnail(pdf, 200);
+          newCourse.pdfThumbnail = thumbnail;
+        } catch (e) {
+          console.warn('Failed to generate PDF thumbnail:', e);
+        }
       }
     }
     onUpdate(newCourse);
