@@ -114,6 +114,9 @@ const ToastContainer = ({ children }: { children?: ReactNode }) => {
 const MobileNav = ({ user, onLogout, dueCount, syncStatus, creditsInfo, onOpenPricing }: { user: any, onLogout: () => void, dueCount?: number, syncStatus: SyncStatus, creditsInfo?: { status: 'free' | 'pro', total: number, monthlyLimit: number }, onOpenPricing?: () => void }) => {
   const navigate = useNavigate();
   const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
 
   const toggleDarkMode = () => {
     const newMode = !darkMode;
@@ -122,71 +125,108 @@ const MobileNav = ({ user, onLogout, dueCount, syncStatus, creditsInfo, onOpenPr
     localStorage.setItem('studystack_theme', newMode ? 'dark' : 'light');
   };
 
+  const checkScroll = () => {
+    if (scrollRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+      setShowLeftArrow(scrollLeft > 0);
+      setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 1);
+    }
+  };
+
+  useEffect(() => {
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    return () => window.removeEventListener('resize', checkScroll);
+  }, []);
+
   return (
     <div className="md:hidden bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
-      <div className="flex items-center gap-2" onClick={() => navigate('/')}>
+      <div className="flex items-center gap-2 flex-shrink-0" onClick={() => navigate('/')}>
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white"><GraduationCap className="w-5 h-5" /></div>
         <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">StudyStack</h1>
       </div>
-      <div className="flex items-center gap-2">
-          {/* Cloud Sync Indicator */}
-          {syncStatus !== 'idle' && <CloudSyncIndicator status={syncStatus} />}
-          {/* Credits Badge */}
-          {creditsInfo ? (
-            <button
-              onClick={onOpenPricing}
-              className={`px-2 py-1 rounded-full flex items-center gap-1 transition-all hover:scale-105 ${
-                creditsInfo.status === 'pro'
-                  ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white'
-                  : creditsInfo.total < creditsInfo.monthlyLimit * 0.2
-                  ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                  : 'bg-primary/10 dark:bg-primary/20 text-primary'
-              }`}
-              title={creditsInfo.status === 'pro' ? 'Pro Member' : `${creditsInfo.total} credits remaining`}
-            >
-              {creditsInfo.status === 'pro' ? <Crown className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
-              <span className="text-xs font-bold">{creditsInfo.status === 'pro' ? 'Pro' : creditsInfo.total}</span>
-            </button>
-          ) : (
-            <div
-              className="px-2 py-1 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center gap-1"
-              title={`${getRemainingGenerations()} AI credits remaining this month`}
-            >
-              <Zap className="w-3 h-3 text-primary" />
-              <span className="text-xs font-bold text-primary">{getRemainingGenerations()}</span>
+      <div className="relative flex items-center ml-2 min-w-0">
+          {/* Left scroll indicator */}
+          {showLeftArrow && (
+            <div className="absolute left-0 z-10 h-full flex items-center pointer-events-none">
+              <div className="w-6 h-6 rounded-full bg-white/90 dark:bg-slate-800/90 shadow flex items-center justify-center">
+                <ChevronLeft className="w-3 h-3 text-slate-400" />
+              </div>
             </div>
           )}
-          <button
-            onClick={toggleDarkMode}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-[0.98] transition-all"
-            title={darkMode ? 'Light Mode' : 'Dark Mode'}
+          {/* Scrollable container */}
+          <div
+            ref={scrollRef}
+            onScroll={checkScroll}
+            className="flex items-center gap-2 overflow-x-auto no-scrollbar"
           >
-             {darkMode ? <Sun className="w-5 h-5 text-slate-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
-          </button>
-          <Link to="/review" className="relative w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
-             <Layers className="w-4 h-4" />
-             {(dueCount || 0) > 0 && (
-               <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
-                 {(dueCount || 0) > 9 ? '9+' : dueCount}
-               </span>
-             )}
-          </Link>
-          <Link to="/friends" className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
-             <Users className="w-4 h-4" />
-          </Link>
-          <Link to="/groups" className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
-             <Trophy className="w-4 h-4" />
-          </Link>
-          <Link to="/settings" className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
-             <Settings className="w-4 h-4" />
-          </Link>
-          <button
-            onClick={onLogout}
-            className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 border border-slate-200 dark:border-slate-600"
-            title="Logout"
-          >
-             <LogOut className="w-4 h-4" />
-          </button>
+            {/* Cloud Sync Indicator */}
+            {syncStatus !== 'idle' && <CloudSyncIndicator status={syncStatus} />}
+            {/* Credits Badge */}
+            {creditsInfo ? (
+              <button
+                onClick={onOpenPricing}
+                className={`flex-shrink-0 px-2 py-1 rounded-full flex items-center gap-1 transition-all hover:scale-105 ${
+                  creditsInfo.status === 'pro'
+                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white'
+                    : creditsInfo.total < creditsInfo.monthlyLimit * 0.2
+                    ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                    : 'bg-primary/10 dark:bg-primary/20 text-primary'
+                }`}
+                title={creditsInfo.status === 'pro' ? 'Pro Member' : `${creditsInfo.total} credits remaining`}
+              >
+                {creditsInfo.status === 'pro' ? <Crown className="w-3 h-3" /> : <Zap className="w-3 h-3" />}
+                <span className="text-xs font-bold">{creditsInfo.status === 'pro' ? 'Pro' : creditsInfo.total}</span>
+              </button>
+            ) : (
+              <div
+                className="flex-shrink-0 px-2 py-1 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center gap-1"
+                title={`${getRemainingGenerations()} AI credits remaining this month`}
+              >
+                <Zap className="w-3 h-3 text-primary" />
+                <span className="text-xs font-bold text-primary">{getRemainingGenerations()}</span>
+              </div>
+            )}
+            <button
+              onClick={toggleDarkMode}
+              className="flex-shrink-0 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-[0.98] transition-all"
+              title={darkMode ? 'Light Mode' : 'Dark Mode'}
+            >
+               {darkMode ? <Sun className="w-5 h-5 text-slate-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
+            </button>
+            <Link to="/review" className="flex-shrink-0 relative w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
+               <Layers className="w-4 h-4" />
+               {(dueCount || 0) > 0 && (
+                 <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                   {(dueCount || 0) > 9 ? '9+' : dueCount}
+                 </span>
+               )}
+            </Link>
+            <Link to="/friends" className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
+               <Users className="w-4 h-4" />
+            </Link>
+            <Link to="/groups" className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
+               <Trophy className="w-4 h-4" />
+            </Link>
+            <Link to="/settings" className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
+               <Settings className="w-4 h-4" />
+            </Link>
+            <button
+              onClick={onLogout}
+              className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-500 border border-slate-200 dark:border-slate-600"
+              title="Logout"
+            >
+               <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+          {/* Right scroll indicator */}
+          {showRightArrow && (
+            <div className="absolute right-0 z-10 h-full flex items-center pointer-events-none">
+              <div className="w-6 h-6 rounded-full bg-white/90 dark:bg-slate-800/90 shadow flex items-center justify-center">
+                <ChevronRight className="w-3 h-3 text-slate-400" />
+              </div>
+            </div>
+          )}
       </div>
     </div>
   );
