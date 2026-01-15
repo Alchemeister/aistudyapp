@@ -21,7 +21,6 @@ import {
   Lightbulb,
   Calculator,
   Crown,
-  Star,
   Users,
   Zap,
   ChevronDown,
@@ -157,11 +156,6 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
     { icon: Calculator, title: 'Practice Problems', description: 'STEM practice with step-by-step solutions', pro: true },
   ];
 
-  const testimonials = [
-    { quote: "StudyStack turned my 50-page PDF into flashcards in seconds. Saved me hours before finals.", name: "Sarah M.", title: "Pre-Med Student", avatar: "SM" },
-    { quote: "The spaced repetition actually works. I went from C's to A's in organic chemistry.", name: "James K.", title: "Chemistry Major", avatar: "JK" },
-    { quote: "I record all my lectures now. The AI summaries are better than my own notes.", name: "Priya R.", title: "Law Student", avatar: "PR" },
-  ];
 
   const pricingPlans = [
     { name: 'Free', price: '$0', period: '', features: ['25 generations', 'Basic features', 'Community support'] },
@@ -286,22 +280,15 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
               </div>
             </div>
 
-            {/* Social Proof Stats */}
+            {/* Value Props */}
             <div className="flex flex-wrap gap-6 pt-4 border-t border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-[#2563eb]" />
-                <span className="font-bold text-slate-900 dark:text-white">2,500+</span>
-                <span className="text-slate-500 dark:text-slate-400 text-sm">Students</span>
+                <BookOpen className="w-5 h-5 text-[#2563eb]" />
+                <span className="text-slate-600 dark:text-slate-400 text-sm">Built by students, for students</span>
               </div>
               <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-                <span className="font-bold text-slate-900 dark:text-white">4.9</span>
-                <span className="text-slate-500 dark:text-slate-400 text-sm">Rating</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-purple-500" />
-                <span className="font-bold text-slate-900 dark:text-white">100K+</span>
-                <span className="text-slate-500 dark:text-slate-400 text-sm">Cards Generated</span>
+                <Zap className="w-5 h-5 text-purple-500" />
+                <span className="text-slate-600 dark:text-slate-400 text-sm">AI-powered study tools</span>
               </div>
             </div>
           </div>
@@ -512,34 +499,6 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="px-6 py-20 max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">
-            Loved by Students
-          </h2>
-          <p className="text-slate-500 dark:text-slate-400 text-lg">
-            Join thousands of students studying smarter
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          {testimonials.map((t, i) => (
-            <div key={i} className="bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 p-8 rounded-2xl shadow-lg">
-              <p className="text-slate-700 dark:text-slate-300 italic mb-6">"{t.quote}"</p>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-[#2563eb] text-white flex items-center justify-center font-bold">
-                  {t.avatar}
-                </div>
-                <div>
-                  <p className="font-bold text-slate-900 dark:text-white">{t.name}</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">{t.title}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* Referral Program */}
       <section className="px-6 py-20 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900">
@@ -759,7 +718,7 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
             Ready to ace your exams?
           </h2>
           <p className="text-slate-500 dark:text-slate-400 text-lg mb-8">
-            Join thousands of students who are studying smarter with StudyStack
+            Start studying smarter with AI-powered flashcards, quizzes, and more
           </p>
 
           <form className="flex flex-col sm:flex-row gap-4 max-w-xl mx-auto" onSubmit={(e) => { e.preventDefault(); setShowAuthModal(true); }}>
