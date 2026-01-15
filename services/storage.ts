@@ -1,7 +1,7 @@
 
 import { get, set, del, clear } from 'idb-keyval';
 import { Course, ContentType, Difficulty } from '../types';
-import { uploadPdfToCloud, downloadCloudPdf, deleteCloudPdf, getCloudPdfUrl } from './pdfCloudStorage';
+import { uploadPdfToCloud, deleteCloudPdf } from './pdfCloudStorage';
 
 const COURSES_KEY = 'studystack_courses_v3';
 const BLOB_PREFIX = 'pdf_blob_';
@@ -86,42 +86,15 @@ export const loadCourses = async (): Promise<Course[]> => {
 
   // Rehydrate Blob URLs (PDF and Audio)
   const hydrated = await Promise.all(courses.map(async (c) => {
-    // 1. Rehydrate PDF - try local first, then cloud
+    // 1. Rehydrate PDF - local only (cloud download disabled due to CORS)
+    // PDFs are still uploaded to cloud for backup, but must be re-uploaded on new devices
     if (c.pdfBlobId) {
-      console.log(`[loadCourses] Course "${c.title}" has pdfBlobId: ${c.pdfBlobId}`);
       const blob = await get<Blob>(c.pdfBlobId);
       if (blob) {
         c.pdfUrl = URL.createObjectURL(blob);
-        console.log(`[loadCourses] Loaded local PDF blob for: ${c.title}`);
       } else {
-        console.warn(`[loadCourses] PDF blob NOT FOUND in IndexedDB for: ${c.title}, blobId: ${c.pdfBlobId}`);
-        if (c.cloudPdfPath) {
-          // Local blob missing but cloud path exists - download from cloud
-          console.log(`[loadCourses] Downloading PDF from cloud for course: ${c.title}`);
-          const cloudBlob = await downloadCloudPdf(c.cloudPdfPath);
-          if (cloudBlob) {
-            // Save to local IndexedDB for offline access
-            await set(c.pdfBlobId, cloudBlob);
-            c.pdfUrl = URL.createObjectURL(cloudBlob);
-            console.log(`[loadCourses] Cached cloud PDF locally: ${c.title}`);
-          } else {
-            console.error(`[loadCourses] Failed to download cloud PDF for: ${c.title}`);
-          }
-        } else {
-          console.warn(`[loadCourses] No cloudPdfPath fallback for: ${c.title}`);
-        }
-      }
-    } else if (c.cloudPdfPath) {
-      // No local blob ID but cloud path exists (new device scenario)
-      console.log(`Downloading PDF from cloud (new device) for course: ${c.title}`);
-      const cloudBlob = await downloadCloudPdf(c.cloudPdfPath);
-      if (cloudBlob) {
-        // Create local blob ID and save
-        const blobId = `${BLOB_PREFIX}${c.id}_${Date.now()}`;
-        await set(blobId, cloudBlob);
-        c.pdfBlobId = blobId;
-        c.pdfUrl = URL.createObjectURL(cloudBlob);
-        console.log(`Cached cloud PDF locally: ${c.title}`);
+        // Local blob missing - PDF needs to be re-uploaded on this device
+        console.log(`[loadCourses] PDF not available locally for: ${c.title} (re-upload required)`);
       }
     }
 
