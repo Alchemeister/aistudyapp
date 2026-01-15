@@ -205,6 +205,7 @@ export const LandingPage: FC<Props> = ({ onLoginSuccess }) => {
             <button onClick={() => scrollToSection('pricing')} className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Pricing</button>
             <button onClick={() => scrollToSection('compare')} className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Compare</button>
             <button onClick={() => scrollToSection('faq')} className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">FAQ</button>
+            <a href="#/blog" className="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Blog</a>
           </div>
 
           <div className="flex items-center gap-4">

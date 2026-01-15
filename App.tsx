@@ -37,6 +37,7 @@ import { isStudyGroupsAvailable, submitQuizScore } from './services/studyGroupsS
 import { SharedCourse } from './types';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TermsOfService } from './components/TermsOfService';
+import { BlogList, BlogPostView } from './components/Blog';
 import { CreditsDisplay } from './components/CreditsDisplay';
 import { PricingModal } from './components/PricingModal';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
@@ -664,7 +665,7 @@ function App() {
   }, [courses]);
 
   if (!user) {
-    // Allow access to privacy and terms pages without login
+    // Allow access to public pages without login
     const hash = window.location.hash;
     if (hash.includes('/privacy')) {
       return (
@@ -681,6 +682,17 @@ function App() {
         <Router>
           <Routes>
             <Route path="/terms" element={<TermsOfService />} />
+            <Route path="*" element={<LandingPage onLoginSuccess={setUser} />} />
+          </Routes>
+        </Router>
+      );
+    }
+    if (hash.includes('/blog')) {
+      return (
+        <Router>
+          <Routes>
+            <Route path="/blog" element={<BlogList />} />
+            <Route path="/blog/:slug" element={<BlogPostWrapper />} />
             <Route path="*" element={<LandingPage onLoginSuccess={setUser} />} />
           </Routes>
         </Router>
@@ -713,6 +725,8 @@ function App() {
                   <Route path="/course/:courseId" element={<CourseView courses={courses} onUpdate={updateCourse} onUpdateFlashcard={handleFlashcardUpdate} user={user} />} />
                   <Route path="/privacy" element={<PrivacyPolicy />} />
                   <Route path="/terms" element={<TermsOfService />} />
+                  <Route path="/blog" element={<BlogList />} />
+                  <Route path="/blog/:slug" element={<BlogPostWrapper />} />
                 </Routes>
              </div>
           </main>
@@ -734,6 +748,12 @@ function App() {
     </ToastContainer>
   );
 }
+
+// --- Blog Post Wrapper ---
+const BlogPostWrapper = () => {
+  const { slug } = useParams<{ slug: string }>();
+  return <BlogPostView slug={slug || ''} />;
+};
 
 // --- Review Controller ---
 const ReviewController = ({ courses, onUpdateCard, user }: { courses: Course[], onUpdateCard: (cid: string, mid: string, card: Flashcard) => void, user: any }) => {
