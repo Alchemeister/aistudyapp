@@ -615,6 +615,54 @@ function App() {
     }
   }, [user?.uid]);
 
+  // Refresh credits info (callable function)
+  const refreshCreditsInfo = async () => {
+    if (user?.uid) {
+      const info = await getCreditsInfo(user.uid);
+      setMobileCreditsInfo({
+        status: info.status,
+        total: info.total,
+        monthlyLimit: info.monthlyLimit,
+        plan: info.plan,
+        expiresAt: info.expiresAt,
+      });
+      return info.status;
+    }
+    return 'free';
+  };
+
+  // Listen for payment success and poll for webhook completion
+  useEffect(() => {
+    const checkPaymentSuccess = async () => {
+      const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
+      const paymentStatus = params.get('payment');
+
+      if (paymentStatus === 'success' && user?.uid) {
+        // Poll for up to 15 seconds waiting for webhook to update status
+        let attempts = 0;
+        const maxAttempts = 15;
+
+        const poll = async () => {
+          const status = await refreshCreditsInfo();
+          attempts++;
+
+          if (status === 'pro' || attempts >= maxAttempts) {
+            // Done polling
+            return;
+          }
+
+          // Try again in 1 second
+          setTimeout(poll, 1000);
+        };
+
+        // Start polling after a short delay to give webhook time
+        setTimeout(poll, 1000);
+      }
+    };
+
+    checkPaymentSuccess();
+  }, [user?.uid]);
+
   const addCourse = (course: Course) => setCourses([...courses, course]);
   
   const updateCourse = (updated: Course) => setCourses(courses.map(c => c.id === updated.id ? updated : c));
