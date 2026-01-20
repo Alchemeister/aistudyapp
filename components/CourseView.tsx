@@ -102,13 +102,19 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
         onUpdate(updatedCourse);
 
         // Step 2: Cloud upload in background (don't wait)
+        console.log('[CourseView] Starting cloud PDF upload for:', newCourse.id);
         uploadPdfToCloud(userId, newCourse.id, file, fileName)
           .then(cloudPdfPath => {
             if (cloudPdfPath) {
+              console.log('[CourseView] Cloud upload success, cloudPdfPath:', cloudPdfPath);
               onUpdate({ ...updatedCourse, cloudPdfPath });
+            } else {
+              console.log('[CourseView] Cloud upload returned null (user may not be Pro)');
             }
           })
-          .catch(() => {}); // Cloud upload failed, local save is fine
+          .catch((err) => {
+            console.error('[CourseView] Cloud upload failed:', err);
+          });
 
         // Step 3: Generate thumbnail in background
         if (newCourse.pdfUrl) {
