@@ -1303,10 +1303,11 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
              <Link to={`/course/${course.id}`} className="absolute inset-0 z-0 rounded-xl" aria-label={`View ${course.title}`}></Link>
 
              <div className="p-4 flex-1 pointer-events-none flex gap-4">
-                {/* PDF Thumbnail - renders first page directly */}
+                {/* PDF Thumbnail - renders first page, cached in IndexedDB */}
                 {course.pdfUrl ? (
                   <PdfThumbnail
                     pdfUrl={course.pdfUrl}
+                    courseId={course.id}
                     className="flex-shrink-0 w-20 h-28 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm"
                   />
                 ) : course.pdfName ? (
