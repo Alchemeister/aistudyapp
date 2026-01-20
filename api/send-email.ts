@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import * as admin from 'firebase-admin';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 
 // Resend API endpoint for sending transactional emails
 // Get your API key at https://resend.com/api-keys
@@ -9,12 +10,12 @@ const FROM_EMAIL = process.env.FROM_EMAIL || 'StudyStack <hello@send.studystack.
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY; // For server-to-server calls
 
 // Initialize Firebase Admin (singleton pattern)
-if (!admin.apps?.length) {
+if (!getApps().length) {
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccount) {
     try {
-      admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(serviceAccount)),
+      initializeApp({
+        credential: cert(JSON.parse(serviceAccount)),
       });
     } catch (e) {
       console.error('Firebase Admin init failed:', e);
@@ -46,8 +47,8 @@ async function verifyAuth(req: VercelRequest): Promise<{ valid: boolean; email?:
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     try {
-      if (!admin.apps?.length) return { valid: false, isInternal: false };
-      const decoded = await admin.auth().verifyIdToken(token);
+      if (!getApps().length) return { valid: false, isInternal: false };
+      const decoded = await getAuth().verifyIdToken(token);
       return { valid: true, email: decoded.email, isInternal: false };
     } catch (e) {
       return { valid: false, isInternal: false };

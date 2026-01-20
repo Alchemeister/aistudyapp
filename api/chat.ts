@@ -1,5 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import * as admin from 'firebase-admin';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 // Server-side AI Tutor chat endpoint
 // Keeps Gemini API key secret and enforces Pro subscription
@@ -8,12 +10,12 @@ const GEMINI_API_KEY = process.env.VITE_AI_SERVICE_KEY;
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 // Initialize Firebase Admin
-if (!admin.apps?.length) {
+if (!getApps().length) {
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccount) {
     try {
-      admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(serviceAccount)),
+      initializeApp({
+        credential: cert(JSON.parse(serviceAccount)),
       });
     } catch (e) {
       console.error('Firebase Admin init failed');
@@ -28,8 +30,8 @@ async function verifyAuth(authHeader: string | undefined): Promise<{ uid: string
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
   try {
-    if (!admin.apps?.length) return null;
-    const decoded = await admin.auth().verifyIdToken(token);
+    if (!getApps().length) return null;
+    const decoded = await getAuth().verifyIdToken(token);
     return { uid: decoded.uid };
   } catch {
     return null;
@@ -42,12 +44,12 @@ async function checkAITutorAccess(userId: string): Promise<{
   reason?: string;
   messagesRemaining?: number;
 }> {
-  if (!admin.apps?.length) {
+  if (!getApps().length) {
     return { allowed: false, reason: 'Service unavailable' };
   }
 
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const subDoc = await db.doc(`users/${userId}/subscription/current`).get();
 
     if (!subDoc.exists) {
@@ -91,10 +93,10 @@ async function checkAITutorAccess(userId: string): Promise<{
 
 // Deduct a message after successful chat
 async function deductMessage(userId: string): Promise<void> {
-  if (!admin.apps?.length) return;
+  if (!getApps().length) return;
 
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const docRef = db.doc(`users/${userId}/subscription/current`);
     const doc = await docRef.get();
     const data = doc.data();
@@ -114,7 +116,7 @@ async function deductMessage(userId: string): Promise<void> {
       });
     } else {
       await docRef.update({
-        aiTutorMessagesToday: admin.firestore.FieldValue.increment(1),
+        aiTutorMessagesToday: FieldValue.increment(1),
       });
     }
   } catch (e) {

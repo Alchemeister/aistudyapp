@@ -1,23 +1,22 @@
 import Stripe from 'stripe';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import * as admin from 'firebase-admin';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-12-15.clover',
 });
 
 // Initialize Firebase Admin (singleton pattern)
-if (!admin.apps?.length) {
+if (!getApps().length) {
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
-  console.log('Firebase Admin init: serviceAccount exists:', !!serviceAccount);
   if (serviceAccount) {
     try {
       const parsed = JSON.parse(serviceAccount);
-      console.log('Firebase Admin init: parsed project_id:', parsed.project_id);
-      admin.initializeApp({
-        credential: admin.credential.cert(parsed),
+      initializeApp({
+        credential: cert(parsed),
       });
-      console.log('Firebase Admin init: SUCCESS, apps count:', admin.apps?.length);
     } catch (e) {
       console.error('Firebase Admin init failed:', e);
     }
@@ -46,22 +45,12 @@ const ALLOWED_REDIRECT_ORIGINS = [
 
 // Verify Firebase ID token and return user info
 async function verifyAuthToken(authHeader: string | undefined): Promise<{ uid: string; email: string } | null> {
-  console.log('verifyAuthToken: authHeader present:', !!authHeader);
-  if (!authHeader?.startsWith('Bearer ')) {
-    console.log('verifyAuthToken: no Bearer token');
-    return null;
-  }
+  if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
-  console.log('verifyAuthToken: token length:', token.length);
 
   try {
-    console.log('verifyAuthToken: admin.apps?.length:', admin.apps?.length);
-    if (!admin.apps?.length) {
-      console.log('verifyAuthToken: Firebase Admin not initialized');
-      return null;
-    }
-    const decoded = await admin.auth().verifyIdToken(token);
-    console.log('verifyAuthToken: SUCCESS, uid:', decoded.uid);
+    if (!getApps().length) return null;
+    const decoded = await getAuth().verifyIdToken(token);
     return { uid: decoded.uid, email: decoded.email || '' };
   } catch (e) {
     console.error('Token verification failed:', e);
@@ -84,10 +73,10 @@ function isValidRedirectUrl(url: string | undefined, origin: string | undefined)
 
 // Get user's actual referral credits from Firestore
 async function getUserReferralCredits(userId: string): Promise<number> {
-  if (!admin.apps?.length) return 0;
+  if (!getApps().length) return 0;
 
   try {
-    const db = admin.firestore();
+    const db = getFirestore();
     const refDoc = await db.doc(`users/${userId}/referral/info`).get();
     if (!refDoc.exists) return 0;
 
