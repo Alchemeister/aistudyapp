@@ -7,7 +7,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 // Initialize Firebase Admin (singleton pattern)
-if (!admin.apps.length) {
+if (!admin.apps?.length) {
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccount) {
     try {
@@ -46,7 +46,7 @@ async function verifyAuthToken(authHeader: string | undefined): Promise<{ uid: s
   const token = authHeader.slice(7);
 
   try {
-    if (!admin.apps.length) return null;
+    if (!admin.apps?.length) return null;
     const decoded = await admin.auth().verifyIdToken(token);
     return { uid: decoded.uid, email: decoded.email || '' };
   } catch (e) {
@@ -70,7 +70,7 @@ function isValidRedirectUrl(url: string | undefined, origin: string | undefined)
 
 // Get user's actual referral credits from Firestore
 async function getUserReferralCredits(userId: string): Promise<number> {
-  if (!admin.apps.length) return 0;
+  if (!admin.apps?.length) return 0;
 
   try {
     const db = admin.firestore();

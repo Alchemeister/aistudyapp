@@ -8,7 +8,7 @@ const GEMINI_API_KEY = process.env.VITE_AI_SERVICE_KEY;
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 // Initialize Firebase Admin
-if (!admin.apps.length) {
+if (!admin.apps?.length) {
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccount) {
     try {
@@ -28,7 +28,7 @@ async function verifyAuth(authHeader: string | undefined): Promise<{ uid: string
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
   try {
-    if (!admin.apps.length) return null;
+    if (!admin.apps?.length) return null;
     const decoded = await admin.auth().verifyIdToken(token);
     return { uid: decoded.uid };
   } catch {
@@ -42,7 +42,7 @@ async function checkAITutorAccess(userId: string): Promise<{
   reason?: string;
   messagesRemaining?: number;
 }> {
-  if (!admin.apps.length) {
+  if (!admin.apps?.length) {
     return { allowed: false, reason: 'Service unavailable' };
   }
 
@@ -91,7 +91,7 @@ async function checkAITutorAccess(userId: string): Promise<{
 
 // Deduct a message after successful chat
 async function deductMessage(userId: string): Promise<void> {
-  if (!admin.apps.length) return;
+  if (!admin.apps?.length) return;
 
   try {
     const db = admin.firestore();

@@ -9,7 +9,7 @@ const FROM_EMAIL = process.env.FROM_EMAIL || 'StudyStack <hello@send.studystack.
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY; // For server-to-server calls
 
 // Initialize Firebase Admin (singleton pattern)
-if (!admin.apps.length) {
+if (!admin.apps?.length) {
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (serviceAccount) {
     try {
@@ -46,7 +46,7 @@ async function verifyAuth(req: VercelRequest): Promise<{ valid: boolean; email?:
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
     try {
-      if (!admin.apps.length) return { valid: false, isInternal: false };
+      if (!admin.apps?.length) return { valid: false, isInternal: false };
       const decoded = await admin.auth().verifyIdToken(token);
       return { valid: true, email: decoded.email, isInternal: false };
     } catch (e) {
