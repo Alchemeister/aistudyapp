@@ -666,7 +666,11 @@ function App() {
   const addCourse = (course: Course) => setCourses([...courses, course]);
   
   const updateCourse = (updated: Course) => setCourses(courses.map(c => c.id === updated.id ? updated : c));
-  
+
+  const renameCourse = (id: string, newTitle: string) => {
+    setCourses(courses.map(c => c.id === id ? { ...c, title: newTitle } : c));
+  };
+
   const deleteCourse = async (id: string) => {
     const course = courses.find(c => c.id === id);
     if (course) {
@@ -772,7 +776,7 @@ function App() {
              <TopBar user={user} onLogout={handleLogout} creditsInfo={mobileCreditsInfo || undefined} onOpenPricing={() => setShowMobilePricingModal(true)} />
              <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900">
                 <Routes>
-                  <Route path="/" element={<Dashboard courses={courses} onDeleteCourse={deleteCourse} onAddCourse={addCourse} user={user} />} />
+                  <Route path="/" element={<Dashboard courses={courses} onDeleteCourse={deleteCourse} onAddCourse={addCourse} onRenameCourse={renameCourse} user={user} />} />
                   <Route path="/review" element={<ReviewController courses={courses} onUpdateCard={handleFlashcardUpdate} user={user} />} />
                   <Route path="/settings" element={<SettingsPanel user={user} onLogout={handleLogout} />} />
                   <Route path="/friends" element={<FriendsPanel user={user} />} />
@@ -1198,8 +1202,9 @@ const Sidebar = ({ courses, onAddCourse, onDeleteCourse, user, onLogout, dueCoun
 };
 
 // --- Dashboard ---
-const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Course[], onDeleteCourse: (id: string) => void, onAddCourse: (course: Course) => void, user?: any }) => {
+const Dashboard = ({ courses, onDeleteCourse, onAddCourse, onRenameCourse, user }: { courses: Course[], onDeleteCourse: (id: string) => void, onAddCourse: (course: Course) => void, onRenameCourse: (id: string, newTitle: string) => void, user?: any }) => {
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+  const [courseToRename, setCourseToRename] = useState<Course | null>(null);
   const [semesterFilter, setSemesterFilter] = useState("All Semesters");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCourse, setNewCourse] = useState({ title: '', code: '', subtitle: '', description: '', semester: 'Fall 2024' });
@@ -1370,7 +1375,10 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
                 <div className="flex-1 flex flex-col min-w-0">
                   <div className="flex justify-between items-start mb-2 pointer-events-auto">
                     <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold px-2 py-1 rounded border border-slate-200 dark:border-slate-600">{course.code}</span>
-                    <button onClick={(e) => {e.preventDefault(); e.stopPropagation(); setCourseToDelete(course)}} className="text-slate-300 hover:text-red-500 p-2 -mr-2 -mt-2 z-10 relative"><Trash2 className="w-4 h-4" /></button>
+                    <div className="flex items-center gap-1 -mr-2 -mt-2">
+                      <button onClick={(e) => {e.preventDefault(); e.stopPropagation(); setCourseToRename(course)}} className="text-slate-300 hover:text-primary p-2 z-10 relative" title="Rename"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={(e) => {e.preventDefault(); e.stopPropagation(); setCourseToDelete(course)}} className="text-slate-300 hover:text-red-500 p-2 z-10 relative" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                    </div>
                   </div>
                   <h4 className="text-lg font-bold text-slate-900 dark:text-white mb-1 line-clamp-2">{course.title}</h4>
                   <div className="flex items-center gap-2 mb-2">
@@ -1383,14 +1391,13 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
                   </div>
                 </div>
              </div>
-             <div className="bg-slate-50 dark:bg-slate-700/50 p-2 sm:p-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-700 rounded-b-xl">
+             <div className="bg-slate-50 dark:bg-slate-700/50 p-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-700 rounded-b-xl">
                <button
                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate('/groups'); }}
-                 className="pointer-events-auto flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                 className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary bg-white dark:bg-slate-600 hover:bg-slate-100 dark:hover:bg-slate-500 rounded-lg transition-colors shadow-sm border border-slate-200 dark:border-slate-500"
                >
-                 <Users className="w-3.5 h-3.5" />
-                 <span className="hidden sm:inline">Study Group</span>
-                 <span className="sm:hidden">Group</span>
+                 <Users className="w-4 h-4" />
+                 <span>Study Group</span>
                </button>
                <span className="text-sm font-bold text-primary pointer-events-none flex items-center">
                  Enter Course <ArrowRight className="w-3 h-3 ml-1" />
@@ -1450,6 +1457,12 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
         onConfirm={() => { if(courseToDelete) onDeleteCourse(courseToDelete.id); setCourseToDelete(null); }}
       />
 
+      <CourseRenameModal
+        course={courseToRename}
+        onClose={() => setCourseToRename(null)}
+        onRename={(newTitle) => { if(courseToRename) { onRenameCourse(courseToRename.id, newTitle); setCourseToRename(null); } }}
+      />
+
       {/* Add Course Modal */}
       <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Create New Course">
         <div className="space-y-4">
@@ -1497,7 +1510,7 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, user }: { courses: Co
 
 const CourseDeleteModal = ({ course, onClose, onConfirm }: { course: Course | null, onClose: () => void, onConfirm: () => void }) => {
   const [confirmName, setConfirmName] = useState("");
-  
+
   if (!course) return null;
 
   const isMatch = confirmName === course.title;
@@ -1514,12 +1527,12 @@ const CourseDeleteModal = ({ course, onClose, onConfirm }: { course: Course | nu
               </p>
             </div>
          </div>
-         
+
          <p className="text-sm text-slate-600 mb-4">
            To confirm deletion, please type <span className="font-bold select-all">"{course.title}"</span> below:
          </p>
-         
-         <input 
+
+         <input
            className="w-full p-2 border border-slate-300 rounded mb-6 focus:ring-red-500 focus:border-red-500 outline-none font-bold"
            placeholder={course.title}
            value={confirmName}
@@ -1529,12 +1542,54 @@ const CourseDeleteModal = ({ course, onClose, onConfirm }: { course: Course | nu
 
          <div className="flex justify-end gap-3">
            <button onClick={onClose} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg transition-colors">Cancel</button>
-           <button 
-             onClick={onConfirm} 
+           <button
+             onClick={onConfirm}
              disabled={!isMatch}
              className="px-6 py-2 bg-red-500 text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-600 shadow-md transition-colors"
            >
              Delete Course
+           </button>
+         </div>
+       </div>
+    </Modal>
+  );
+};
+
+const CourseRenameModal = ({ course, onClose, onRename }: { course: Course | null, onClose: () => void, onRename: (newTitle: string) => void }) => {
+  const [newTitle, setNewTitle] = useState(course?.title || "");
+
+  useEffect(() => {
+    if (course) setNewTitle(course.title);
+  }, [course]);
+
+  if (!course) return null;
+
+  const isValid = newTitle.trim().length > 0 && newTitle !== course.title;
+
+  return (
+    <Modal isOpen={!!course} onClose={onClose} title="Rename Course" maxWidth="max-w-md">
+       <div className="p-4">
+         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+           Enter a new name for <span className="font-bold">"{course.title}"</span>:
+         </p>
+
+         <input
+           className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg mb-6 focus:ring-primary focus:border-primary outline-none font-bold bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+           placeholder="New course name"
+           value={newTitle}
+           onChange={(e) => setNewTitle(e.target.value)}
+           autoFocus
+           onKeyDown={(e) => { if (e.key === 'Enter' && isValid) onRename(newTitle.trim()); }}
+         />
+
+         <div className="flex justify-end gap-3">
+           <button onClick={onClose} className="px-4 py-2 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancel</button>
+           <button
+             onClick={() => onRename(newTitle.trim())}
+             disabled={!isValid}
+             className="px-6 py-2 bg-primary text-white font-bold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 shadow-md transition-colors"
+           >
+             Rename
            </button>
          </div>
        </div>
