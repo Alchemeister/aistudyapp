@@ -1,11 +1,12 @@
 import React, { useState, useEffect, type FC } from 'react';
 import {
-  User, Loader2, Crown, Coins, Palette, Moon, Sun, CloudDownload, Download, Database, Gift
+  User, Loader2, Crown, Coins, Palette, Moon, Sun, CloudDownload, Download, Database, Gift, MessageSquare, Send
 } from 'lucide-react';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { clearDatabase, loadCourses } from '../services/storage';
 import { getCreditsInfo } from '../services/subscriptionService';
+import { submitFeedback, FeedbackType } from '../services/feedbackService';
 import { PricingModal } from './PricingModal';
 import { STRIPE_CONFIG } from '../services/stripeConfig';
 import { ReferralPanel } from './ReferralPanel';
@@ -38,6 +39,11 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
     expiresAt?: string;
   } | null>(null);
   const [hasReferralDiscount, setHasReferralDiscount] = useState(false);
+
+  // Feedback state
+  const [feedbackType, setFeedbackType] = useState<FeedbackType>('suggestion');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
 
   // Check URL for payment status
   useEffect(() => {
@@ -156,6 +162,31 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
     } finally {
       setExporting(false);
     }
+  };
+
+  const handleSubmitFeedback = async () => {
+    if (!feedbackMessage.trim()) {
+      setMessage({ type: 'error', text: 'Please enter a message' });
+      return;
+    }
+
+    setFeedbackSubmitting(true);
+    setMessage(null);
+
+    const result = await submitFeedback(user.uid, user.email, {
+      type: feedbackType,
+      message: feedbackMessage,
+    });
+
+    if (result.success) {
+      setMessage({ type: 'success', text: 'Thanks for your feedback!' });
+      setFeedbackMessage('');
+      setFeedbackType('suggestion');
+    } else {
+      setMessage({ type: 'error', text: result.error || 'Failed to submit feedback' });
+    }
+
+    setFeedbackSubmitting(false);
   };
 
   return (
@@ -291,6 +322,57 @@ export const SettingsPanel: FC<Props> = ({ user, onLogout }) => {
           </div>
           <div className="p-4 md:p-6">
               <ReferralPanel user={user} />
+          </div>
+      </section>
+
+      {/* Feedback & Suggestions */}
+      <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+             <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center"><MessageSquare className="w-4 h-4 mr-2 text-blue-500" />Feedback & Suggestions</h3>
+          </div>
+          <div className="p-4 md:p-6 space-y-4">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Found a bug? Have an idea? Let us know and we'll make it happen.
+              </p>
+
+              {/* Feedback Type */}
+              <div className="flex flex-wrap gap-2">
+                  {(['suggestion', 'bug', 'question', 'other'] as FeedbackType[]).map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setFeedbackType(type)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
+                        feedbackType === type
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
+                      }`}
+                    >
+                      {type.charAt(0).toUpperCase() + type.slice(1)}
+                    </button>
+                  ))}
+              </div>
+
+              {/* Message */}
+              <textarea
+                value={feedbackMessage}
+                onChange={(e) => setFeedbackMessage(e.target.value)}
+                placeholder="Tell us what's on your mind..."
+                rows={4}
+                className="w-full p-3 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-primary focus:border-primary outline-none bg-white dark:bg-slate-700 dark:text-slate-100 resize-none"
+              />
+
+              {/* Submit */}
+              <button
+                onClick={handleSubmitFeedback}
+                disabled={feedbackSubmitting || !feedbackMessage.trim()}
+                className="w-full py-3 bg-primary text-white font-bold rounded-lg hover:bg-blue-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {feedbackSubmitting ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
+                ) : (
+                  <><Send className="w-4 h-4" /> Send Feedback</>
+                )}
+              </button>
           </div>
       </section>
 

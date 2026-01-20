@@ -1,11 +1,44 @@
 
 import { db, isConfigured, doc, setDoc, getDoc, collection, getDocs, deleteDoc, writeBatch } from './firebase';
 import { Course } from '../types';
+import { getUserSubscription } from './subscriptionService';
 
 // Cloud sync service for Firestore
 // Blobs (PDFs, audio) stay in IndexedDB - only metadata syncs to cloud
+// NOTE: Cloud sync is a Pro feature - free users only have local storage
 
 const COURSES_COLLECTION = 'courses';
+
+// Cache for Pro status to avoid repeated Firestore reads
+let cachedProStatus: { userId: string; isPro: boolean; timestamp: number } | null = null;
+const PRO_CACHE_TTL = 60000; // 1 minute cache
+
+// Check if user has Pro status (cached)
+const checkProStatus = async (userId: string): Promise<boolean> => {
+  const now = Date.now();
+
+  // Use cached value if still valid
+  if (cachedProStatus &&
+      cachedProStatus.userId === userId &&
+      (now - cachedProStatus.timestamp) < PRO_CACHE_TTL) {
+    return cachedProStatus.isPro;
+  }
+
+  try {
+    const sub = await getUserSubscription(userId);
+    const isPro = sub.status === 'pro';
+    cachedProStatus = { userId, isPro, timestamp: now };
+    return isPro;
+  } catch (error) {
+    console.error('Failed to check Pro status:', error);
+    return false;
+  }
+};
+
+// Clear Pro status cache (call when subscription changes)
+export const clearProStatusCache = (): void => {
+  cachedProStatus = null;
+};
 
 // Helper to remove undefined values (Firestore doesn't accept them)
 const removeUndefined = (obj: any): any => {
@@ -91,10 +124,17 @@ export const saveAllCloudCourses = async (userId: string, courses: Course[]): Pr
   }
 };
 
-// Load all courses from Firestore
+// Load all courses from Firestore (Pro only)
 export const loadCloudCourses = async (userId: string): Promise<Course[]> => {
   if (!isConfigured || !db) {
     console.log('Cloud load skipped: Firebase not configured');
+    return [];
+  }
+
+  // Check Pro status before loading
+  const isPro = await checkProStatus(userId);
+  if (!isPro) {
+    console.log('Cloud load skipped: Pro subscription required');
     return [];
   }
 
@@ -118,10 +158,17 @@ export const loadCloudCourses = async (userId: string): Promise<Course[]> => {
   }
 };
 
-// Delete a course from Firestore
+// Delete a course from Firestore (Pro only)
 export const deleteCloudCourse = async (userId: string, courseId: string): Promise<void> => {
   if (!isConfigured || !db) {
     console.log('Cloud delete skipped: Firebase not configured');
+    return;
+  }
+
+  // Check Pro status before deleting
+  const isPro = await checkProStatus(userId);
+  if (!isPro) {
+    console.log('Cloud delete skipped: Pro subscription required');
     return;
   }
 
@@ -211,6 +258,14 @@ export const debouncedCloudSync = (userId: string, courses: Course[], delay: num
   // Show syncing status after a short delay (avoid flicker for quick saves)
   syncTimeout = setTimeout(async () => {
     if (pendingCourses) {
+      // Check Pro status before syncing
+      const isPro = await checkProStatus(userId);
+      if (!isPro) {
+        console.log('Cloud sync skipped: Pro subscription required');
+        pendingCourses = null;
+        return;
+      }
+
       notifyStatus('syncing');
       try {
         await saveAllCloudCourses(userId, pendingCourses);
@@ -232,6 +287,13 @@ export const immediateCloudSync = async (userId: string, courses: Course[]): Pro
     syncTimeout = null;
   }
   pendingCourses = null;
+
+  // Check Pro status before syncing
+  const isPro = await checkProStatus(userId);
+  if (!isPro) {
+    console.log('Cloud sync skipped: Pro subscription required');
+    return;
+  }
 
   notifyStatus('syncing');
   try {

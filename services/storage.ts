@@ -1,7 +1,7 @@
 
 import { get, set, del, clear } from 'idb-keyval';
 import { Course, ContentType, Difficulty } from '../types';
-import { uploadPdfToCloud, deleteCloudPdf } from './pdfCloudStorage';
+import { uploadPdfToCloud, deleteCloudPdf, downloadCloudPdf } from './pdfCloudStorage';
 
 const COURSES_KEY = 'studystack_courses_v3';
 const BLOB_PREFIX = 'pdf_blob_';
@@ -86,16 +86,39 @@ export const loadCourses = async (): Promise<Course[]> => {
 
   // Rehydrate Blob URLs (PDF and Audio)
   const hydrated = await Promise.all(courses.map(async (c) => {
-    // 1. Rehydrate PDF - local only (cloud download disabled due to CORS)
-    // PDFs are still uploaded to cloud for backup, but must be re-uploaded on new devices
+    // 1. Rehydrate PDF - try local first, then cloud for Pro users
+    let pdfLoaded = false;
+
+    // Try local blob first (fastest)
     if (c.pdfBlobId) {
       const blob = await get<Blob>(c.pdfBlobId);
       if (blob) {
         c.pdfUrl = URL.createObjectURL(blob);
-      } else {
-        // Local blob missing - PDF needs to be re-uploaded on this device
-        console.log(`[loadCourses] PDF not available locally for: ${c.title} (re-upload required)`);
+        pdfLoaded = true;
       }
+    }
+
+    // If local missing but cloud path exists, try downloading from cloud (Pro users)
+    if (!pdfLoaded && c.cloudPdfPath) {
+      try {
+        console.log(`[loadCourses] Downloading PDF from cloud for: ${c.title}`);
+        const cloudBlob = await downloadCloudPdf(c.cloudPdfPath);
+        if (cloudBlob) {
+          // Save to local for faster access next time
+          const blobId = `pdf_blob_${c.id}_${Date.now()}`;
+          await set(blobId, cloudBlob);
+          c.pdfBlobId = blobId;
+          c.pdfUrl = URL.createObjectURL(cloudBlob);
+          pdfLoaded = true;
+          console.log(`[loadCourses] Cloud PDF downloaded and cached locally: ${c.title}`);
+        }
+      } catch (e) {
+        console.error(`[loadCourses] Failed to download cloud PDF for: ${c.title}`, e);
+      }
+    }
+
+    if (!pdfLoaded && (c.pdfBlobId || c.cloudPdfPath)) {
+      console.log(`[loadCourses] PDF not available for: ${c.title} (re-upload required)`);
     }
 
     // 2. Rehydrate Lectures

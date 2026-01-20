@@ -124,7 +124,7 @@ async function getSubscriptionStatus(userId: string): Promise<{
   }
 }
 
-// Deduct a credit after successful generation
+// Deduct a credit before generation (prevents race condition abuse)
 async function deductCredit(userId: string): Promise<void> {
   const adminSdk = await initFirebaseAdmin();
   if (!adminSdk?.apps?.length) return;
@@ -137,6 +137,22 @@ async function deductCredit(userId: string): Promise<void> {
     });
   } catch (e) {
     console.error('Failed to deduct credit');
+  }
+}
+
+// Refund a credit if generation fails
+async function refundCredit(userId: string): Promise<void> {
+  const adminSdk = await initFirebaseAdmin();
+  if (!adminSdk?.apps?.length) return;
+
+  try {
+    const db = adminSdk.firestore();
+    const docRef = db.doc(`users/${userId}/subscription/current`);
+    await docRef.update({
+      monthlyCreditsUsed: adminSdk.firestore.FieldValue.increment(-1),
+    });
+  } catch (e) {
+    console.error('Failed to refund credit');
   }
 }
 
@@ -213,29 +229,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    // SECURITY: Deduct credit BEFORE calling AI to prevent race condition abuse
+    // If user spams requests, each one deducts first, preventing free generations
+    await deductCredit(authUser.uid);
+
     // Call Gemini API (server-side, key hidden)
-    const geminiResponse = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 8192,
-        },
-      }),
-    });
+    let geminiResponse;
+    try {
+      geminiResponse = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 8192,
+          },
+        }),
+      });
+    } catch (fetchError) {
+      // Refund credit if API call failed entirely
+      await refundCredit(authUser.uid);
+      console.error('Gemini API fetch error:', fetchError);
+      return res.status(500).json({ error: 'AI generation failed' });
+    }
 
     if (!geminiResponse.ok) {
+      // Refund credit if API returned error
+      await refundCredit(authUser.uid);
       console.error('Gemini API error:', geminiResponse.status);
       return res.status(500).json({ error: 'AI generation failed' });
     }
 
     const result = await geminiResponse.json();
-
-    // Deduct credit after successful generation
-    await deductCredit(authUser.uid);
 
     // Extract text from response
     const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
