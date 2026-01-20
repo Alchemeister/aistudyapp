@@ -16,7 +16,6 @@ import { LecturePlayer } from './LecturePlayer';
 import { ShareCourseModal } from './ShareCourseModal';
 import { savePdfBlob, saveMediaBlob } from '../services/storage';
 import { uploadPdfToCloud } from '../services/pdfCloudStorage';
-import { loadPdfDocument, generatePdfThumbnail } from '../services/pdfUtils';
 import { ToastContext } from '../App';
 import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
@@ -116,16 +115,6 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
             console.error('[CourseView] Cloud upload failed:', err);
           });
 
-        // Step 3: Generate thumbnail in background
-        if (newCourse.pdfUrl) {
-          try {
-            const pdf = await loadPdfDocument(newCourse.pdfUrl);
-            const thumbnail = await generatePdfThumbnail(pdf, 200);
-            onUpdate({ ...updatedCourse, pdfThumbnail: thumbnail });
-          } catch (e) {
-            // Thumbnail generation failed, not critical
-          }
-        }
       } catch (e) {
         console.error('Failed to save PDF:', e);
         showToast?.('Failed to save PDF', 'error');
