@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection, PracticeProblem, Mnemonic } from './types';
-import { saveCourses, loadCourses, getPdfBlob, deleteCourseData, seedInitialData, rehydrateCloudPdfs } from './services/storage';
+import { saveCourses, loadCourses, getPdfBlob, deleteCourseData, seedInitialData, rehydrateCloudPdfs, clearDatabase } from './services/storage';
 import { loadCloudCourses, debouncedCloudSync, immediateCloudSync, mergeCourses, deleteCloudCourse, isCloudSyncAvailable, setSyncStatusCallback, SyncStatus } from './services/cloudSync';
 import { CloudSyncIndicator } from './components/CloudSyncIndicator';
 import { generateContent, fixFlashcardContent, getRemainingGenerations, getGenerationLimit, getGenerationUsage } from './services/geminiService';
@@ -645,6 +645,8 @@ function App() {
 
   const handleLogout = async () => {
      try {
+       // Clear local data to prevent data leaking between accounts
+       await clearDatabase();
        await firebaseSignOut();
        window.location.reload();
      } catch (e) {
