@@ -147,33 +147,45 @@ export const loadCourses = async (): Promise<Course[]> => {
  * Call this AFTER merging cloud data on a new device
  */
 export const rehydrateCloudPdfs = async (courses: Course[]): Promise<Course[]> => {
+  console.log(`[rehydrateCloudPdfs] Starting for ${courses.length} courses`);
+
   const updated = await Promise.all(courses.map(async (c) => {
     // Skip if already has local PDF URL
-    if (c.pdfUrl) return c;
+    if (c.pdfUrl) {
+      console.log(`[rehydrateCloudPdfs] ${c.title}: Already has local PDF, skipping`);
+      return c;
+    }
 
     // Skip if no cloud path
-    if (!c.cloudPdfPath) return c;
+    if (!c.cloudPdfPath) {
+      console.log(`[rehydrateCloudPdfs] ${c.title}: No cloudPdfPath, skipping`);
+      return c;
+    }
 
     try {
-      console.log(`[rehydrateCloudPdfs] Downloading PDF from cloud for: ${c.title}`);
+      console.log(`[rehydrateCloudPdfs] ${c.title}: Downloading from ${c.cloudPdfPath}`);
       const cloudBlob = await downloadCloudPdf(c.cloudPdfPath);
       if (cloudBlob) {
         // Save to local for faster access next time
         const blobId = `pdf_blob_${c.id}_${Date.now()}`;
         await set(blobId, cloudBlob);
+        console.log(`[rehydrateCloudPdfs] ${c.title}: Downloaded ${cloudBlob.size} bytes, saved as ${blobId}`);
         return {
           ...c,
           pdfBlobId: blobId,
           pdfUrl: URL.createObjectURL(cloudBlob),
         };
+      } else {
+        console.log(`[rehydrateCloudPdfs] ${c.title}: Download returned null`);
       }
     } catch (e) {
-      console.error(`[rehydrateCloudPdfs] Failed to download cloud PDF for: ${c.title}`, e);
+      console.error(`[rehydrateCloudPdfs] ${c.title}: Download failed`, e);
     }
 
     return c;
   }));
 
+  console.log(`[rehydrateCloudPdfs] Complete`);
   return updated;
 };
 
