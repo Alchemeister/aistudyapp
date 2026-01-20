@@ -142,6 +142,41 @@ export const loadCourses = async (): Promise<Course[]> => {
   return hydrated;
 };
 
+/**
+ * Rehydrate cloud PDFs for courses that have cloudPdfPath but no local blob
+ * Call this AFTER merging cloud data on a new device
+ */
+export const rehydrateCloudPdfs = async (courses: Course[]): Promise<Course[]> => {
+  const updated = await Promise.all(courses.map(async (c) => {
+    // Skip if already has local PDF URL
+    if (c.pdfUrl) return c;
+
+    // Skip if no cloud path
+    if (!c.cloudPdfPath) return c;
+
+    try {
+      console.log(`[rehydrateCloudPdfs] Downloading PDF from cloud for: ${c.title}`);
+      const cloudBlob = await downloadCloudPdf(c.cloudPdfPath);
+      if (cloudBlob) {
+        // Save to local for faster access next time
+        const blobId = `pdf_blob_${c.id}_${Date.now()}`;
+        await set(blobId, cloudBlob);
+        return {
+          ...c,
+          pdfBlobId: blobId,
+          pdfUrl: URL.createObjectURL(cloudBlob),
+        };
+      }
+    } catch (e) {
+      console.error(`[rehydrateCloudPdfs] Failed to download cloud PDF for: ${c.title}`, e);
+    }
+
+    return c;
+  }));
+
+  return updated;
+};
+
 export const savePdfBlob = async (courseId: string, file: File | Blob): Promise<string> => {
   const blobId = `${BLOB_PREFIX}${courseId}_${Date.now()}`;
   await set(blobId, file);

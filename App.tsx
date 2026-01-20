@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection, PracticeProblem, Mnemonic } from './types';
-import { saveCourses, loadCourses, getPdfBlob, deleteCourseData, seedInitialData } from './services/storage';
+import { saveCourses, loadCourses, getPdfBlob, deleteCourseData, seedInitialData, rehydrateCloudPdfs } from './services/storage';
 import { loadCloudCourses, debouncedCloudSync, immediateCloudSync, mergeCourses, deleteCloudCourse, isCloudSyncAvailable, setSyncStatusCallback, SyncStatus } from './services/cloudSync';
 import { CloudSyncIndicator } from './components/CloudSyncIndicator';
 import { generateContent, fixFlashcardContent, getRemainingGenerations, getGenerationLimit, getGenerationUsage } from './services/geminiService';
@@ -527,10 +527,15 @@ function App() {
         try {
           console.log('☁️ Fetching cloud data...');
           const cloudData = await loadCloudCourses(user.uid);
-          const merged = mergeCourses(localData, cloudData);
+          let merged = mergeCourses(localData, cloudData);
+
+          // Download PDFs from cloud for courses that have cloudPdfPath but no local blob
+          // This happens on new devices where cloud data exists but local doesn't
+          merged = await rehydrateCloudPdfs(merged);
+
           setCourses(merged);
 
-          // Save merged data back to local
+          // Save merged data back to local (includes new blobIds from cloud downloads)
           await saveCourses(merged);
           console.log('☁️ Cloud sync complete');
         } catch (error) {
