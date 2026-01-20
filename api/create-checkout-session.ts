@@ -9,11 +9,15 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 // Initialize Firebase Admin (singleton pattern)
 if (!admin.apps?.length) {
   const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  console.log('Firebase Admin init: serviceAccount exists:', !!serviceAccount);
   if (serviceAccount) {
     try {
+      const parsed = JSON.parse(serviceAccount);
+      console.log('Firebase Admin init: parsed project_id:', parsed.project_id);
       admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(serviceAccount)),
+        credential: admin.credential.cert(parsed),
       });
+      console.log('Firebase Admin init: SUCCESS, apps count:', admin.apps?.length);
     } catch (e) {
       console.error('Firebase Admin init failed:', e);
     }
@@ -42,12 +46,22 @@ const ALLOWED_REDIRECT_ORIGINS = [
 
 // Verify Firebase ID token and return user info
 async function verifyAuthToken(authHeader: string | undefined): Promise<{ uid: string; email: string } | null> {
-  if (!authHeader?.startsWith('Bearer ')) return null;
+  console.log('verifyAuthToken: authHeader present:', !!authHeader);
+  if (!authHeader?.startsWith('Bearer ')) {
+    console.log('verifyAuthToken: no Bearer token');
+    return null;
+  }
   const token = authHeader.slice(7);
+  console.log('verifyAuthToken: token length:', token.length);
 
   try {
-    if (!admin.apps?.length) return null;
+    console.log('verifyAuthToken: admin.apps?.length:', admin.apps?.length);
+    if (!admin.apps?.length) {
+      console.log('verifyAuthToken: Firebase Admin not initialized');
+      return null;
+    }
     const decoded = await admin.auth().verifyIdToken(token);
+    console.log('verifyAuthToken: SUCCESS, uid:', decoded.uid);
     return { uid: decoded.uid, email: decoded.email || '' };
   } catch (e) {
     console.error('Token verification failed:', e);
