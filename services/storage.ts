@@ -2,6 +2,7 @@
 import { get, set, del, clear } from 'idb-keyval';
 import { Course, ContentType, Difficulty } from '../types';
 import { uploadPdfToCloud, deleteCloudPdf, downloadCloudPdf } from './pdfCloudStorage';
+import { loadPdfDocument, generatePdfThumbnail } from './pdfUtils';
 
 const COURSES_KEY = 'studystack_courses_v3';
 const BLOB_PREFIX = 'pdf_blob_';
@@ -169,11 +170,24 @@ export const rehydrateCloudPdfs = async (courses: Course[]): Promise<Course[]> =
         // Save to local for faster access next time
         const blobId = `pdf_blob_${c.id}_${Date.now()}`;
         await set(blobId, cloudBlob);
+        const pdfUrl = URL.createObjectURL(cloudBlob);
         console.log(`[rehydrateCloudPdfs] ${c.title}: Downloaded ${cloudBlob.size} bytes, saved as ${blobId}`);
+
+        // Generate thumbnail from downloaded PDF
+        let pdfThumbnail: string | undefined;
+        try {
+          const pdf = await loadPdfDocument(pdfUrl);
+          pdfThumbnail = await generatePdfThumbnail(pdf, 200);
+          console.log(`[rehydrateCloudPdfs] ${c.title}: Generated thumbnail`);
+        } catch (thumbErr) {
+          console.warn(`[rehydrateCloudPdfs] ${c.title}: Thumbnail generation failed`, thumbErr);
+        }
+
         return {
           ...c,
           pdfBlobId: blobId,
-          pdfUrl: URL.createObjectURL(cloudBlob),
+          pdfUrl,
+          pdfThumbnail,
         };
       } else {
         console.log(`[rehydrateCloudPdfs] ${c.title}: Download returned null`);
