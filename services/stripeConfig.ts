@@ -2,18 +2,18 @@
 // Price IDs from Stripe Dashboard
 
 export const STRIPE_CONFIG = {
-  // Subscription Plans
+  // Subscription Plans (LIVE MODE)
   prices: {
-    proMonthly: 'price_1Sn7frBqCnLJvgINioGtjNlu',
-    proSemester: 'price_1Sn7h8BqCnLJvgINum0uluPA',
-    proAnnual: 'price_1Sn7o4BqCnLJvgINSjWw3ly8',
+    proMonthly: 'price_1SrkmEBnbCkzZ0frTMK3OCGW',
+    proSemester: 'price_1SrkltBnbCkzZ0friqAZhVYD',
+    proAnnual: 'price_1SrklwBnbCkzZ0frGGrAUgdC',
   },
 
-  // Credit Packs (one-time purchases)
+  // Credit Packs (one-time purchases) (LIVE MODE)
   credits: {
-    pack25: { priceId: 'price_1Sn7pJBqCnLJvgINEwYx5kLI', credits: 25 },
-    pack50: { priceId: 'price_1Sn7qWBqCnLJvgINLtBkKpkA', credits: 50 },
-    pack100: { priceId: 'price_1Sn7rsBqCnLJvgINalcNIC0v', credits: 100 },
+    pack25: { priceId: 'price_1SrklzBnbCkzZ0freRRZNYlF', credits: 25 },
+    pack50: { priceId: 'price_1Srkm1BnbCkzZ0frhJ8jcoVN', credits: 50 },
+    pack100: { priceId: 'price_1Srkm4BnbCkzZ0frzOYkZXRC', credits: 100 },
   },
 
   // Plan details for display

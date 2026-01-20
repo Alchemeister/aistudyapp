@@ -23,16 +23,16 @@ if (!getApps().length) {
   }
 }
 
-// Map price IDs to their metadata
+// Map price IDs to their metadata (LIVE MODE)
 const PRICE_METADATA: Record<string, { type: 'subscription' | 'credits'; credits?: number; plan?: string; duration?: number }> = {
-  // Subscriptions
-  'price_1Sn7frBqCnLJvgINioGtjNlu': { type: 'subscription', plan: 'monthly' },
-  'price_1Sn7h8BqCnLJvgINum0uluPA': { type: 'subscription', plan: 'semester', duration: 120 }, // 4 months in days
-  'price_1Sn7o4BqCnLJvgINSjWw3ly8': { type: 'subscription', plan: 'annual', duration: 365 },
-  // Credit packs
-  'price_1Sn7pJBqCnLJvgINEwYx5kLI': { type: 'credits', credits: 25 },
-  'price_1Sn7qWBqCnLJvgINLtBkKpkA': { type: 'credits', credits: 50 },
-  'price_1Sn7rsBqCnLJvgINalcNIC0v': { type: 'credits', credits: 100 },
+  // Subscriptions (LIVE)
+  'price_1SrkmEBnbCkzZ0frTMK3OCGW': { type: 'subscription', plan: 'monthly' },
+  'price_1SrkltBnbCkzZ0friqAZhVYD': { type: 'subscription', plan: 'semester', duration: 120 }, // 4 months in days
+  'price_1SrklwBnbCkzZ0frGGrAUgdC': { type: 'subscription', plan: 'annual', duration: 365 },
+  // Credit packs (LIVE)
+  'price_1SrklzBnbCkzZ0freRRZNYlF': { type: 'credits', credits: 25 },
+  'price_1Srkm1BnbCkzZ0frhJ8jcoVN': { type: 'credits', credits: 50 },
+  'price_1Srkm4BnbCkzZ0frzOYkZXRC': { type: 'credits', credits: 100 },
 };
 
 // Allowed redirect URL patterns (prevent open redirect)
