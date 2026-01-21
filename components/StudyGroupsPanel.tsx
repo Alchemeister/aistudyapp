@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useContext, type FC } from 'react';
 import {
   Users, Plus, Copy, Check, Trophy, Crown, Medal, Award, ChevronRight,
-  LogOut, Loader2, User, School, BookOpen, GraduationCap, Hash
+  LogOut, Loader2, User, School, BookOpen, GraduationCap, Hash,
+  Share2, Heart, Download, Trash2, FileText, Brain, HelpCircle, Lightbulb
 } from 'lucide-react';
-import { StudyGroup, LeaderboardEntry, UserProfile } from '../types';
+import { StudyGroup, LeaderboardEntry, UserProfile, SharedContent, ContentType } from '../types';
 import {
-  createGroup, joinGroup, leaveGroup, getMyGroups, getGroupLeaderboard, isStudyGroupsAvailable
+  createGroup, joinGroup, leaveGroup, getMyGroups, getGroupLeaderboard, isStudyGroupsAvailable,
+  getGroupSharedContent, toggleLikeContent, deleteSharedContent
 } from '../services/studyGroupsService';
 import { getUserProfile } from '../services/friendsService';
 import { Modal } from './Modal';
@@ -24,6 +26,7 @@ export const StudyGroupsPanel: FC<Props> = ({ userId }) => {
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<StudyGroup | null>(null);
 
   // Form states
@@ -41,6 +44,11 @@ export const StudyGroupsPanel: FC<Props> = ({ userId }) => {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  // Tabs & Shared Content
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'shared'>('leaderboard');
+  const [sharedContent, setSharedContent] = useState<SharedContent[]>([]);
+  const [sharedContentLoading, setSharedContentLoading] = useState(false);
 
   // Load user's groups
   useEffect(() => {
@@ -67,13 +75,27 @@ export const StudyGroupsPanel: FC<Props> = ({ userId }) => {
     loadData();
   }, [userId]);
 
-  // Load leaderboard when group selected
+  // Load leaderboard or shared content when group selected or tab changes
   useEffect(() => {
     if (selectedGroup) {
-      setLeaderboardLoading(true);
-      getGroupLeaderboard(selectedGroup.id)
-        .then(setLeaderboard)
-        .finally(() => setLeaderboardLoading(false));
+      if (activeTab === 'leaderboard') {
+        setLeaderboardLoading(true);
+        getGroupLeaderboard(selectedGroup.id)
+          .then(setLeaderboard)
+          .finally(() => setLeaderboardLoading(false));
+      } else {
+        setSharedContentLoading(true);
+        getGroupSharedContent(selectedGroup.id)
+          .then(setSharedContent)
+          .finally(() => setSharedContentLoading(false));
+      }
+    }
+  }, [selectedGroup, activeTab]);
+
+  // Reset tab when leaving group view
+  useEffect(() => {
+    if (!selectedGroup) {
+      setActiveTab('leaderboard');
     }
   }, [selectedGroup]);
 
@@ -132,15 +154,16 @@ export const StudyGroupsPanel: FC<Props> = ({ userId }) => {
     }
   };
 
-  const handleLeaveGroup = async (groupId: string) => {
-    if (!confirm('Are you sure you want to leave this group?')) return;
+  const handleLeaveGroup = async () => {
+    if (!selectedGroup) return;
 
     setProcessing(true);
     try {
-      const success = await leaveGroup(userId, groupId);
+      const success = await leaveGroup(userId, selectedGroup.id);
       if (success) {
-        setGroups(prev => prev.filter(g => g.id !== groupId));
+        setGroups(prev => prev.filter(g => g.id !== selectedGroup.id));
         setSelectedGroup(null);
+        setShowLeaveModal(false);
         showToast('Left group');
       } else {
         showToast('Failed to leave group', 'error');
@@ -162,6 +185,74 @@ export const StudyGroupsPanel: FC<Props> = ({ userId }) => {
     if (rank === 2) return <Medal className="w-5 h-5 text-slate-400" />;
     if (rank === 3) return <Award className="w-5 h-5 text-amber-700" />;
     return <span className="w-5 h-5 text-center text-slate-500 font-bold text-sm">{rank}</span>;
+  };
+
+  const getContentTypeIcon = (type: ContentType) => {
+    switch (type) {
+      case ContentType.FLASHCARDS: return <Brain className="w-4 h-4" />;
+      case ContentType.QUIZ: return <HelpCircle className="w-4 h-4" />;
+      case ContentType.NOTES: return <FileText className="w-4 h-4" />;
+      case ContentType.MOCK_TEST: return <FileText className="w-4 h-4" />;
+      default: return <Lightbulb className="w-4 h-4" />;
+    }
+  };
+
+  const getContentTypeLabel = (type: ContentType) => {
+    switch (type) {
+      case ContentType.FLASHCARDS: return 'Flashcards';
+      case ContentType.QUIZ: return 'Quiz';
+      case ContentType.NOTES: return 'Notes';
+      case ContentType.MOCK_TEST: return 'Mock Test';
+      case ContentType.CONCEPT_CONNECTIONS: return 'Connections';
+      case ContentType.PRACTICE_PROBLEMS: return 'Problems';
+      case ContentType.MNEMONICS: return 'Mnemonics';
+      case ContentType.MINDMAP: return 'Mind Map';
+      case ContentType.ACTIVE_RECALL: return 'Active Recall';
+      default: return type;
+    }
+  };
+
+  const handleToggleLike = async (content: SharedContent) => {
+    if (!selectedGroup) return;
+    const newLikedState = await toggleLikeContent(selectedGroup.id, content.id, userId);
+    // Update local state
+    setSharedContent(prev => prev.map(c => {
+      if (c.id === content.id) {
+        const newLikes = newLikedState
+          ? [...c.likes, userId]
+          : c.likes.filter(id => id !== userId);
+        return { ...c, likes: newLikes };
+      }
+      return c;
+    }));
+  };
+
+  const handleDeleteSharedContent = async (content: SharedContent) => {
+    if (!selectedGroup) return;
+    if (!confirm(`Delete "${content.title}" from shared content?`)) return;
+
+    const success = await deleteSharedContent(selectedGroup.id, content.id, userId);
+    if (success) {
+      setSharedContent(prev => prev.filter(c => c.id !== content.id));
+      showToast('Content removed from group');
+    } else {
+      showToast('Failed to delete content', 'error');
+    }
+  };
+
+  const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
   };
 
   if (!isStudyGroupsAvailable()) {
@@ -195,11 +286,11 @@ export const StudyGroupsPanel: FC<Props> = ({ userId }) => {
             <ChevronRight className="w-4 h-4 rotate-180" /> Back to Groups
           </button>
           <button
-            onClick={() => handleLeaveGroup(selectedGroup.id)}
+            onClick={() => setShowLeaveModal(true)}
             disabled={processing}
             className="text-sm text-red-500 hover:text-red-600 font-bold flex items-center gap-1"
           >
-            <LogOut className="w-4 h-4" /> Leave Group
+            <LogOut className="w-4 h-4" /> Leave
           </button>
         </div>
 
@@ -243,58 +334,218 @@ export const StudyGroupsPanel: FC<Props> = ({ userId }) => {
           </div>
         </div>
 
-        {/* Leaderboard */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="flex items-center gap-2 mb-4">
-            <Trophy className="w-5 h-5 text-amber-500" />
-            <h3 className="font-bold text-slate-700 dark:text-slate-200">Leaderboard</h3>
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-1 mb-4 bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
+          <button
+            onClick={() => setActiveTab('leaderboard')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-colors ${
+              activeTab === 'leaderboard'
+                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-slate-100 shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}
+          >
+            <Trophy className="w-4 h-4" /> Leaderboard
+          </button>
+          <button
+            onClick={() => setActiveTab('shared')}
+            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-bold transition-colors ${
+              activeTab === 'shared'
+                ? 'bg-white dark:bg-slate-600 text-slate-800 dark:text-slate-100 shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            }`}
+          >
+            <Share2 className="w-4 h-4" /> Shared
+          </button>
+        </div>
 
-          {leaderboardLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-5 h-5 animate-spin text-primary" />
-            </div>
-          ) : leaderboard.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-8">
-              Complete quizzes to appear on the leaderboard!
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {leaderboard.map((entry) => (
-                <div
-                  key={entry.odId}
-                  className={`flex items-center gap-3 p-3 rounded-xl border ${
-                    entry.odId === userId
-                      ? 'bg-primary/5 border-primary/30'
-                      : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  <div className="w-8 flex justify-center">{getRankIcon(entry.rank)}</div>
-                  <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center overflow-hidden">
-                    {entry.odPhoto ? (
-                      <img src={entry.odPhoto} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-4 h-4 text-slate-400" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-bold text-sm text-slate-700 dark:text-slate-200 truncate">
-                      {entry.odName}
-                      {entry.odId === userId && <span className="text-primary ml-1">(You)</span>}
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      {entry.quizzesTaken} quizzes • {entry.accuracy}% accuracy
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-black text-lg text-primary">{entry.totalScore}</div>
-                    <div className="text-xs text-slate-400">points</div>
-                  </div>
+        {/* Tab Content */}
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === 'leaderboard' ? (
+            // Leaderboard Tab
+            <>
+              {leaderboardLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 </div>
-              ))}
-            </div>
+              ) : leaderboard.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-8">
+                  Complete quizzes to appear on the leaderboard!
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {leaderboard.map((entry) => (
+                    <div
+                      key={entry.odId}
+                      className={`flex items-center gap-3 p-3 rounded-xl border ${
+                        entry.odId === userId
+                          ? 'bg-primary/5 border-primary/30'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <div className="w-8 flex justify-center">{getRankIcon(entry.rank)}</div>
+                      <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center overflow-hidden">
+                        {entry.odPhoto ? (
+                          <img src={entry.odPhoto} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <User className="w-4 h-4 text-slate-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm text-slate-700 dark:text-slate-200 truncate">
+                          {entry.odName}
+                          {entry.odId === userId && <span className="text-primary ml-1">(You)</span>}
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          {entry.quizzesTaken} quizzes • {entry.accuracy}% accuracy
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-black text-lg text-primary">{entry.totalScore}</div>
+                        <div className="text-xs text-slate-400">points</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            // Shared Content Tab
+            <>
+              {sharedContentLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                </div>
+              ) : sharedContent.length === 0 ? (
+                <div className="text-center py-8">
+                  <Share2 className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+                  <p className="text-sm text-slate-400 mb-2">No shared content yet</p>
+                  <p className="text-xs text-slate-400">
+                    Share flashcards, quizzes, and notes from your courses!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sharedContent.map((content) => {
+                    const isLiked = content.likes.includes(userId);
+                    const isOwner = content.sharedBy === userId;
+                    return (
+                      <div
+                        key={content.id}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4"
+                      >
+                        <div className="flex items-start gap-3">
+                          {/* Content Type Icon */}
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                            {getContentTypeIcon(content.type)}
+                          </div>
+
+                          {/* Content Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h4 className="font-bold text-slate-700 dark:text-slate-200 line-clamp-1">
+                                  {content.title}
+                                </h4>
+                                <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                                  <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
+                                    {getContentTypeLabel(content.type)}
+                                  </span>
+                                  <span>{content.itemCount} items</span>
+                                  {content.difficulty && (
+                                    <span className="capitalize">{content.difficulty}</span>
+                                  )}
+                                </div>
+                              </div>
+                              {isOwner && (
+                                <button
+                                  onClick={() => handleDeleteSharedContent(content)}
+                                  className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Source Info */}
+                            <div className="mt-2 text-xs text-slate-400">
+                              From <span className="font-medium">{content.courseName}</span>
+                              {content.chapterNames && content.chapterNames.length > 0 && (
+                                <span> • {content.chapterNames.join(', ')}</span>
+                              )}
+                            </div>
+
+                            {/* Shared By & Actions */}
+                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                              <div className="flex items-center gap-2 text-xs text-slate-400">
+                                <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center overflow-hidden">
+                                  {content.sharedByPhoto ? (
+                                    <img src={content.sharedByPhoto} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <User className="w-3 h-3 text-slate-400" />
+                                  )}
+                                </div>
+                                <span>{content.sharedByName}</span>
+                                <span>•</span>
+                                <span>{formatRelativeTime(content.sharedAt)}</span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleToggleLike(content)}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                    isLiked
+                                      ? 'bg-red-50 dark:bg-red-900/30 text-red-500'
+                                      : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                  }`}
+                                >
+                                  <Heart className={`w-3 h-3 ${isLiked ? 'fill-current' : ''}`} />
+                                  {content.likes.length}
+                                </button>
+                                <span className="flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs text-slate-500">
+                                  <Download className="w-3 h-3" />
+                                  {content.cloneCount}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
+
+        {/* Leave Group Confirmation Modal */}
+        <Modal isOpen={showLeaveModal} onClose={() => setShowLeaveModal(false)} title="Leave Group">
+          <div className="space-y-4">
+            <p className="text-slate-600 dark:text-slate-300">
+              Are you sure you want to leave <span className="font-bold">{selectedGroup.name}</span>?
+            </p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              You'll need an invite code to rejoin this group.
+            </p>
+            <div className="flex gap-2 pt-4">
+              <button
+                onClick={() => setShowLeaveModal(false)}
+                className="flex-1 px-4 py-2 text-slate-500 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLeaveGroup}
+                disabled={processing}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {processing && <Loader2 className="w-4 h-4 animate-spin" />}
+                Leave Group
+              </button>
+            </div>
+          </div>
+        </Modal>
       </div>
     );
   }

@@ -8,6 +8,53 @@ import { getUserSubscription } from './subscriptionService';
 // NOTE: Cloud sync is a Pro feature - free users only have local storage
 
 const COURSES_COLLECTION = 'courses';
+const DELETED_COURSES_KEY = 'studystack_deleted_courses';
+
+// Track deleted course IDs in localStorage to prevent re-sync
+const getDeletedCourseIds = (): Set<string> => {
+  try {
+    const stored = localStorage.getItem(DELETED_COURSES_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Clean up entries older than 24 hours
+      const now = Date.now();
+      const filtered = Object.entries(parsed)
+        .filter(([_, timestamp]) => now - (timestamp as number) < 24 * 60 * 60 * 1000);
+      if (filtered.length !== Object.keys(parsed).length) {
+        const cleaned = Object.fromEntries(filtered);
+        localStorage.setItem(DELETED_COURSES_KEY, JSON.stringify(cleaned));
+      }
+      return new Set(filtered.map(([id]) => id));
+    }
+  } catch (e) {
+    console.error('Failed to read deleted courses:', e);
+  }
+  return new Set();
+};
+
+export const trackDeletedCourse = (courseId: string): void => {
+  try {
+    const stored = localStorage.getItem(DELETED_COURSES_KEY);
+    const deleted = stored ? JSON.parse(stored) : {};
+    deleted[courseId] = Date.now();
+    localStorage.setItem(DELETED_COURSES_KEY, JSON.stringify(deleted));
+  } catch (e) {
+    console.error('Failed to track deleted course:', e);
+  }
+};
+
+export const clearDeletedCourseTracking = (courseId: string): void => {
+  try {
+    const stored = localStorage.getItem(DELETED_COURSES_KEY);
+    if (stored) {
+      const deleted = JSON.parse(stored);
+      delete deleted[courseId];
+      localStorage.setItem(DELETED_COURSES_KEY, JSON.stringify(deleted));
+    }
+  } catch (e) {
+    console.error('Failed to clear deleted course tracking:', e);
+  }
+};
 
 // Cache for Pro status to avoid repeated Firestore reads
 let cachedProStatus: { userId: string; isPro: boolean; timestamp: number } | null = null;
@@ -160,6 +207,9 @@ export const loadCloudCourses = async (userId: string): Promise<Course[]> => {
 
 // Delete a course from Firestore (Pro only)
 export const deleteCloudCourse = async (userId: string, courseId: string): Promise<void> => {
+  // Always track locally to prevent re-sync from cloud
+  trackDeletedCourse(courseId);
+
   if (!isConfigured || !db) {
     console.log('Cloud delete skipped: Firebase not configured');
     return;
@@ -185,12 +235,23 @@ export const deleteCloudCourse = async (userId: string, courseId: string): Promi
 // Merge local and cloud courses (cloud wins for conflicts, keeps local blobs)
 export const mergeCourses = (local: Course[], cloud: Course[]): Course[] => {
   const merged = new Map<string, Course>();
+  const deletedIds = getDeletedCourseIds();
 
   // Add all local courses first (preserves blob IDs and URLs)
-  local.forEach(c => merged.set(c.id, c));
+  // Skip any that were marked as deleted
+  local.forEach(c => {
+    if (!deletedIds.has(c.id)) {
+      merged.set(c.id, c);
+    }
+  });
 
   // Merge cloud data, keeping local blob references
+  // Skip any cloud courses that were marked as deleted locally
   cloud.forEach(cloudCourse => {
+    if (deletedIds.has(cloudCourse.id)) {
+      return; // Skip deleted courses
+    }
+
     const localCourse = merged.get(cloudCourse.id);
 
     if (localCourse) {

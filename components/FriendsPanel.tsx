@@ -296,9 +296,9 @@ export const FriendsPanel: React.FC<Props> = ({ user }) => {
                 </div>
                 <button
                   onClick={() => handleDecline(req.odId, true)}
-                  className="px-3 py-1.5 bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-bold hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
+                  className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm font-bold hover:bg-red-600 transition-colors"
                 >
-                  <X className="w-3 h-3 mr-1" />Cancel
+                  Cancel
                 </button>
               </div>
             ))}

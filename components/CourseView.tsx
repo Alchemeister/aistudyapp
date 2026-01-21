@@ -14,8 +14,7 @@ import { ImportNotesModal } from './ImportNotesModal';
 import { LectureRecorder } from './LectureRecorder';
 import { LecturePlayer } from './LecturePlayer';
 import { ShareCourseModal } from './ShareCourseModal';
-import { savePdfBlob, saveMediaBlob } from '../services/storage';
-import { uploadPdfToCloud } from '../services/pdfCloudStorage';
+import { savePdfWithCloud, saveMediaBlob, downloadPdfOnDemand } from '../services/storage';
 import { ToastContext } from '../App';
 import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
@@ -44,6 +43,32 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
   const urlParts = window.location.hash.split('/');
   const courseId = urlParts[urlParts.length - 1];
   const course = courses.find(c => c.id === courseId);
+
+  // Lazy PDF loading: download from cloud when course is opened
+  useEffect(() => {
+    if (!course) return;
+
+    // Skip if already has local PDF URL or no cloud path
+    if (course.pdfUrl || !course.cloudPdfPath) return;
+
+    let cancelled = false;
+
+    const loadPdf = async () => {
+      console.log(`[CourseView] Lazy loading PDF for: ${course.title}`);
+      try {
+        const updated = await downloadPdfOnDemand(course);
+        if (!cancelled && updated.pdfUrl) {
+          console.log(`[CourseView] PDF loaded successfully: ${course.title}`);
+          onUpdate(updated);
+        }
+      } catch (e) {
+        console.error(`[CourseView] Failed to load PDF:`, e);
+      }
+    };
+
+    loadPdf();
+    return () => { cancelled = true; };
+  }, [course?.id, course?.pdfUrl, course?.cloudPdfPath]);
 
   // --- Performance Graph Data (must be before any early return) ---
   const performanceData = useMemo(() => {
@@ -92,28 +117,25 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
       const userId = user?.uid || user?.id || '';
       const fileName = (file as File).name || newCourse.pdfName || 'document.pdf';
 
-      // Step 1: Save PDF locally FIRST (fast) and update state immediately
+      // Save PDF locally and upload to cloud with thumbnail
       try {
-        const blobId = await savePdfBlob(newCourse.id, file);
+        console.log('[CourseView] Saving PDF and uploading to cloud...');
+        const { blobId, cloudPdfPath, cloudThumbnailPath } = await savePdfWithCloud(
+          userId,
+          newCourse.id,
+          file,
+          fileName
+        );
 
-        // Update course with blobId IMMEDIATELY so it persists
-        const updatedCourse = { ...newCourse, pdfBlobId: blobId };
+        // Update course with all paths
+        const updatedCourse = {
+          ...newCourse,
+          pdfBlobId: blobId,
+          cloudPdfPath: cloudPdfPath || undefined,
+          cloudThumbnailPath: cloudThumbnailPath || undefined,
+        };
         onUpdate(updatedCourse);
-
-        // Step 2: Cloud upload in background (don't wait)
-        console.log('[CourseView] Starting cloud PDF upload for:', newCourse.id);
-        uploadPdfToCloud(userId, newCourse.id, file, fileName)
-          .then(cloudPdfPath => {
-            if (cloudPdfPath) {
-              console.log('[CourseView] Cloud upload success, cloudPdfPath:', cloudPdfPath);
-              onUpdate({ ...updatedCourse, cloudPdfPath });
-            } else {
-              console.log('[CourseView] Cloud upload returned null (user may not be Pro)');
-            }
-          })
-          .catch((err) => {
-            console.error('[CourseView] Cloud upload failed:', err);
-          });
+        console.log('[CourseView] PDF saved. cloudPdfPath:', cloudPdfPath, 'cloudThumbnailPath:', cloudThumbnailPath);
 
       } catch (e) {
         console.error('Failed to save PDF:', e);
@@ -285,9 +307,10 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
             <button
               onClick={() => setShowShare(true)}
               className="flex-1 md:flex-none px-3 py-2 text-xs md:text-sm font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded-lg transition-colors shadow-sm whitespace-nowrap flex items-center justify-center gap-2"
+              title="Share entire course with friends"
             >
               <Share2 className="w-4 h-4" />
-              <span className="hidden md:inline">Share</span>
+              <span className="hidden md:inline">Invite Friend</span>
             </button>
           )}
         </div>
@@ -385,6 +408,17 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
                    </div>
                ) : course.pdfUrl ? (
                    <PdfViewer url={course.pdfUrl} initialPage={pdfPage} />
+               ) : course.cloudPdfPath ? (
+                   /* PDF downloading from cloud */
+                   <div className="h-full flex flex-col items-center justify-center p-6 text-center">
+                     <div className="w-20 h-20 bg-slate-700 rounded-2xl flex items-center justify-center mb-4 animate-pulse">
+                       <FileText className="w-10 h-10 text-blue-400" />
+                     </div>
+                     <h3 className="text-lg font-bold text-white mb-2">Downloading PDF...</h3>
+                     <p className="text-sm text-slate-400 max-w-xs">
+                       Fetching your textbook from the cloud
+                     </p>
+                   </div>
                ) : course.lectures.length > 0 ? (
                    /* Only notes, no PDF - show notes list directly */
                    <div className="h-full overflow-y-auto p-4">
@@ -460,7 +494,7 @@ export const CourseView = ({ courses, onUpdate, onUpdateFlashcard, user }: { cou
                 <GeneratorPanel course={course} onUpdate={onUpdate} onViewLecture={handleViewLecture} userId={user?.uid} onChapterFocus={setPdfPage} />
               )}
               {activeTab === 'study' && (
-                <LibraryPanel course={course} onUpdate={onUpdate} onUpdateFlashcard={onUpdateFlashcard} />
+                <LibraryPanel course={course} onUpdate={onUpdate} onUpdateFlashcard={onUpdateFlashcard} userId={user?.uid} />
               )}
               {activeTab === 'performance' && (
                 <div className="h-full flex flex-col">

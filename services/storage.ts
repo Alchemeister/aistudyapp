@@ -1,7 +1,8 @@
 
 import { get, set, del, clear } from 'idb-keyval';
 import { Course, ContentType, Difficulty } from '../types';
-import { uploadPdfToCloud, deleteCloudPdf, downloadCloudPdf } from './pdfCloudStorage';
+import { uploadPdfToCloud, deleteCloudPdf, downloadCloudPdf, uploadThumbnailToCloud, downloadCloudThumbnail } from './pdfCloudStorage';
+import { loadPdfDocument } from './pdfUtils';
 
 const COURSES_KEY = 'studystack_courses_v3';
 const BLOB_PREFIX = 'pdf_blob_';
@@ -143,52 +144,99 @@ export const loadCourses = async (): Promise<Course[]> => {
 };
 
 /**
- * Rehydrate cloud PDFs for courses that have cloudPdfPath but no local blob
+ * Rehydrate cloud thumbnails for courses (fast - only small images)
+ * PDFs are downloaded lazily when course is opened
  * Call this AFTER merging cloud data on a new device
  */
 export const rehydrateCloudPdfs = async (courses: Course[]): Promise<Course[]> => {
-  console.log(`[rehydrateCloudPdfs] Starting for ${courses.length} courses`);
+  console.log(`[rehydrateCloudThumbnails] Starting for ${courses.length} courses`);
 
   const updated = await Promise.all(courses.map(async (c) => {
-    // Skip if already has local PDF URL
+    // Skip if already has local PDF URL (fully loaded)
     if (c.pdfUrl) {
-      console.log(`[rehydrateCloudPdfs] ${c.title}: Already has local PDF, skipping`);
       return c;
     }
 
-    // Skip if no cloud path
-    if (!c.cloudPdfPath) {
-      console.log(`[rehydrateCloudPdfs] ${c.title}: No cloudPdfPath, skipping`);
+    // Skip if no cloud thumbnail path
+    if (!c.cloudThumbnailPath) {
+      return c;
+    }
+
+    // Skip if already have local thumbnail cached
+    const thumbCacheKey = `pdf_thumb_${c.id}`;
+    const existingThumb = await get<string>(thumbCacheKey);
+    if (existingThumb) {
       return c;
     }
 
     try {
-      console.log(`[rehydrateCloudPdfs] ${c.title}: Downloading from ${c.cloudPdfPath}`);
-      const cloudBlob = await downloadCloudPdf(c.cloudPdfPath);
-      if (cloudBlob) {
-        // Save to local for faster access next time
-        const blobId = `pdf_blob_${c.id}_${Date.now()}`;
-        await set(blobId, cloudBlob);
-        const pdfUrl = URL.createObjectURL(cloudBlob);
-        console.log(`[rehydrateCloudPdfs] ${c.title}: Downloaded ${cloudBlob.size} bytes, saved as ${blobId}`);
-
-        return {
-          ...c,
-          pdfBlobId: blobId,
-          pdfUrl,
-        };
-      } else {
-        console.log(`[rehydrateCloudPdfs] ${c.title}: Download returned null`);
+      console.log(`[rehydrateCloudThumbnails] ${c.title}: Downloading thumbnail`);
+      const thumbBlob = await downloadCloudThumbnail(c.cloudThumbnailPath);
+      if (thumbBlob) {
+        // Cache thumbnail as data URL for fast display
+        const dataUrl = await blobToDataUrl(thumbBlob);
+        await set(thumbCacheKey, dataUrl);
+        console.log(`[rehydrateCloudThumbnails] ${c.title}: Cached thumbnail (${thumbBlob.size} bytes)`);
       }
     } catch (e) {
-      console.error(`[rehydrateCloudPdfs] ${c.title}: Download failed`, e);
+      console.error(`[rehydrateCloudThumbnails] ${c.title}: Thumbnail download failed`, e);
     }
 
     return c;
   }));
 
-  console.log(`[rehydrateCloudPdfs] Complete`);
+  console.log(`[rehydrateCloudThumbnails] Complete`);
   return updated;
+};
+
+/**
+ * Convert blob to data URL
+ */
+const blobToDataUrl = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+/**
+ * Download PDF on demand when opening a course
+ * Returns updated course with pdfUrl and pdfBlobId
+ */
+export const downloadPdfOnDemand = async (course: Course): Promise<Course> => {
+  // Already has local PDF
+  if (course.pdfUrl && course.pdfBlobId) {
+    return course;
+  }
+
+  // No cloud path to download from
+  if (!course.cloudPdfPath) {
+    return course;
+  }
+
+  console.log(`[downloadPdfOnDemand] ${course.title}: Downloading PDF...`);
+
+  try {
+    const cloudBlob = await downloadCloudPdf(course.cloudPdfPath);
+    if (cloudBlob) {
+      const blobId = `pdf_blob_${course.id}_${Date.now()}`;
+      await set(blobId, cloudBlob);
+      const pdfUrl = URL.createObjectURL(cloudBlob);
+      console.log(`[downloadPdfOnDemand] ${course.title}: Downloaded ${cloudBlob.size} bytes`);
+
+      return {
+        ...course,
+        pdfBlobId: blobId,
+        pdfUrl,
+      };
+    }
+  } catch (e) {
+    console.error(`[downloadPdfOnDemand] ${course.title}: Download failed`, e);
+  }
+
+  return course;
 };
 
 export const savePdfBlob = async (courseId: string, file: File | Blob): Promise<string> => {
@@ -198,30 +246,75 @@ export const savePdfBlob = async (courseId: string, file: File | Blob): Promise<
 };
 
 /**
+ * Generate a thumbnail blob from a PDF
+ */
+const generateThumbnailFromPdf = async (pdfBlob: Blob): Promise<Blob | null> => {
+  try {
+    const url = URL.createObjectURL(pdfBlob);
+    const pdf = await loadPdfDocument(url);
+    const page = await pdf.getPage(1);
+    const viewport = page.getViewport({ scale: 0.4 }); // Small thumbnail
+
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      URL.revokeObjectURL(url);
+      return null;
+    }
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    URL.revokeObjectURL(url);
+
+    // Convert to JPEG blob
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.7);
+    });
+  } catch (e) {
+    console.error('Failed to generate thumbnail:', e);
+    return null;
+  }
+};
+
+/**
  * Save PDF both locally and to cloud (for Pro users)
- * Returns { blobId, cloudPdfPath }
+ * Also generates and uploads a thumbnail for fast loading
+ * Returns { blobId, cloudPdfPath, cloudThumbnailPath }
  */
 export const savePdfWithCloud = async (
   userId: string,
   courseId: string,
   file: File | Blob,
   fileName?: string
-): Promise<{ blobId: string; cloudPdfPath: string | null }> => {
+): Promise<{ blobId: string; cloudPdfPath: string | null; cloudThumbnailPath: string | null }> => {
   // Always save locally first
   const blobId = await savePdfBlob(courseId, file);
 
   // Try to upload to cloud (will check Pro status internally)
   let cloudPdfPath: string | null = null;
+  let cloudThumbnailPath: string | null = null;
+
   try {
     cloudPdfPath = await uploadPdfToCloud(userId, courseId, file, fileName);
     if (cloudPdfPath) {
       console.log(`PDF uploaded to cloud: ${cloudPdfPath}`);
+
+      // Generate and upload thumbnail
+      const thumbnailBlob = await generateThumbnailFromPdf(file);
+      if (thumbnailBlob) {
+        cloudThumbnailPath = await uploadThumbnailToCloud(userId, courseId, thumbnailBlob);
+        if (cloudThumbnailPath) {
+          console.log(`Thumbnail uploaded to cloud: ${cloudThumbnailPath}`);
+        }
+      }
     }
   } catch (e) {
     console.error('Cloud upload failed (continuing with local only):', e);
   }
 
-  return { blobId, cloudPdfPath };
+  return { blobId, cloudPdfPath, cloudThumbnailPath };
 };
 
 export const saveMediaBlob = async (courseId: string, file: Blob): Promise<string> => {

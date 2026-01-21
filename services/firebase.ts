@@ -16,13 +16,17 @@ import {
   doc,
   setDoc,
   getDoc,
+  updateDoc,
   collection,
   collectionGroup,
   query,
   where,
   getDocs,
   deleteDoc,
-  writeBatch
+  writeBatch,
+  arrayUnion,
+  arrayRemove,
+  increment
 } from 'firebase/firestore';
 import {
   getStorage,
@@ -158,7 +162,7 @@ export const signOut = async () => {
 };
 
 // Re-export Firestore utilities for use in other services
-export { doc, setDoc, getDoc, collection, collectionGroup, query, where, getDocs, deleteDoc, writeBatch };
+export { doc, setDoc, getDoc, updateDoc, collection, collectionGroup, query, where, getDocs, deleteDoc, writeBatch, arrayUnion, arrayRemove, increment };
 
 // Re-export Storage utilities
 export { ref, uploadBytes, getDownloadURL, getBlob, deleteObject };

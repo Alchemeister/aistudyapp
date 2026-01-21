@@ -150,4 +150,85 @@ export const cloudPdfExists = async (path: string): Promise<boolean> => {
   return url !== null;
 };
 
+/**
+ * Upload a thumbnail image to Firebase Storage
+ * Returns the storage path
+ */
+export const uploadThumbnailToCloud = async (
+  userId: string,
+  courseId: string,
+  thumbnailBlob: Blob
+): Promise<string | null> => {
+  if (!isConfigured || !storage) {
+    console.log('Firebase Storage not configured');
+    return null;
+  }
+
+  // Check if user has cloud access
+  try {
+    const hasAccess = await hasCloudPdfAccess(userId);
+    if (!hasAccess) {
+      console.log('User does not have cloud access (Free tier)');
+      return null;
+    }
+  } catch (e) {
+    console.error('Error checking cloud access:', e);
+    return null;
+  }
+
+  const path = `users/${userId}/thumbnails/${courseId}.jpg`;
+
+  try {
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, thumbnailBlob, { contentType: 'image/jpeg' });
+    console.log(`Uploaded thumbnail to cloud: ${path}`);
+    return path;
+  } catch (error) {
+    console.error('Failed to upload thumbnail to cloud:', error);
+    return null;
+  }
+};
+
+/**
+ * Download a thumbnail from cloud storage
+ */
+export const downloadCloudThumbnail = async (path: string): Promise<Blob | null> => {
+  if (!isConfigured || !storage) {
+    return null;
+  }
+
+  try {
+    const storageRef = ref(storage, path);
+    const blob = await getBlob(storageRef);
+    console.log(`Downloaded cloud thumbnail: ${path} (${blob.size} bytes)`);
+    return blob;
+  } catch (error: any) {
+    if (error.code === 'storage/object-not-found') {
+      return null;
+    }
+    console.error('Failed to download cloud thumbnail:', error);
+    return null;
+  }
+};
+
+/**
+ * Get download URL for a cloud thumbnail
+ */
+export const getCloudThumbnailUrl = async (path: string): Promise<string | null> => {
+  if (!isConfigured || !storage) {
+    return null;
+  }
+
+  try {
+    const storageRef = ref(storage, path);
+    return await getDownloadURL(storageRef);
+  } catch (error: any) {
+    if (error.code === 'storage/object-not-found') {
+      return null;
+    }
+    console.error('Failed to get cloud thumbnail URL:', error);
+    return null;
+  }
+};
+
 export const PDF_CLOUD_STORAGE_VERSION = '1.0.0';

@@ -19,12 +19,60 @@ service cloud.firestore {
       match /referralHistory/{document=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // User's study group references
+      match /myGroups/{groupId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Friends subcollection - allows cross-user friend requests
+      match /friends/{friendId} {
+        // User can read their own friends list
+        allow read: if request.auth != null && request.auth.uid == userId;
+        // User can write to their own friends OR another user can send them a friend request
+        // (the friendId in the path is the ID of the person who initiated the request)
+        allow write: if request.auth != null && (request.auth.uid == userId || request.auth.uid == friendId);
+      }
+
+      // Shared courses from friends
+      match /sharedWithMe/{shareId} {
+        // User can read their own shared items
+        allow read: if request.auth != null && request.auth.uid == userId;
+        // A friend can share content with them, or user can manage their own shared items
+        allow write: if request.auth != null;
+      }
+
+      // User's courses (cloud sync)
+      match /courses/{courseId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Study Groups - authenticated users can create and read
+    match /studyGroups/{groupId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.uid;
+
+      // Group members subcollection
+      match /members/{memberId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+
+      // Shared content subcollection
+      match /sharedContent/{contentId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null;
+        allow update: if request.auth != null;
+        allow delete: if request.auth != null && resource.data.sharedBy == request.auth.uid;
+      }
     }
 
     // User profiles - public read, owner write
-    match /userProfiles/{odbc} {
+    match /userProfiles/{odcId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == odcId;
     }
 
     // Referral codes lookup - authenticated users can read and create

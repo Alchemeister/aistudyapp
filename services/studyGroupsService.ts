@@ -1,10 +1,11 @@
 
-import { db, isConfigured, doc, setDoc, getDoc, collection, query, where, getDocs, deleteDoc } from './firebase';
-import { StudyGroup, GroupMember, LeaderboardEntry, UserProfile } from '../types';
+import { db, isConfigured, doc, setDoc, getDoc, collection, query, where, getDocs, deleteDoc, updateDoc, arrayUnion, arrayRemove, increment } from './firebase';
+import { StudyGroup, GroupMember, LeaderboardEntry, UserProfile, SharedContent, StudyMaterial, Flashcard, Question } from '../types';
 
 // Collection paths
 const GROUPS_COLLECTION = 'studyGroups';
 const MEMBERS_SUBCOLLECTION = 'members';
+const SHARED_CONTENT_SUBCOLLECTION = 'sharedContent';
 const USER_GROUPS_SUBCOLLECTION = 'myGroups'; // User's group references
 
 // Helper to generate 6-char invite code
@@ -19,6 +20,7 @@ const generateInviteCode = (): string => {
 
 // Helper paths
 const getGroupMembersPath = (groupId: string) => `${GROUPS_COLLECTION}/${groupId}/${MEMBERS_SUBCOLLECTION}`;
+const getGroupSharedContentPath = (groupId: string) => `${GROUPS_COLLECTION}/${groupId}/${SHARED_CONTENT_SUBCOLLECTION}`;
 const getUserGroupsPath = (userId: string) => `users/${userId}/${USER_GROUPS_SUBCOLLECTION}`;
 
 // ============ GROUP MANAGEMENT ============
@@ -338,4 +340,157 @@ export const submitQuizScore = async (
 // Check if study groups feature is available
 export const isStudyGroupsAvailable = (): boolean => {
   return isConfigured && !!db;
+};
+
+// ============ SHARED CONTENT ============
+
+// Helper to count items in content
+const getItemCount = (material: StudyMaterial): number => {
+  if (Array.isArray(material.content)) {
+    return material.content.length;
+  }
+  return 1; // Notes, mindmaps, etc.
+};
+
+// Share a study material to a group
+export const shareContentToGroup = async (
+  groupId: string,
+  userId: string,
+  userProfile: UserProfile,
+  material: StudyMaterial,
+  courseName: string,
+  chapterNames?: string[]
+): Promise<SharedContent | null> => {
+  if (!isConfigured || !db) return null;
+
+  try {
+    const contentId = `shared_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
+
+    const sharedContent: SharedContent = {
+      id: contentId,
+      groupId,
+      sharedBy: userId,
+      sharedByName: userProfile.displayName,
+      sharedByPhoto: userProfile.photoURL,
+      sharedAt: now,
+      type: material.type,
+      title: material.title,
+      content: material.content,
+      difficulty: material.difficulty,
+      itemCount: getItemCount(material),
+      courseName,
+      chapterNames,
+      cloneCount: 0,
+      likes: []
+    };
+
+    const contentRef = doc(db, getGroupSharedContentPath(groupId), contentId);
+    await setDoc(contentRef, sharedContent);
+
+    console.log('📤 Shared content to group:', material.title);
+    return sharedContent;
+  } catch (error) {
+    console.error('Share content failed:', error);
+    return null;
+  }
+};
+
+// Get all shared content for a group
+export const getGroupSharedContent = async (groupId: string): Promise<SharedContent[]> => {
+  if (!isConfigured || !db) return [];
+
+  try {
+    const contentRef = collection(db, getGroupSharedContentPath(groupId));
+    const snapshot = await getDocs(contentRef);
+
+    const content = snapshot.docs.map(doc => doc.data() as SharedContent);
+
+    // Sort by newest first
+    return content.sort((a, b) =>
+      new Date(b.sharedAt).getTime() - new Date(a.sharedAt).getTime()
+    );
+  } catch (error) {
+    console.error('Get shared content failed:', error);
+    return [];
+  }
+};
+
+// Toggle like on shared content
+export const toggleLikeContent = async (
+  groupId: string,
+  contentId: string,
+  userId: string
+): Promise<boolean> => {
+  if (!isConfigured || !db) return false;
+
+  try {
+    const contentRef = doc(db, getGroupSharedContentPath(groupId), contentId);
+    const contentSnap = await getDoc(contentRef);
+
+    if (!contentSnap.exists()) return false;
+
+    const content = contentSnap.data() as SharedContent;
+    const isLiked = content.likes.includes(userId);
+
+    if (isLiked) {
+      await updateDoc(contentRef, {
+        likes: arrayRemove(userId)
+      });
+    } else {
+      await updateDoc(contentRef, {
+        likes: arrayUnion(userId)
+      });
+    }
+
+    return !isLiked; // Return new liked state
+  } catch (error) {
+    console.error('Toggle like failed:', error);
+    return false;
+  }
+};
+
+// Increment clone count when content is cloned
+export const incrementCloneCount = async (groupId: string, contentId: string): Promise<void> => {
+  if (!isConfigured || !db) return;
+
+  try {
+    const contentRef = doc(db, getGroupSharedContentPath(groupId), contentId);
+    await updateDoc(contentRef, {
+      cloneCount: increment(1)
+    });
+  } catch (error) {
+    console.error('Increment clone count failed:', error);
+  }
+};
+
+// Delete shared content (only by the person who shared it)
+export const deleteSharedContent = async (
+  groupId: string,
+  contentId: string,
+  userId: string
+): Promise<boolean> => {
+  if (!isConfigured || !db) return false;
+
+  try {
+    const contentRef = doc(db, getGroupSharedContentPath(groupId), contentId);
+    const contentSnap = await getDoc(contentRef);
+
+    if (!contentSnap.exists()) return false;
+
+    const content = contentSnap.data() as SharedContent;
+
+    // Only allow delete if user is the one who shared it
+    if (content.sharedBy !== userId) {
+      console.warn('Cannot delete: not the owner');
+      return false;
+    }
+
+    await deleteDoc(contentRef);
+    console.log('🗑️ Deleted shared content:', content.title);
+    return true;
+  } catch (error) {
+    console.error('Delete shared content failed:', error);
+    return false;
+  }
 };

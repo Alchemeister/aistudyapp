@@ -19,28 +19,30 @@ const getCacheKey = (url: string): string => {
 
 interface Props {
   pdfUrl?: string;
-  courseId?: string; // Optional stable ID for caching
+  courseId?: string; // Stable ID for caching - REQUIRED for cloud thumbnail support
+  hasPdf?: boolean; // True if course has a PDF (in cloud or local)
   className?: string;
 }
 
-export const PdfThumbnail: FC<Props> = ({ pdfUrl, courseId, className = '' }) => {
+export const PdfThumbnail: FC<Props> = ({ pdfUrl, courseId, hasPdf, className = '' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [cachedImage, setCachedImage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!pdfUrl) {
+    // Need at least courseId to check cache, or pdfUrl to render
+    if (!courseId && !pdfUrl) {
       setLoading(false);
       setError(true);
       return;
     }
 
     let active = true;
-    const cacheKey = courseId ? `${THUMB_CACHE_PREFIX}${courseId}` : getCacheKey(pdfUrl);
+    const cacheKey = courseId ? `${THUMB_CACHE_PREFIX}${courseId}` : getCacheKey(pdfUrl!);
 
     const loadThumbnail = async () => {
-      // Try cache first
+      // Try cache first (works even without pdfUrl - cloud thumbnails are pre-cached)
       try {
         const cached = await get<string>(cacheKey);
         if (cached && active) {
@@ -49,7 +51,16 @@ export const PdfThumbnail: FC<Props> = ({ pdfUrl, courseId, className = '' }) =>
           return;
         }
       } catch (e) {
-        // Cache miss, continue to render
+        // Cache miss, continue
+      }
+
+      // If no pdfUrl, can't render - but if hasPdf is true, show placeholder
+      if (!pdfUrl) {
+        if (active) {
+          setLoading(false);
+          setError(!hasPdf); // Only error if there's no PDF at all
+        }
+        return;
       }
 
       // Render from PDF
@@ -92,17 +103,9 @@ export const PdfThumbnail: FC<Props> = ({ pdfUrl, courseId, className = '' }) =>
 
     loadThumbnail();
     return () => { active = false; };
-  }, [pdfUrl, courseId]);
+  }, [pdfUrl, courseId, hasPdf]);
 
-  if (!pdfUrl || error) {
-    return (
-      <div className={`flex items-center justify-center bg-slate-50 dark:bg-slate-700 ${className}`}>
-        <FileText className="w-6 h-6 text-slate-300 dark:text-slate-500" />
-      </div>
-    );
-  }
-
-  // Show cached image if available
+  // Show cached image if available (works for cloud thumbnails too)
   if (cachedImage) {
     return (
       <div className={`overflow-hidden bg-slate-100 dark:bg-slate-700 ${className}`}>
@@ -111,6 +114,29 @@ export const PdfThumbnail: FC<Props> = ({ pdfUrl, courseId, className = '' }) =>
     );
   }
 
+  // No cached image and no pdfUrl - show placeholder or loading
+  if (!pdfUrl) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-50 dark:bg-slate-700 ${className}`}>
+        {hasPdf && loading ? (
+          <Loader2 className="w-4 h-4 text-slate-400 animate-spin" />
+        ) : (
+          <FileText className="w-6 h-6 text-slate-300 dark:text-slate-500" />
+        )}
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className={`flex items-center justify-center bg-slate-50 dark:bg-slate-700 ${className}`}>
+        <FileText className="w-6 h-6 text-slate-300 dark:text-slate-500" />
+      </div>
+    );
+  }
+
+  // Rendering from PDF
   return (
     <div className={`relative overflow-hidden bg-slate-100 dark:bg-slate-700 ${className}`}>
       {loading && (

@@ -22,11 +22,60 @@ interface ServerGenerateResponse {
   limitReached?: boolean;
 }
 
+// Local development: call Gemini API directly (no server endpoint in dev mode)
+const callLocalGemini = async (
+  prompt: string,
+  systemInstruction?: string
+): Promise<ServerGenerateResponse> => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error('VITE_GEMINI_API_KEY not set in .env.local');
+    return { success: false, content: '', error: 'API key not configured' };
+  }
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 8192,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      console.error('Gemini API error:', response.status);
+      return { success: false, content: '', error: 'AI generation failed' };
+    }
+
+    const result = await response.json();
+    const generatedText = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    return { success: true, content: generatedText };
+  } catch (e) {
+    console.error('Local Gemini error:', e);
+    return { success: false, content: '', error: 'Network error' };
+  }
+};
+
 const callServerGenerate = async (
   contentType: string,
   prompt: string,
   systemInstruction?: string
 ): Promise<ServerGenerateResponse> => {
+  // In local development, use direct Gemini API call
+  const isLocalDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if (isLocalDev) {
+    return callLocalGemini(prompt, systemInstruction);
+  }
+
   const token = await getAuthToken();
   if (!token) {
     return { success: false, content: '', error: 'Not authenticated' };

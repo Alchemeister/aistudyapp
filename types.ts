@@ -156,6 +156,7 @@ export interface Course {
   pdfUrl?: string;
   pdfThumbnail?: string; // Base64 thumbnail of first page
   cloudPdfPath?: string; // Firebase Storage path for Pro users
+  cloudThumbnailPath?: string; // Firebase Storage path for thumbnail (fast load)
   chapters: Chapter[];
   lectures: Lecture[];
   materials: StudyMaterial[];
@@ -240,4 +241,27 @@ export interface LeaderboardEntry {
   quizzesTaken: number;
   accuracy: number;             // correctAnswers / totalQuestions * 100
   rank: number;
+}
+
+export interface SharedContent {
+  id: string;
+  groupId: string;
+  // Who shared it
+  sharedBy: string;
+  sharedByName: string;
+  sharedByPhoto?: string;
+  sharedAt: string;
+  // Content details
+  type: ContentType;
+  title: string;
+  description?: string;
+  content: Flashcard[] | Question[] | ConceptConnection[] | PracticeProblem[] | Mnemonic[] | string;
+  difficulty?: Difficulty;
+  itemCount: number;            // Number of cards/questions/etc
+  // Source info
+  courseName: string;
+  chapterNames?: string[];
+  // Engagement
+  cloneCount: number;
+  likes: string[];              // Array of userIds who liked
 }

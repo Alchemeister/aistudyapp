@@ -10,7 +10,7 @@ import {
   Clock, Play, Pause, RotateCcw
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
-import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection, PracticeProblem, Mnemonic } from './types';
+import { Course, Chapter, Lecture, StudyMaterial, ContentType, Difficulty, Question, Flashcard, QuizResult, ConceptConnection, PracticeProblem, Mnemonic, StudyGroup, UserProfile } from './types';
 import { saveCourses, loadCourses, getPdfBlob, deleteCourseData, seedInitialData, rehydrateCloudPdfs, clearDatabase } from './services/storage';
 import { loadCloudCourses, debouncedCloudSync, immediateCloudSync, mergeCourses, deleteCloudCourse, isCloudSyncAvailable, setSyncStatusCallback, SyncStatus } from './services/cloudSync';
 import { CloudSyncIndicator } from './components/CloudSyncIndicator';
@@ -34,7 +34,8 @@ import { MnemonicsViewer } from './components/MnemonicsViewer';
 import { FriendsPanel } from './components/FriendsPanel';
 import { StudyGroupsPanel } from './components/StudyGroupsPanel';
 import { createOrUpdateProfile, getSharedWithMe, isFriendsAvailable } from './services/friendsService';
-import { isStudyGroupsAvailable, submitQuizScore } from './services/studyGroupsService';
+import { isStudyGroupsAvailable, submitQuizScore, getMyGroups, shareContentToGroup } from './services/studyGroupsService';
+import { getUserProfile } from './services/friendsService';
 import { SharedCourse } from './types';
 import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { TermsOfService } from './components/TermsOfService';
@@ -675,9 +676,13 @@ function App() {
     const course = courses.find(c => c.id === id);
     if (course) {
       await deleteCourseData(course);
-      // Delete from cloud immediately
+      // Delete from cloud immediately and wait for it to complete
       if (isCloudSyncAvailable() && user?.uid) {
-        deleteCloudCourse(user.uid, id).catch(console.error);
+        try {
+          await deleteCloudCourse(user.uid, id);
+        } catch (e) {
+          console.error('Cloud delete failed:', e);
+        }
       }
       setCourses(courses.filter(c => c.id !== id));
     }
@@ -1358,11 +1363,12 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, onRenameCourse, user 
              <Link to={`/course/${course.id}`} className="absolute inset-0 z-0 rounded-xl" aria-label={`View ${course.title}`}></Link>
 
              <div className="p-4 flex-1 pointer-events-none flex gap-4">
-                {/* PDF Thumbnail - renders first page, cached in IndexedDB */}
-                {course.pdfUrl ? (
+                {/* PDF Thumbnail - renders first page, cached in IndexedDB or cloud */}
+                {(course.pdfUrl || course.cloudPdfPath) ? (
                   <PdfThumbnail
                     pdfUrl={course.pdfUrl}
                     courseId={course.id}
+                    hasPdf={!!(course.pdfUrl || course.cloudPdfPath)}
                     className="flex-shrink-0 w-20 h-28 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm"
                   />
                 ) : course.pdfName ? (
@@ -1391,10 +1397,10 @@ const Dashboard = ({ courses, onDeleteCourse, onAddCourse, onRenameCourse, user 
                   </div>
                 </div>
              </div>
-             <div className="bg-slate-50 dark:bg-slate-700/50 p-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-700 rounded-b-xl">
+             <div className="bg-slate-50 dark:bg-slate-700/50 p-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-700 rounded-b-xl relative z-10">
                <button
                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate('/groups'); }}
-                 className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary bg-white dark:bg-slate-600 hover:bg-slate-100 dark:hover:bg-slate-500 rounded-lg transition-colors shadow-sm border border-slate-200 dark:border-slate-500"
+                 className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary bg-white dark:bg-slate-600 hover:bg-slate-100 dark:hover:bg-slate-500 rounded-lg transition-colors shadow-sm border border-slate-200 dark:border-slate-500"
                >
                  <Users className="w-4 h-4" />
                  <span>Study Group</span>
@@ -1649,6 +1655,166 @@ const RenameMaterialModal = ({ material, onClose, onConfirm }: { material: Study
   );
 };
 
+// Helper to normalize course names for matching
+const normalizeCourse = (str: string): string => {
+  return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+};
+
+// Share to Group Modal
+const ShareToGroupModal = ({
+  material,
+  courseName,
+  courseCode,
+  chapterNames,
+  userId,
+  onClose,
+  onSuccess
+}: {
+  material: StudyMaterial | null;
+  courseName: string;
+  courseCode?: string;
+  chapterNames?: string[];
+  userId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) => {
+  const [groups, setGroups] = useState<StudyGroup[]>([]);
+  const [matchingGroups, setMatchingGroups] = useState<StudyGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sharing, setSharing] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (material && userId) {
+      setLoading(true);
+      Promise.all([
+        getMyGroups(userId),
+        getUserProfile(userId)
+      ]).then(([userGroups, profile]) => {
+        setGroups(userGroups);
+        setUserProfile(profile);
+
+        // Filter groups to only show matching courses
+        const normalizedName = normalizeCourse(courseName);
+        const normalizedCode = courseCode ? normalizeCourse(courseCode) : '';
+
+        const filtered = userGroups.filter(g => {
+          // If group has no course specified, allow it (general group)
+          if (!g.course) return true;
+          // Match against course code or name
+          const normalizedGroupCourse = normalizeCourse(g.course);
+          return normalizedGroupCourse === normalizedCode ||
+                 normalizedGroupCourse === normalizedName ||
+                 normalizedName.includes(normalizedGroupCourse) ||
+                 normalizedGroupCourse.includes(normalizedName);
+        });
+
+        setMatchingGroups(filtered);
+        if (filtered.length === 1) {
+          setSelectedGroupId(filtered[0].id);
+        }
+      }).finally(() => setLoading(false));
+    }
+  }, [material, userId, courseName, courseCode]);
+
+  if (!material) return null;
+
+  const handleShare = async () => {
+    if (!selectedGroupId || !userProfile) return;
+
+    setSharing(true);
+    try {
+      const result = await shareContentToGroup(
+        selectedGroupId,
+        userId,
+        userProfile,
+        material,
+        courseName,
+        chapterNames
+      );
+      if (result) {
+        onSuccess();
+        onClose();
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={!!material} onClose={onClose} title="Share to Study Group" maxWidth="max-w-md">
+      <div className="p-4">
+        <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
+          <p className="font-bold text-slate-700 dark:text-slate-200">{material.title}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{courseName}</p>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="text-center py-6">
+            <Users className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">No study groups yet</p>
+            <p className="text-xs text-slate-400">Join or create a group to share materials</p>
+          </div>
+        ) : matchingGroups.length === 0 ? (
+          <div className="text-center py-6">
+            <Users className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">No matching groups</p>
+            <p className="text-xs text-slate-400">
+              You don't have a study group for "{courseName}".
+              <br />Create or join one to share this material.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2 mb-4">
+            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">
+              Select a group for {courseName}
+            </label>
+            {matchingGroups.map((group) => (
+              <button
+                key={group.id}
+                onClick={() => setSelectedGroupId(group.id)}
+                className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                  selectedGroupId === group.id
+                    ? 'border-primary bg-primary/5 dark:bg-primary/10'
+                    : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
+                }`}
+              >
+                <div className="font-bold text-slate-700 dark:text-slate-200">{group.name}</div>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  {group.course && <span className="mr-2">{group.course}</span>}
+                  {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleShare}
+            disabled={!selectedGroupId || sharing || matchingGroups.length === 0}
+            className="px-6 py-2 bg-primary text-white rounded-lg font-bold shadow-md hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
+          >
+            {sharing && <Loader2 className="w-4 h-4 animate-spin" />}
+            Share
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
 const StatCard = ({ label, value, icon: Icon, color, bg }: { label: string; value: number; icon: any; color: string; bg: string }) => (
   <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex items-center gap-4">
     <div className={`w-12 h-12 rounded-full ${bg} ${color} flex items-center justify-center shadow-sm`}><Icon className="w-6 h-6" /></div>
@@ -1678,10 +1844,11 @@ const VisualDifficulty = ({ level }: { level: number }) => {
 };
 
 // --- UPDATED LIBRARY PANEL ---
-export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: Course, onUpdate: (c: Course) => void, onUpdateFlashcard: (cid: string, mid: string, c: Flashcard) => void }) => {
+export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard, userId }: { course: Course, onUpdate: (c: Course) => void, onUpdateFlashcard: (cid: string, mid: string, c: Flashcard) => void, userId?: string }) => {
   const [selectedMaterial, setSelectedMaterial] = useState<StudyMaterial | null>(null);
   const [materialToDelete, setMaterialToDelete] = useState<StudyMaterial | null>(null);
   const [materialToRename, setMaterialToRename] = useState<StudyMaterial | null>(null);
+  const [materialToShare, setMaterialToShare] = useState<StudyMaterial | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { showToast } = useContext(ToastContext);
 
@@ -2081,25 +2248,55 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
               )}
            </div>
 
-           <MaterialDeleteModal 
-              material={materialToDelete} 
-              onClose={() => setMaterialToDelete(null)} 
-              onConfirm={confirmDeleteMaterial} 
+           <MaterialDeleteModal
+              material={materialToDelete}
+              onClose={() => setMaterialToDelete(null)}
+              onConfirm={confirmDeleteMaterial}
            />
+           {userId && materialToShare && (
+             <ShareToGroupModal
+               material={materialToShare}
+               courseName={course.title}
+               courseCode={course.code}
+               chapterNames={materialToShare.sourceChapterIds?.map(id => {
+                 const ch = course.chapters.find(c => c.id === id);
+                 return ch?.title;
+               }).filter(Boolean) as string[] | undefined}
+               userId={userId}
+               onClose={() => setMaterialToShare(null)}
+               onSuccess={() => showToast('Shared to group!')}
+             />
+           )}
         </div>
     );
   }
 
   return (
     <div className="h-full flex flex-col relative">
-       {/* Merge Bar - Fixed to viewport */}
-       {selectedIds.length > 1 && (
+       {/* Selection Bar - Fixed to viewport */}
+       {selectedIds.length >= 1 && (
          <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-4 animate-slide-up border border-slate-700">
             <span className="font-bold text-sm">{selectedIds.length} Selected</span>
             <div className="w-px h-4 bg-slate-600"></div>
-            <button onClick={handleMerge} className="text-sm font-bold hover:text-blue-300 transition-colors">
-                <Combine className="w-4 h-4 mr-2" />Merge & Shuffle
-            </button>
+            {userId && (
+              <button
+                onClick={() => {
+                  const mat = course.materials.find(m => selectedIds.includes(m.id));
+                  if (mat) setMaterialToShare(mat);
+                }}
+                className="text-sm font-bold hover:text-blue-300 transition-colors flex items-center"
+              >
+                <Users className="w-4 h-4 mr-2" />Share
+              </button>
+            )}
+            {selectedIds.length > 1 && (
+              <>
+                <div className="w-px h-4 bg-slate-600"></div>
+                <button onClick={handleMerge} className="text-sm font-bold hover:text-blue-300 transition-colors flex items-center">
+                    <Combine className="w-4 h-4 mr-2" />Merge
+                </button>
+              </>
+            )}
             <button onClick={() => setSelectedIds([])} className="ml-2 text-slate-400 hover:text-white transition-colors"><X className="w-4 h-4" /></button>
          </div>
        )}
@@ -2178,6 +2375,24 @@ export const LibraryPanel = ({ course, onUpdate, onUpdateFlashcard }: { course: 
           onClose={() => setMaterialToRename(null)}
           onConfirm={confirmRenameMaterial}
        />
+
+       {userId && materialToShare && (
+         <ShareToGroupModal
+           material={materialToShare}
+           courseName={course.title}
+           courseCode={course.code}
+           chapterNames={materialToShare.sourceChapterIds?.map(id => {
+             const ch = course.chapters.find(c => c.id === id);
+             return ch?.title;
+           }).filter(Boolean) as string[] | undefined}
+           userId={userId}
+           onClose={() => setMaterialToShare(null)}
+           onSuccess={() => {
+             showToast('Shared to group!');
+             setSelectedIds([]);
+           }}
+         />
+       )}
     </div>
   );
 };
