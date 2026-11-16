@@ -42,3 +42,6 @@ coverage/
 *.local
 .vercel
 .env*.local
+
+# Local agent/tool settings — machine specific
+.claude/
